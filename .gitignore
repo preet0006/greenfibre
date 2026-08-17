@@ -1,0 +1,71 @@
+# GreenFibre — root ignore rules for GitHub handover
+# Do not commit secrets, dumps, PII, or local build artifacts.
+
+# ---- dependencies / builds ----
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+.next/
+out/
+dist/
+build/
+coverage/
+.turbo/
+.vercel/
+
+# ---- environment / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+credentials.json
+**/service-account*.json
+**/serviceAccount*.json
+
+# ---- dumps / PII / archives ----
+exports/
+db_export/
+exports.zip
+greenfibre-database-env.zip
+*.sql
+*.sql.gz
+*.dump
+*.bson
+*.bson.gz
+*.zip
+*.bak
+*.backup
+*.old
+
+# ---- local ops / audit artifacts ----
+*_SECURE_BACKUP*/
+SECURITY_AUDIT_RAW.json
+qa_live_results.json
+.qa_secrets.json
+audit_*_out*.txt
+deploy_*.txt
+audit_crawl.py
+audit_deep.py
+qa_live.py
+_mongo_to_mysql.mjs
+_inventory_scan.py
+_validate_once.py
+_*.py
+*.log
+logs/
+
+# ---- OS / IDE ----
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

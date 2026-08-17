@@ -1,0 +1,83 @@
+services:
+  # =========================
+  # MongoDB
+  # =========================
+  mongo:
+    image: mongo:7
+    container_name: green-mongo
+    restart: unless-stopped
+    ports:
+      # Bind to localhost only — never expose DB publicly
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - greenfibre-network
+
+  # =========================
+  # MinIO (S3 Storage)
+  # =========================
+  minio:
+    image: minio/minio
+    container_name: green-minio
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9000:9000"   # API (nginx proxies media.greenfibre.org)
+      - "127.0.0.1:9001:9001"   # Dashboard
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    networks:
+      - greenfibre-network
+
+  # =========================
+  # Imgproxy (Image Optimization)
+  # =========================
+  imgproxy:
+    image: darthsim/imgproxy
+    container_name: green-imgproxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      IMGPROXY_BIND: ":8080"
+
+      # Must match backend IMGPROXY_KEY / IMGPROXY_SALT
+      IMGPROXY_KEY: ${IMGPROXY_KEY}
+      IMGPROXY_SALT: ${IMGPROXY_SALT}
+
+      # Features
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_AUTO_WEBP: "true"
+
+      # Allow HTTP for local MinIO
+      IMGPROXY_ALLOW_INSECURE_URLS: "true"
+
+      IMGPROXY_QUALITY: "85"
+      IMGPROXY_JPEG_PROGRESSIVE: "true"
+      IMGPROXY_PNG_INTERLACED: "true"
+      IMGPROXY_ENABLE_CLIENT_HINTS: "true"
+      IMGPROXY_AUTOQUALITY_METHOD: "ml"
+      IMGPROXY_AUTOQUALITY_TARGET: "0.92"
+
+      # CORS
+      IMGPROXY_ALLOW_ORIGIN: "*"
+
+    depends_on:
+      - minio
+    networks:
+      - greenfibre-network
+
+networks:
+  greenfibre-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  minio-data:
