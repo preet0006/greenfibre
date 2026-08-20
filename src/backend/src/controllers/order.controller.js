@@ -59,9 +59,7 @@ const getNimbusPostToken = async () => {
     }
 };
 
-// =============================
-// CREATE ORDER
-// =============================
+
 export const createOrder = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -228,12 +226,12 @@ export const createOrder = async (req, res) => {
             couponCode: couponCode ? couponCode.toUpperCase() : undefined,
             easebuzzOrderId,
             paymentStatus: "pending",
-            orderStatus: "placed",
+            orderStatus: "pending",
             statusHistory: [
                 {
-                    status: "placed",
+                    status: "pending",
                     timestamp: new Date(),
-                    note: "Order placed",
+                    note: "Order created, awaiting payment",
                 },
             ],
         });
@@ -249,8 +247,11 @@ export const createOrder = async (req, res) => {
             firstname: shippingAddress.fullName,
             phone: shippingAddress.phone,
             email: user.email,
-            surl: `${process.env.FRONTEND_URL}/orders/success`, // Success URL
-            furl: `${process.env.FRONTEND_URL}/orders/failed`, // Failure URL
+            // Point Easebuzz return URLs to the backend verify endpoint so
+            // the gateway posts results server-side. FRONTEND redirect will
+            // be handled after verification (backend may redirect browser).
+            surl: `${process.env.BACKEND_URL || "http://localhost:5500"}/api/order/verify`,
+            furl: `${process.env.BACKEND_URL || "http://localhost:5500"}/api/order/verify`,
             udf1: order._id.toString(),
             udf2: userId.toString(),
         };
@@ -281,6 +282,14 @@ export const createOrder = async (req, res) => {
 };
 
 export const verifyPayment = async (req, res) => {
+    // Support both API (AJAX) clients and gateway/browser POST redirects.
+    const frontendBase = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || "http://localhost:3000";
+    const frontendSuccess = (orderId) => `${frontendBase}/orders/success?order=${orderId}`;
+    const frontendFailed = (orderId, reason) =>
+        `${frontendBase}/orders/failed${orderId ? `?order=${orderId}` : ""}${reason ? `${orderId ? "&" : "?"}reason=${reason}` : ""}`;
+
+    const wantsHtml = (req.headers.accept || "").includes("text/html");
+
     try {
         const { txnid, status, hash, ...paymentResponse } = req.body;
 
@@ -293,10 +302,8 @@ export const verifyPayment = async (req, res) => {
 
         if (hash !== reverseHash) {
             console.error("Hash mismatch - potential tampering");
-            return res.status(400).json({
-                success: false,
-                message: "Invalid payment response",
-            });
+            if (wantsHtml) return res.redirect(frontendFailed(paymentResponse.udf1, "hash_mismatch"));
+            return res.status(400).json({ success: false, message: "Invalid payment response" });
         }
 
         // Find order
@@ -306,20 +313,15 @@ export const verifyPayment = async (req, res) => {
         );
 
         if (!order) {
-            return res.status(404).json({
-                success: false,
-                message: "Order not found",
-            });
+            if (wantsHtml) return res.redirect(frontendFailed(null, "order_not_found"));
+            return res.status(404).json({ success: false, message: "Order not found" });
         }
 
         // Idempotent: never re-apply stock/coupon on replayed success callbacks
         if (status === "success") {
             if (order.paymentStatus === "paid") {
-                return res.status(200).json({
-                    success: true,
-                    message: "Payment already verified",
-                    orderId: order._id,
-                });
+                if (wantsHtml) return res.redirect(frontendSuccess(order._id));
+                return res.status(200).json({ success: true, message: "Payment already verified", orderId: order._id });
             }
 
             const paidAmount = Number(paymentResponse.amount);
@@ -363,11 +365,8 @@ export const verifyPayment = async (req, res) => {
             );
 
             if (!claimed) {
-                return res.status(200).json({
-                    success: true,
-                    message: "Payment already verified",
-                    orderId: order._id,
-                });
+                if (wantsHtml) return res.redirect(frontendSuccess(order._id));
+                return res.status(200).json({ success: true, message: "Payment already verified", orderId: order._id });
             }
 
             order.paymentStatus = "paid";
@@ -433,22 +432,30 @@ export const verifyPayment = async (req, res) => {
             });
 
             // Respond immediately (don't wait for invoice/email)
-            return res.status(200).json({
-                success: true,
-                message: "Payment verified successfully",
-                orderId: order._id,
-            });
+            if (wantsHtml) return res.redirect(frontendSuccess(order._id));
+            return res.status(200).json({ success: true, message: "Payment verified successfully", orderId: order._id });
         } else {
             // Payment failed
+            if (order.paymentStatus === "paid") {
+                return res.status(200).json({
+                    success: true,
+                    message: "Order already paid",
+                    orderId: order._id,
+                });
+            }
+
             order.paymentStatus = "failed";
+            order.orderStatus = "failed";
             order.paymentResponse = paymentResponse;
+            order.statusHistory.push({
+                status: "failed",
+                timestamp: new Date(),
+                note: "Payment failed",
+            });
             await order.save();
 
-            return res.status(400).json({
-                success: false,
-                message: "Payment failed",
-                orderId: order._id,
-            });
+            if (wantsHtml) return res.redirect(frontendFailed(order._id));
+            return res.status(400).json({ success: false, message: "Payment failed", orderId: order._id });
         }
     } catch (error) {
         console.error("Verify payment error:", error);
@@ -459,9 +466,7 @@ export const verifyPayment = async (req, res) => {
     }
 };
  
-// ══════════════════════════════════════════════════════
-// HELPER: SEND ORDER CONFIRMATION EMAIL
-// ══════════════════════════════════════════════════════
+
 async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
     try {
         const userEmail = order.user.email;
@@ -802,6 +807,7 @@ export const updateOrderStatus = async (req, res) => {
             "shipped",
             "delivered",
             "cancelled",
+            "failed",
         ];
 
         if (!validStatuses.includes(status)) {

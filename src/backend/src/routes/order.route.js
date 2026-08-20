@@ -16,6 +16,7 @@ const router = express.Router();
 
 router.post("/create", authMiddleware, createOrder);
 router.post("/verify", verifyPayment);
+router.post("/payment/verify", verifyPayment);
 router.get("/my-orders", authMiddleware, getMyOrders);
 router.get("/admin", adminAuthMiddleware, getAllOrders);
 router.get("/:orderId", authMiddleware, getSingleOrder);

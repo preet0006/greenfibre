@@ -101,20 +101,26 @@ const useCouponStore = create((set, get) => ({
   // VALIDATE COUPON (User Side)
   // POST /api/coupons/validate
   // =========================
-  validateCoupon: async (data) => {
-    try {
-      set({ actionLoading: true });
+validateCoupon: async (data) => {
+  try {
+    set({ actionLoading: true });
 
-      const res = await api.post("/coupons/validate", data);
+    const res = await api.post("/coupons/validate", {
+      code: data.code,
+      cartTotal: data.orderAmount,
+    });
 
-      set({ actionLoading: false });
-
-      return res.data; // contains discountAmount & finalAmount
-    } catch (error) {
-      set({ actionLoading: false });
-      return null;
-    }
-  },
+    return res.data;
+  } catch (error) {
+    console.error(
+      "Validate coupon error:",
+      error.response?.data || error.message
+    );
+    return null;
+  } finally {
+    set({ actionLoading: false });
+  }
+},
 }));
 
 export default useCouponStore;

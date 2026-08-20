@@ -90,10 +90,18 @@ const orderSchema = new mongoose.Schema(
         },
 
         orderStatus: {
-            type: String,
-            enum: ["placed", "processing", "shipped", "delivered", "cancelled"],
-            default: "placed",
-        },
+    type: String,
+    enum: [
+        "pending",
+        "placed",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled",
+        "payment_failed",
+    ],
+    default: "pending",
+},
 
         // Easebuzz payment details
         easebuzzOrderId: String, // Unique order ID for Easebuzz

@@ -128,9 +128,11 @@ const useOrderStore = create((set, get) => ({
       });
 
       const res = await api.get(`/order/admin?${queryParams}`);
-
+     
+      console.log(res.data.orders)
       set({
         orders: res.data.orders || [],
+      
         pagination: res.data.pagination || {
           page: 1,
           limit: 20,

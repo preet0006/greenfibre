@@ -594,6 +594,7 @@ function OrderRow({ order, index, onViewDetails }) {
 // ── Main Page ──────────────────────────────────────────────────
 export default function OrdersPage() {
   const { orders, loading, fetchAllOrders } = useOrderStore();
+  
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPayment, setFilterPayment] = useState("All");
@@ -602,7 +603,7 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchAllOrders();
   }, []);
-
+ 
   // ── Filtered ──────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...orders];

@@ -111,6 +111,8 @@ const productSchema = new mongoose.Schema(
         metaTitle: String,
         metaDescription: String,
         metaKeywords: [String],
+        canonicalUrl: String,
+        ogImage: String,
     },
     { timestamps: true }
 );
