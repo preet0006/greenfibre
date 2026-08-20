@@ -79,13 +79,13 @@ const useProductStore = create((set, get) => ({
       set({ loading: false });
       return false;
     }
-  },
 
   // =========================
   // FETCH RELATED PRODUCTS
   // =========================
   fetchRelatedProducts: async (slug) => {
-    try {
+    try
+  }, {
       const res = await api.get(`/product/related/${slug}`);
 
       set({
