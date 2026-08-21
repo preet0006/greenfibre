@@ -18,8 +18,8 @@ const EASEBUZZ_SALT = process.env.EASEBUZZ_SALT;
 const EASEBUZZ_ENV = process.env.EASEBUZZ_ENV || "test"; // 'test' or 'prod'
 const EASEBUZZ_URL =
     EASEBUZZ_ENV === "prod"
-        ? "https://pay.easebuzz.in"
-        : "https://testpay.easebuzz.in";
+        ? "https://pay.easebuzz.in/initiate_seamless_payment/"
+        : "https://testpay.easebuzz.in/initiate_seamless_payment/";
 
 // NimbusPost configuration
 const NIMBUSPOST_EMAIL = process.env.NIMBUSPOST_EMAIL;
@@ -62,6 +62,13 @@ const getNimbusPostToken = async () => {
 
 export const createOrder = async (req, res) => {
     try {
+        if (!EASEBUZZ_KEY || !EASEBUZZ_SALT) {
+            console.error("Easebuzz payment configuration is missing");
+            return res.status(500).json({
+                message: "Payment service is not configured",
+            });
+        }
+
         const userId = req.user._id;
         const { shippingAddress, couponCode } = req.body;
 
@@ -271,7 +278,7 @@ export const createOrder = async (req, res) => {
                 couponCode: order.couponCode,
             },
             paymentData, // Frontend will use this to initiate Easebuzz payment
-            easebuzzUrl: `${EASEBUZZ_URL}/pay/${EASEBUZZ_KEY}`,
+            easebuzzUrl: EASEBUZZ_URL,
         });
     } catch (error) {
         console.error("Create order error:", error);
@@ -292,6 +299,21 @@ export const verifyPayment = async (req, res) => {
 
     try {
         const { txnid, status, hash, ...paymentResponse } = req.body;
+
+        if (!txnid || !status || !hash) {
+            if (wantsHtml) return res.redirect(frontendFailed(null, "invalid_callback"));
+            return res.status(400).json({
+                success: false,
+                message: "Incomplete payment response",
+            });
+        }
+
+        const transactionId =
+            paymentResponse.easepayid ||
+            paymentResponse.payment_id ||
+            paymentResponse.transactionId ||
+            txnid;
+        const storedPaymentResponse = { ...paymentResponse, txnid, transactionId };
 
         // Verify Easebuzz hash
         const reverseHashString = `${EASEBUZZ_SALT}|${status}|||||||||||${paymentResponse.udf2}|${paymentResponse.udf1}|${paymentResponse.email}|${paymentResponse.firstname}|${paymentResponse.productinfo}|${paymentResponse.amount}|${txnid}|${EASEBUZZ_KEY}`;
@@ -349,8 +371,8 @@ export const verifyPayment = async (req, res) => {
                 {
                     $set: {
                         paymentStatus: "paid",
-                        transactionId: paymentResponse.easepayid,
-                        paymentResponse,
+                        transactionId,
+                        paymentResponse: storedPaymentResponse,
                         orderStatus: "processing",
                     },
                     $push: {
@@ -370,8 +392,8 @@ export const verifyPayment = async (req, res) => {
             }
 
             order.paymentStatus = "paid";
-            order.transactionId = paymentResponse.easepayid;
-            order.paymentResponse = paymentResponse;
+            order.transactionId = transactionId;
+            order.paymentResponse = storedPaymentResponse;
             order.orderStatus = "processing";
 
             // Reduce stock
