@@ -285,10 +285,15 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="mt-12 pt-8 border-t border-gray-100">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row text-center sm:text-left">
-            <p className="text-sm text-gray-500">
-              © {new Date().getFullYear()}{" "}
-              {settings.companyName || "Green Fibre"}. All rights reserved.
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-gray-500">
+                © {new Date().getFullYear()}{" "}
+                {settings.companyName || "Green Fibre"}. All rights reserved.
+              </p>
+              <p className="text-xs text-gray-400">
+                Powered by Charvik Moulds and Products Private Limited
+              </p>
+            </div>
 
             <p className="text-sm text-gray-500">
               Crafted by{" "}
