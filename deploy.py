@@ -2,10 +2,14 @@
 GreenFibre VPS Deployment Pipeline Script
 Usage: python deploy.py
 """
+import sys
 import os
 import tarfile
 import paramiko
-import sys
+
+# Configure stdout/stderr encoding to UTF-8 for Windows command prompt compatibility
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
 SSH_HOST = os.environ.get('VPS_HOST', '187.127.167.18')
