@@ -146,29 +146,52 @@ export default function ContactPage() {
   const isLoggedIn = Boolean(user?._id);
   const isPhoneLocked = isLoggedIn && Boolean((formData.phone || "").trim());
 
+  // Fallback defaults if page settings are not yet configured in DB
+  const defaultEmails = ["greenfibre.marketing@gmail.com", ""];
+  const defaultPhones = ["+91 98765 43210", "+91 87654 32109"];
+  const defaultAddress =
+    "334, Ecotech-3 ,Udyog Kendra 2, Greater Noida, Uttar Pradesh - 201306";
+  const defaultWhatsApp = "+91 9217988874";
+  const mapEmbedUrl =
+    settings?.googleMapEmbedUrl ||
+    "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3505.25943799619!2d77.47238697495301!3d28.53192068864341!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390cebde114dff31%3A0xc7e173c48c5b9a1f!2s334%2C%20Udyog%20Kendra%202%2C%20Ecotech%20III%2C%20Greater%20Noida%2C%20Tusyana%2C%20Uttar%20Pradesh%20201306!5e0!3m2!1sen!2sin!4v1787641826858!5m2!1sen!2sin";
+
+  const emails =
+    settings?.emails && settings.emails.length > 0
+      ? settings.emails
+      : defaultEmails;
+  const phoneNumbers =
+    settings?.phoneNumbers && settings.phoneNumbers.length > 0
+      ? settings.phoneNumbers
+      : defaultPhones;
+  const addressList = settings?.address ? [settings.address] : [defaultAddress];
+  const whatsAppList = settings?.whatsappNumber
+    ? [settings.whatsappNumber]
+    : [defaultWhatsApp];
+
   const contactInfo = [
     {
       icon: Mail,
       title: "Email",
-      details: settings.emails || [],
+      details: emails,
       href: (email) => `mailto:${email}`,
     },
     {
       icon: Phone,
       title: "Phone",
-      details: settings.phoneNumbers || [],
+      details: phoneNumbers,
       href: (phone) => `tel:${phone}`,
     },
     {
       icon: MapPin,
       title: "Address",
-      details: settings.address ? [settings.address] : [],
+      details: addressList,
       href: null,
     },
     {
       icon: MessageSquare,
       title: "WhatsApp",
-      details: settings.whatsappNumber ? [settings.whatsappNumber] : [],
+      details: whatsAppList,
       href: (number) => `https://wa.me/${number.replace(/\D/g, "")}`,
     },
   ];
@@ -382,111 +405,111 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Name */}
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium text-gray-900 mb-2"
-                  >
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    readOnly={isLoggedIn}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
-                    placeholder="Your name"
-                    disabled={profileLoading}
-                  />
-                </div>
+                  {/* Name */}
+                  <div>
+                    <label
+                      htmlFor="name"
+                      className="block text-sm font-medium text-gray-900 mb-2"
+                    >
+                      Full Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      readOnly={isLoggedIn}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
+                      placeholder="Your name"
+                      disabled={profileLoading}
+                    />
+                  </div>
 
-                {/* Email */}
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-medium text-gray-900 mb-2"
-                  >
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    readOnly={isLoggedIn}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
-                    placeholder="you@example.com"
-                    disabled={profileLoading}
-                  />
-                </div>
+                  {/* Email */}
+                  <div>
+                    <label
+                      htmlFor="email"
+                      className="block text-sm font-medium text-gray-900 mb-2"
+                    >
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      readOnly={isLoggedIn}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
+                      placeholder="you@example.com"
+                      disabled={profileLoading}
+                    />
+                  </div>
 
-                {/* Phone */}
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium text-gray-900 mb-2"
-                  >
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    readOnly={isPhoneLocked}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
-                    placeholder="+91 98765 43210"
-                    disabled={profileLoading}
-                  />
-                </div>
+                  {/* Phone */}
+                  <div>
+                    <label
+                      htmlFor="phone"
+                      className="block text-sm font-medium text-gray-900 mb-2"
+                    >
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      readOnly={isPhoneLocked}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all read-only:bg-gray-50 read-only:text-gray-500"
+                      placeholder="+91 98765 43210"
+                      disabled={profileLoading}
+                    />
+                  </div>
 
-                {/* Message */}
-                <div>
-                  <label
-                    htmlFor="message"
-                    className="block text-sm font-medium text-gray-900 mb-2"
-                  >
-                    Message *
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
-                    onChange={handleChange}
-                    required
-                    rows={5}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
-                    placeholder="Tell us how we can help you..."
-                    disabled={profileLoading}
-                  />
-                </div>
+                  {/* Message */}
+                  <div>
+                    <label
+                      htmlFor="message"
+                      className="block text-sm font-medium text-gray-900 mb-2"
+                    >
+                      Message *
+                    </label>
+                    <textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      required
+                      rows={5}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all resize-none"
+                      placeholder="Tell us how we can help you..."
+                      disabled={profileLoading}
+                    />
+                  </div>
 
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="w-full bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {actionLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-5 h-5" />
-                      Send Message
-                    </>
-                  )}
-                </button>
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={actionLoading}
+                    className="w-full bg-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {actionLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-5 h-5" />
+                        Send Message
+                      </>
+                    )}
+                  </button>
                 </form>
               )}
             </div>
@@ -494,7 +517,7 @@ export default function ContactPage() {
         </div>
 
         {/* Google Map */}
-        {settings.googleMapEmbedUrl && (
+        {mapEmbedUrl && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -516,7 +539,7 @@ export default function ContactPage() {
               style={{ height: 400 }}
             >
               <iframe
-                src={settings.googleMapEmbedUrl}
+                src={mapEmbedUrl}
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}

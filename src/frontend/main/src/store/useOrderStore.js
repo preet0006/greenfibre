@@ -32,8 +32,8 @@ const useOrderStore = create((set, get) => ({
       const res = await api.post("/order/create", orderData);
 
       set({
-        paymentData: res.data.paymentData,
-        easebuzzUrl: res.data.easebuzzUrl,
+        paymentData: res.data.paymentData || null,
+        easebuzzUrl: res.data.paymentUrl || res.data.easebuzzUrl || null,
         currentOrderId: res.data.order._id,
         actionLoading: false,
       });
@@ -46,6 +46,7 @@ const useOrderStore = create((set, get) => ({
       return null;
     }
   },
+
 
   // =========================
   // VERIFY PAYMENT

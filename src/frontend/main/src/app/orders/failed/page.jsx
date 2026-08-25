@@ -20,6 +20,7 @@ function OrderFailedPageInner() {
   const searchParams = useSearchParams();
 
   const [paymentDetails, setPaymentDetails] = useState({
+    orderId: "",
     txnid: "",
     amount: "",
     firstname: "",
@@ -28,15 +29,33 @@ function OrderFailedPageInner() {
   });
 
   useEffect(() => {
-    // Get payment failure details from URL params
+    // Resolve a human-readable error message from the reason code
+    const reasonMessages = {
+      hash_mismatch: "Payment response validation failed. Please contact support.",
+      amount_mismatch: "Payment amount mismatch detected. Please contact support.",
+      order_not_found: "Order could not be found. Please contact support.",
+      missing_params: "Incomplete payment response received.",
+      server_error: "A server error occurred. Please try again.",
+      cancelled: "Payment was cancelled.",
+      usercancel: "Payment was cancelled by you.",
+      failure: "Payment was declined by your bank or payment provider.",
+    };
+
+    const reason = searchParams.get("reason") || searchParams.get("error") || "";
+    const errorMessage =
+      reasonMessages[reason] ||
+      (reason ? reason.replace(/_/g, " ") : "Payment was not successful");
+
     setPaymentDetails({
+      orderId: searchParams.get("order") || "",
       txnid: searchParams.get("txnid") || "",
       amount: searchParams.get("amount") || "",
       firstname: searchParams.get("firstname") || "",
       email: searchParams.get("email") || "",
-      error: searchParams.get("error") || "Payment was not successful",
+      error: errorMessage,
     });
   }, [searchParams]);
+
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -89,18 +108,28 @@ function OrderFailedPageInner() {
               </div>
 
               {/* Transaction Details (if available) */}
-              {paymentDetails.txnid && (
+              {(paymentDetails.txnid || paymentDetails.orderId) && (
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
                     Transaction Details
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p className="text-xs text-gray-500">Transaction ID</p>
-                      <p className="mt-0.5 font-mono text-sm font-medium text-gray-900">
-                        {paymentDetails.txnid}
-                      </p>
-                    </div>
+                    {paymentDetails.txnid && (
+                      <div>
+                        <p className="text-xs text-gray-500">Transaction ID</p>
+                        <p className="mt-0.5 font-mono text-sm font-medium text-gray-900">
+                          {paymentDetails.txnid}
+                        </p>
+                      </div>
+                    )}
+                    {paymentDetails.orderId && !paymentDetails.txnid && (
+                      <div>
+                        <p className="text-xs text-gray-500">Order Reference</p>
+                        <p className="mt-0.5 font-mono text-sm font-medium text-gray-900">
+                          {paymentDetails.orderId}
+                        </p>
+                      </div>
+                    )}
                     {paymentDetails.amount && (
                       <div>
                         <p className="text-xs text-gray-500">Amount</p>

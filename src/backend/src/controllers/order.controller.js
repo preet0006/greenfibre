@@ -12,23 +12,44 @@ import { baseEmailTemplate } from "../utils/emailTemplate.js";
 import { cleanupTempInvoice } from "../utils/invoiceHelpers.js";
 import { applyCouponUsage } from "./coupon.controller.js";
 
-// Easebuzz configuration
-const EASEBUZZ_KEY = process.env.EASEBUZZ_KEY;
-const EASEBUZZ_SALT = process.env.EASEBUZZ_SALT;
-const EASEBUZZ_ENV = process.env.EASEBUZZ_ENV || "test"; // 'test' or 'prod'
-const EASEBUZZ_URL =
-    EASEBUZZ_ENV === "prod"
-        ? "https://pay.easebuzz.in/initiate_seamless_payment/"
-        : "https://testpay.easebuzz.in/initiate_seamless_payment/";
+// Easebuzz configuration — read lazily so a server restart always picks up
+// the current .env values without any code changes needed.
+const getEasebuzzKey = () => process.env.EASEBUZZ_KEY;
+const getEasebuzzSalt = () => process.env.EASEBUZZ_SALT;
+const getEasebuzzEnv = () => process.env.EASEBUZZ_ENV || "test";
+const getEasebuzzUrl = () =>
+    getEasebuzzEnv() === "prod"
+        ? "https://pay.easebuzz.in"
+        : "https://testpay.easebuzz.in";
+
 
 // NimbusPost configuration
 const NIMBUSPOST_EMAIL = process.env.NIMBUSPOST_EMAIL;
 const NIMBUSPOST_PASSWORD = process.env.NIMBUSPOST_PASSWORD;
 const NIMBUSPOST_URL = "https://api.nimbuspost.com/v1";
 
-// Helper: Generate Easebuzz hash
+// Helper: Generate Easebuzz payment initiation hash
+// Format: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5|udf6|udf7|udf8|udf9|udf10|salt
 const generateEasebuzzHash = (data) => {
-    const hashString = `${EASEBUZZ_KEY}|${data.txnid}|${data.amount}|${data.productinfo}|${data.firstname}|${data.email}|||||||||||${EASEBUZZ_SALT}`;
+    const hashString = [
+        getEasebuzzKey(),
+        data.txnid,
+        data.amount,
+        data.productinfo,
+        data.firstname,
+        data.email,
+        data.udf1  || "",
+        data.udf2  || "",
+        data.udf3  || "",
+        data.udf4  || "",
+        data.udf5  || "",
+        data.udf6  || "",
+        data.udf7  || "",
+        data.udf8  || "",
+        data.udf9  || "",
+        data.udf10 || "",
+        getEasebuzzSalt(),
+    ].join("|");
     return crypto.createHash("sha512").update(hashString).digest("hex");
 };
 
@@ -62,13 +83,6 @@ const getNimbusPostToken = async () => {
 
 export const createOrder = async (req, res) => {
     try {
-        if (!EASEBUZZ_KEY || !EASEBUZZ_SALT) {
-            console.error("Easebuzz payment configuration is missing");
-            return res.status(500).json({
-                message: "Payment service is not configured",
-            });
-        }
-
         const userId = req.user._id;
         const { shippingAddress, couponCode } = req.body;
 
@@ -243,29 +257,100 @@ export const createOrder = async (req, res) => {
             ],
         });
 
-        // Prepare Easebuzz payment data
+        // ── Initiate Easebuzz payment (server-side) ───────────────────
+        // Step 1: build payment params + hash on the backend
         const user = await User.findById(userId);
 
-        const paymentData = {
-            key: EASEBUZZ_KEY,
-            txnid: easebuzzOrderId,
-            amount: finalAmount.toFixed(2),
-            productinfo: `Order #${easebuzzOrderId}`,
-            firstname: shippingAddress.fullName,
-            phone: shippingAddress.phone,
-            email: user.email,
-            // Point Easebuzz return URLs to the backend verify endpoint so
-            // the gateway posts results server-side. FRONTEND redirect will
-            // be handled after verification (backend may redirect browser).
-            surl: `${process.env.BACKEND_URL || "http://localhost:5500"}/api/order/verify`,
-            furl: `${process.env.BACKEND_URL || "http://localhost:5500"}/api/order/verify`,
-            udf1: order._id.toString(),
-            udf2: userId.toString(),
+
+        const backendUrl =
+            process.env.BACKEND_URL || "http://localhost:5500";
+
+        const cleanFirstName =
+            (shippingAddress.fullName || "Customer")
+                .replace(/[^a-zA-Z0-9 ]/g, "")
+                .trim() || "Customer";
+
+        const cleanPhone =
+            (shippingAddress.phone || "")
+                .replace(/\D/g, "")
+                .slice(-10) || "9999999999";
+
+        const cleanEmail =
+            (user?.email || "customer@greenfibre.com").trim();
+
+        // Easebuzz requires productinfo to be letters/alphanumeric without underscores, hashes, or symbols
+        const cleanProductInfo = "GreenFibre";
+
+        const paymentParams = {
+            key:         getEasebuzzKey(),
+            txnid:       easebuzzOrderId,
+            amount:      finalAmount.toFixed(2),
+            productinfo: cleanProductInfo,
+            firstname:   cleanFirstName,
+            phone:       cleanPhone,
+            email:       cleanEmail,
+            surl:        `${backendUrl}/api/order/verify`,
+            furl:        `${backendUrl}/api/order/verify`,
+            udf1:        order._id.toString(),
+            udf2:        userId.toString(),
+            udf3: "", udf4: "", udf5: "",
+            udf6: "", udf7: "", udf8: "", udf9: "", udf10: "",
         };
 
-        paymentData.hash = generateEasebuzzHash(paymentData);
+        paymentParams.hash = generateEasebuzzHash(paymentParams);
 
-        // Return order and payment data
+        // Step 2: call Easebuzz initiateLink API — returns access_key
+        const initiateUrl = `${getEasebuzzUrl()}/payment/initiateLink`;
+        console.log("Calling Easebuzz initiateLink:", initiateUrl);
+
+        let accessKey;
+        try {
+            const ebRes = await axios.post(
+                initiateUrl,
+                new URLSearchParams(paymentParams).toString(),
+                {
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
+                    },
+                    timeout: 10000,
+                }
+            );
+
+            console.log("Easebuzz initiateLink response:", ebRes.data);
+
+            if (!ebRes.data || ebRes.data.status !== 1) {
+                console.error(
+                    "Easebuzz initiateLink failed:",
+                    ebRes.data
+                );
+                // Delete the pending order so the user can retry
+                await Order.findByIdAndDelete(order._id);
+                return res.status(502).json({
+                    message:
+                        ebRes.data?.error_desc ||
+                        "Payment gateway error. Please try again.",
+                    easebuzzError: ebRes.data,
+                });
+            }
+
+            accessKey = ebRes.data.data; // the short token
+        } catch (ebError) {
+            console.error(
+                "Easebuzz initiateLink request error:",
+                ebError?.response?.data || ebError.message
+            );
+            await Order.findByIdAndDelete(order._id);
+            return res.status(502).json({
+                message:
+                    "Could not connect to payment gateway. Please try again.",
+            });
+        }
+
+        // Step 3: return access_key to frontend — it just redirects to this URL
+        const paymentUrl = `${getEasebuzzUrl()}/pay/${accessKey}`;
+        console.log("Payment URL:", paymentUrl);
+
         return res.status(201).json({
             success: true,
             message: "Order created successfully",
@@ -277,8 +362,7 @@ export const createOrder = async (req, res) => {
                 finalAmount: order.finalAmount,
                 couponCode: order.couponCode,
             },
-            paymentData, // Frontend will use this to initiate Easebuzz payment
-            easebuzzUrl: EASEBUZZ_URL,
+            paymentUrl, // Frontend redirects to this URL directly (GET)
         });
     } catch (error) {
         console.error("Create order error:", error);
@@ -288,91 +372,107 @@ export const createOrder = async (req, res) => {
     }
 };
 
-export const verifyPayment = async (req, res) => {
-    // Support both API (AJAX) clients and gateway/browser POST redirects.
-    const frontendBase = process.env.FRONTEND_URL || process.env.CLIENT_ORIGIN || "http://localhost:3000";
-    const frontendSuccess = (orderId) => `${frontendBase}/orders/success?order=${orderId}`;
-    const frontendFailed = (orderId, reason) =>
-        `${frontendBase}/orders/failed${orderId ? `?order=${orderId}` : ""}${reason ? `${orderId ? "&" : "?"}reason=${reason}` : ""}`;
-
-    const wantsHtml = (req.headers.accept || "").includes("text/html");
+// ─────────────────────────────────────────────────────────────
+// VERIFY PAYMENT — GATEWAY CALLBACK  (POST /api/order/verify)
+// Called by Easebuzz as surl / furl. Always browser-redirects.
+// ─────────────────────────────────────────────────────────────
+export const verifyPaymentGateway = async (req, res) => {
+    const frontendBase =
+        process.env.FRONTEND_URL ||
+        process.env.CLIENT_ORIGIN ||
+        "http://localhost:3000";
+    const frontendSuccess = (orderId) =>
+        `${frontendBase}/orders/success?order=${orderId}`;
+    const frontendFailed = (orderId, reason) => {
+        const base = `${frontendBase}/orders/failed`;
+        const params = new URLSearchParams();
+        if (orderId) params.set("order", orderId);
+        if (reason) params.set("reason", reason);
+        const qs = params.toString();
+        return qs ? `${base}?${qs}` : base;
+    };
 
     try {
         const { txnid, status, hash, ...paymentResponse } = req.body;
 
-        if (!txnid || !status || !hash) {
-            if (wantsHtml) return res.redirect(frontendFailed(null, "invalid_callback"));
-            return res.status(400).json({
-                success: false,
-                message: "Incomplete payment response",
-            });
+        if (!txnid || !hash) {
+            return res.redirect(frontendFailed(null, "missing_params"));
         }
 
-        const transactionId =
-            paymentResponse.easepayid ||
-            paymentResponse.payment_id ||
-            paymentResponse.transactionId ||
-            txnid;
-        const storedPaymentResponse = { ...paymentResponse, txnid, transactionId };
+        // Verify Easebuzz response hash
+        // Format: SALT|status|udf10|udf9|udf8|udf7|udf6|udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|KEY
+        const reverseHashString = [
+            getEasebuzzSalt(),
+            status,
+            paymentResponse.udf10 || "",
+            paymentResponse.udf9 || "",
+            paymentResponse.udf8 || "",
+            paymentResponse.udf7 || "",
+            paymentResponse.udf6 || "",
+            paymentResponse.udf5 || "",
+            paymentResponse.udf4 || "",
+            paymentResponse.udf3 || "",
+            paymentResponse.udf2 || "",
+            paymentResponse.udf1 || "",
+            paymentResponse.email || "",
+            paymentResponse.firstname || "",
+            paymentResponse.productinfo || "",
+            paymentResponse.amount || "",
+            txnid,
+            getEasebuzzKey(),
+        ].join("|");
 
-        // Verify Easebuzz hash
-        const reverseHashString = `${EASEBUZZ_SALT}|${status}|||||||||||${paymentResponse.udf2}|${paymentResponse.udf1}|${paymentResponse.email}|${paymentResponse.firstname}|${paymentResponse.productinfo}|${paymentResponse.amount}|${txnid}|${EASEBUZZ_KEY}`;
         const reverseHash = crypto
             .createHash("sha512")
             .update(reverseHashString)
             .digest("hex");
 
         if (hash !== reverseHash) {
-            console.error("Hash mismatch - potential tampering");
-            if (wantsHtml) return res.redirect(frontendFailed(paymentResponse.udf1, "hash_mismatch"));
-            return res.status(400).json({ success: false, message: "Invalid payment response" });
+            console.error("Gateway: hash mismatch", { txnid });
+            return res.redirect(
+                frontendFailed(paymentResponse.udf1 || null, "hash_mismatch")
+            );
         }
 
-        // Find order
-        const order = await Order.findOne({ easebuzzOrderId: txnid }).populate(
-            "user",
-            "full_name email"
-        );
+        const order = await Order.findOne({
+            easebuzzOrderId: txnid,
+        }).populate("user", "full_name email");
 
         if (!order) {
-            if (wantsHtml) return res.redirect(frontendFailed(null, "order_not_found"));
-            return res.status(404).json({ success: false, message: "Order not found" });
+            console.error("Gateway: order not found", { txnid });
+            return res.redirect(frontendFailed(null, "order_not_found"));
         }
 
-        // Idempotent: never re-apply stock/coupon on replayed success callbacks
         if (status === "success") {
+            // Idempotent: already paid — just redirect
             if (order.paymentStatus === "paid") {
-                if (wantsHtml) return res.redirect(frontendSuccess(order._id));
-                return res.status(200).json({ success: true, message: "Payment already verified", orderId: order._id });
+                return res.redirect(frontendSuccess(order._id));
             }
 
+            // Amount integrity check
             const paidAmount = Number(paymentResponse.amount);
             if (
                 Number.isFinite(paidAmount) &&
                 Math.abs(paidAmount - Number(order.finalAmount)) > 0.05
             ) {
-                console.error("Payment amount mismatch", {
+                console.error("Gateway: amount mismatch", {
                     paidAmount,
                     expected: order.finalAmount,
                     txnid,
                 });
-                return res.status(400).json({
-                    success: false,
-                    message: "Payment amount mismatch",
-                });
+                return res.redirect(
+                    frontendFailed(order._id, "amount_mismatch")
+                );
             }
 
-            // Atomic claim so concurrent verifies cannot double-apply stock/coupon
+            // Atomic claim to prevent double-processing on replayed callbacks
             const claimed = await Order.findOneAndUpdate(
-                {
-                    _id: order._id,
-                    paymentStatus: { $ne: "paid" },
-                },
+                { _id: order._id, paymentStatus: { $ne: "paid" } },
                 {
                     $set: {
                         paymentStatus: "paid",
-                        transactionId,
-                        paymentResponse: storedPaymentResponse,
+                        transactionId: paymentResponse.easepayid,
+                        paymentResponse,
                         orderStatus: "processing",
                     },
                     $push: {
@@ -387,13 +487,13 @@ export const verifyPayment = async (req, res) => {
             );
 
             if (!claimed) {
-                if (wantsHtml) return res.redirect(frontendSuccess(order._id));
-                return res.status(200).json({ success: true, message: "Payment already verified", orderId: order._id });
+                // Already processed by a concurrent callback
+                return res.redirect(frontendSuccess(order._id));
             }
 
             order.paymentStatus = "paid";
-            order.transactionId = transactionId;
-            order.paymentResponse = storedPaymentResponse;
+            order.transactionId = paymentResponse.easepayid;
+            order.paymentResponse = paymentResponse;
             order.orderStatus = "processing";
 
             // Reduce stock
@@ -405,7 +505,7 @@ export const verifyPayment = async (req, res) => {
                 }
             }
 
-            // Track coupon usage (usedCount + usedBy)
+            // Track coupon usage
             if (order.couponCode) {
                 await applyCouponUsage(
                     order.couponCode,
@@ -419,17 +519,12 @@ export const verifyPayment = async (req, res) => {
                 { items: [], totalAmount: 0 }
             );
 
-            // ══════════════════════════════════════════════════════
-            // GENERATE INVOICE & SEND EMAIL (Async - don't block)
-            // ══════════════════════════════════════════════════════
+            // Generate invoice & send email asynchronously
             setImmediate(async () => {
                 try {
                     console.log("🧾 Generating invoice for order:", order._id);
-
-                    // Generate invoice - returns { localPath, minioUrl }
                     const invoiceResult = await generateInvoicePdf(order);
 
-                    // Save MinIO URL to database
                     if (invoiceResult.minioUrl) {
                         order.invoiceUrl = invoiceResult.minioUrl;
                         await order.save();
@@ -439,25 +534,197 @@ export const verifyPayment = async (req, res) => {
                         );
                     }
 
-                    // Send order confirmation email with local file attachment
                     await sendOrderConfirmationEmail(
                         order,
                         invoiceResult.localPath
                     );
-
-                    // Clean up local file after email is sent
                     cleanupTempInvoice(invoiceResult.localPath);
-                } catch (error) {
-                    console.error("❌ Error in invoice/email process:", error);
-                    // Don't fail the payment - invoice can be regenerated later
+                } catch (err) {
+                    console.error("❌ Invoice/email error:", err);
                 }
             });
 
-            // Respond immediately (don't wait for invoice/email)
-            if (wantsHtml) return res.redirect(frontendSuccess(order._id));
-            return res.status(200).json({ success: true, message: "Payment verified successfully", orderId: order._id });
+            // Redirect browser to success page — order ID is all frontend needs
+            return res.redirect(frontendSuccess(order._id));
         } else {
-            // Payment failed
+            // Payment failed / cancelled
+            if (order.paymentStatus !== "paid") {
+                order.paymentStatus = "failed";
+                order.orderStatus = "failed";
+                order.paymentResponse = paymentResponse;
+                order.statusHistory.push({
+                    status: "failed",
+                    timestamp: new Date(),
+                    note: `Payment ${status}`,
+                });
+                await order.save();
+            }
+            return res.redirect(frontendFailed(order._id, status));
+        }
+    } catch (error) {
+        console.error("verifyPaymentGateway error:", error);
+        return res.redirect(
+            `${
+                process.env.FRONTEND_URL ||
+                process.env.CLIENT_ORIGIN ||
+                "http://localhost:3000"
+            }/orders/failed?reason=server_error`
+        );
+    }
+};
+
+// ─────────────────────────────────────────────────────────────
+// VERIFY PAYMENT — AJAX  (POST /api/order/payment/verify)
+// Called by the frontend AJAX client. Always returns JSON.
+// ─────────────────────────────────────────────────────────────
+export const verifyPayment = async (req, res) => {
+    try {
+        const { txnid, status, hash, ...paymentResponse } = req.body;
+
+        if (!txnid || !hash) {
+            return res
+                .status(400)
+                .json({ success: false, message: "Missing payment params" });
+        }
+
+        const reverseHashString = [
+            getEasebuzzSalt(),
+            status,
+            paymentResponse.udf10 || "",
+            paymentResponse.udf9 || "",
+            paymentResponse.udf8 || "",
+            paymentResponse.udf7 || "",
+            paymentResponse.udf6 || "",
+            paymentResponse.udf5 || "",
+            paymentResponse.udf4 || "",
+            paymentResponse.udf3 || "",
+            paymentResponse.udf2 || "",
+            paymentResponse.udf1 || "",
+            paymentResponse.email || "",
+            paymentResponse.firstname || "",
+            paymentResponse.productinfo || "",
+            paymentResponse.amount || "",
+            txnid,
+            getEasebuzzKey(),
+        ].join("|");
+
+        const reverseHash = crypto
+            .createHash("sha512")
+            .update(reverseHashString)
+            .digest("hex");
+
+        if (hash !== reverseHash) {
+            return res
+                .status(400)
+                .json({ success: false, message: "Invalid payment response" });
+        }
+
+        const order = await Order.findOne({
+            easebuzzOrderId: txnid,
+        }).populate("user", "full_name email");
+
+        if (!order) {
+            return res
+                .status(404)
+                .json({ success: false, message: "Order not found" });
+        }
+
+        if (status === "success") {
+            if (order.paymentStatus === "paid") {
+                return res.status(200).json({
+                    success: true,
+                    message: "Payment already verified",
+                    orderId: order._id,
+                });
+            }
+
+            const paidAmount = Number(paymentResponse.amount);
+            if (
+                Number.isFinite(paidAmount) &&
+                Math.abs(paidAmount - Number(order.finalAmount)) > 0.05
+            ) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Payment amount mismatch",
+                });
+            }
+
+            const claimed = await Order.findOneAndUpdate(
+                { _id: order._id, paymentStatus: { $ne: "paid" } },
+                {
+                    $set: {
+                        paymentStatus: "paid",
+                        transactionId: paymentResponse.easepayid,
+                        paymentResponse,
+                        orderStatus: "processing",
+                    },
+                    $push: {
+                        statusHistory: {
+                            status: "processing",
+                            timestamp: new Date(),
+                            note: "Payment successful (AJAX verify)",
+                        },
+                    },
+                },
+                { new: true }
+            );
+
+            if (!claimed) {
+                return res.status(200).json({
+                    success: true,
+                    message: "Payment already verified",
+                    orderId: order._id,
+                });
+            }
+
+            order.paymentStatus = "paid";
+            order.transactionId = paymentResponse.easepayid;
+            order.paymentResponse = paymentResponse;
+            order.orderStatus = "processing";
+
+            for (const item of order.items) {
+                const product = await Product.findById(item.product);
+                if (product && product.colors[item.colorIndex]) {
+                    product.colors[item.colorIndex].stock -= item.quantity;
+                    await product.save();
+                }
+            }
+
+            if (order.couponCode) {
+                await applyCouponUsage(
+                    order.couponCode,
+                    order.user._id || order.user
+                );
+            }
+
+            await Cart.findOneAndUpdate(
+                { user: order.user._id || order.user },
+                { items: [], totalAmount: 0 }
+            );
+
+            setImmediate(async () => {
+                try {
+                    const invoiceResult = await generateInvoicePdf(order);
+                    if (invoiceResult.minioUrl) {
+                        order.invoiceUrl = invoiceResult.minioUrl;
+                        await order.save();
+                    }
+                    await sendOrderConfirmationEmail(
+                        order,
+                        invoiceResult.localPath
+                    );
+                    cleanupTempInvoice(invoiceResult.localPath);
+                } catch (err) {
+                    console.error("❌ Invoice/email error (AJAX):", err);
+                }
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: "Payment verified successfully",
+                orderId: order._id,
+            });
+        } else {
             if (order.paymentStatus === "paid") {
                 return res.status(200).json({
                     success: true,
@@ -472,19 +739,21 @@ export const verifyPayment = async (req, res) => {
             order.statusHistory.push({
                 status: "failed",
                 timestamp: new Date(),
-                note: "Payment failed",
+                note: "Payment failed (AJAX)",
             });
             await order.save();
 
-            if (wantsHtml) return res.redirect(frontendFailed(order._id));
-            return res.status(400).json({ success: false, message: "Payment failed", orderId: order._id });
+            return res.status(400).json({
+                success: false,
+                message: "Payment failed",
+                orderId: order._id,
+            });
         }
     } catch (error) {
-        console.error("Verify payment error:", error);
-        return res.status(500).json({
-            success: false,
-            message: "Error verifying payment",
-        });
+        console.error("verifyPayment (AJAX) error:", error);
+        return res
+            .status(500)
+            .json({ success: false, message: "Error verifying payment" });
     }
 };
  
@@ -750,9 +1019,7 @@ export const getMyOrders = async (req, res) => {
     }
 };
 
-// =============================
-// GET ALL ORDERS (Admin)
-// =============================
+
 export const getAllOrders = async (req, res) => {
     try {
         const { page = 1, limit = 20, status, search } = req.query;
@@ -815,9 +1082,7 @@ export const getAllOrders = async (req, res) => {
     }
 };
 
-// =============================
-// UPDATE ORDER STATUS (Admin)
-// =============================
+
 export const updateOrderStatus = async (req, res) => {
     try {
         const { orderId } = req.params;

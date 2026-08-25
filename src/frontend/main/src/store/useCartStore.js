@@ -39,7 +39,7 @@ const useCartStore = create((set, get) => ({
       }
 
       const res = await api.get("/cart");
-      const cartData = res.data.cart;
+      const cartData = res.data?.cart || (res.data?.items ? res.data : null);
 
       if (!cartData) {
         set({

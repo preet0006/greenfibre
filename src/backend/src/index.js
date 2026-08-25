@@ -1,3 +1,4 @@
+// GreenFibre backend — restarted to load updated .env credentials
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -29,6 +30,7 @@ dotenv.config({
 
 const app = express();
 const port = process.env.PORT || 5500;
+const host = process.env.HOST || "0.0.0.0";
 
 app.set("trust proxy", 1);
 
@@ -41,22 +43,34 @@ app.use(
 const allowedOrigins = [
     process.env.CLIENT_ORIGIN,
     process.env.ADMIN_ORIGIN,
+    process.env.FRONTEND_URL,
     "http://localhost:3000",
     "http://localhost:3001",
     "https://greenfibre.org",
     "https://www.greenfibre.org",
     "https://admin.greenfibre.org",
+    "https://testpay.easebuzz.in",
+    "https://pay.easebuzz.in",
+    "https://easebuzz.in",
+    "null",
 ].filter(Boolean);
 
 app.use(
     cors({
         origin: function (origin, callback) {
-            // Allow requests with no origin (like mobile apps, Postman, curl, server-to-server)
-            if (!origin) {
+            // Allow requests with no origin (mobile apps, curl, server-to-server)
+            // or origin: "null" (sent by browsers on cross-origin form POST redirects from payment gateways)
+            if (!origin || origin === "null" || origin === "undefined") {
                 return callback(null, true);
             }
 
-            if (allowedOrigins.includes(origin)) {
+            const isAllowed =
+                allowedOrigins.includes(origin) ||
+                /^https?:\/\/([a-zA-Z0-9-]+\.)*easebuzz\.in$/.test(origin) ||
+                /^https?:\/\/([a-zA-Z0-9-]+\.)*greenfibre\.org$/.test(origin) ||
+                /^http:\/\/(localhost|127\.0\.0\.1):[0-9]+$/.test(origin);
+
+            if (isAllowed) {
                 callback(null, true);
             } else {
                 console.log("CORS blocked origin:", origin);
@@ -108,6 +122,7 @@ app.use("/api/admin/forgot-password", authLimiter);
 app.use("/api/admin/reset-password", authLimiter);
 app.use("/api/contact", contactLimiter);
 app.use("/api/order/verify", paymentVerifyLimiter);
+app.use("/api/order/payment/verify", paymentVerifyLimiter);
 
 app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
@@ -140,9 +155,8 @@ app.use((err, _req, res, _next) => {
 
 connectDB()
     .then(() => {
-        // Bind to localhost — nginx proxies externally
-        app.listen(port, "127.0.0.1", () => {
-            console.log(`Server is listening at: http://127.0.0.1:${port}`);
+        app.listen(port, host, () => {
+            console.log(`Server is listening at: http://${host}:${port}`);
         });
     })
     .catch((err) => {

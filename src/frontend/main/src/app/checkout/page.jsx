@@ -700,26 +700,14 @@ export default function CheckoutPage() {
     const result = await createOrder(orderData);
 
     if (result) {
-      // Redirect to Easebuzz payment page
-      if (result.paymentData && result.easebuzzUrl) {
-        // Create a form and submit to Easebuzz
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = result.easebuzzUrl;
-
-        Object.keys(result.paymentData).forEach((key) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = key;
-          input.value = result.paymentData[key];
-          form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        form.submit();
+      // Backend already called Easebuzz initiateLink and returned a ready URL.
+      // Just redirect the browser there — no client-side form POST needed.
+      if (result.paymentUrl) {
+        window.location.href = result.paymentUrl;
       }
     }
   };
+
 
   const handleSaveAddress = async (addressData) => {
     let success;

@@ -132,8 +132,10 @@ export const getCart = async (req, res) => {
         if (!cart) {
             return res.status(200).json({
                 success: true,
-                items: [],
-                totalAmount: 0,
+                cart: {
+                    items: [],
+                    totalAmount: 0,
+                },
             });
         }
 

@@ -27,10 +27,31 @@ function OrderSuccessPageInner() {
   const [orderId, setOrderId] = useState(null);
 
   useEffect(() => {
-    const verifyPaymentResponse = async () => {
-      // Get all payment response params from URL
+    const run = async () => {
+      // ── Path A: Backend already verified and redirected with ?order=<id> ──
+      // This is the standard Easebuzz gateway flow.
+      // The backend does the verification, updates DB, then redirects the
+      // browser here with only the order ID. No need to re-verify.
+      const preVerifiedOrderId = searchParams.get("order");
+      if (preVerifiedOrderId) {
+        setOrderId(preVerifiedOrderId);
+        await getSingleOrder(preVerifiedOrderId);
+        setVerifying(false);
+        return;
+      }
+
+      // ── Path B: AJAX / legacy flow — raw payment params in URL ──
+      // Only reached if someone is using the frontend-verify flow.
+      const txnid = searchParams.get("txnid");
+      if (!txnid) {
+        // Neither an order ID nor payment params — unexpected landing
+        setVerificationFailed(true);
+        setVerifying(false);
+        return;
+      }
+
       const paymentResponse = {
-        txnid: searchParams.get("txnid"),
+        txnid,
         status: searchParams.get("status"),
         hash: searchParams.get("hash"),
         amount: searchParams.get("amount"),
@@ -39,32 +60,23 @@ function OrderSuccessPageInner() {
         productinfo: searchParams.get("productinfo"),
         easepayid: searchParams.get("easepayid"),
         phone: searchParams.get("phone"),
-        udf1: searchParams.get("udf1"), // Order ID
-        udf2: searchParams.get("udf2"), // User ID
+        udf1: searchParams.get("udf1"),
+        udf2: searchParams.get("udf2"),
       };
 
-      if (!paymentResponse.txnid) {
-        setVerificationFailed(true);
-        setVerifying(false);
-        return;
-      }
-
-      // Verify payment with backend
       const result = await verifyPayment(paymentResponse);
-
       if (result.success && result.orderId) {
         setOrderId(result.orderId);
-        // Fetch full order details
         await getSingleOrder(result.orderId);
       } else {
         setVerificationFailed(true);
       }
-
       setVerifying(false);
     };
 
-    verifyPaymentResponse();
+    run();
   }, [searchParams]);
+
 
   if (verifying) {
     return (
