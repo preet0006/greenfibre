@@ -233,6 +233,7 @@ export default function VerifyOtpPage() {
                   width={160}
                   height={60}
                   className="object-contain"
+                  style={{ width: "auto", height: "auto" }}
                 />
               </div>
             </Link>
@@ -309,6 +310,7 @@ export default function VerifyOtpPage() {
                 width={160}
                 height={60}
                 className="object-contain"
+                style={{ width: "auto", height: "auto" }}
               />
             </motion.div>
 

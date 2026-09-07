@@ -1,4 +1,4 @@
-// GreenFibre backend — restarted to load updated .env credentials
+// GreenFibre backend — Live Razorpay active rzp_live_TXVnl7XtdLZsws
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -23,6 +23,7 @@ import orderRoutes from "./routes/order.route.js";
 import pageSettingsRoutes from "./routes/pageSettings.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import categoryRoutes from "./routes/category.route.js";
+import razorpayRoutes from "./routes/razorpay.route.js";
 
 dotenv.config({
     path: "./.env",
@@ -37,6 +38,7 @@ app.set("trust proxy", 1);
 app.use(
     helmet({
         crossOriginResourcePolicy: { policy: "cross-origin" },
+        contentSecurityPolicy: false,
     })
 );
 
@@ -78,6 +80,7 @@ app.use(
             }
         },
         credentials: true,
+        exposedHeaders: ["set-cookie", "Set-Cookie"],
     })
 );
 app.use(express.json({ limit: "2mb" }));
@@ -140,6 +143,8 @@ app.use("/api/order", orderRoutes);
 app.use("/api/page-settings", pageSettingsRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api", razorpayRoutes);
+app.use("/api/razorpay", razorpayRoutes);
 
 app.get("/api/health", (_req, res) => {
     res.status(200).json({ success: true, message: "OK" });
@@ -153,12 +158,12 @@ app.use((err, _req, res, _next) => {
     return res.status(500).json({ message: "Internal server error" });
 });
 
-connectDB()
-    .then(() => {
-        app.listen(port, host, () => {
-            console.log(`Server is listening at: http://${host}:${port}`);
-        });
-    })
-    .catch((err) => {
-        console.error(`DB connection error: ${err}`);
-    });
+app.listen(port, host, () => {
+    console.log(`Server is listening at: http://${host}:${port}`);
+});
+
+// Connect to MongoDB with graceful background reconnection
+connectDB().catch((err) => {
+    console.warn(`Initial DB connection attempt warning: ${err.message || err}`);
+});
+

@@ -143,6 +143,7 @@ export default function Footer() {
                     alt="Green Fibre"
                     fill
                     className="object-contain object-left"
+                    sizes="160px"
                   />
                 </div>
               </div>
@@ -155,9 +156,8 @@ export default function Footer() {
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-gray-600 max-w-md">
-                Eco-friendly products for conscious living. From sustainable
-                home essentials to natural fibre solutions, we're here to make
-                green living simple and accessible.
+                Eco-friendly products engineered by blending agricultural rice husk with durable polymers. 
+                High-strength, food-safe, and sustainable essentials for conscious living.
               </p>
             )}
 

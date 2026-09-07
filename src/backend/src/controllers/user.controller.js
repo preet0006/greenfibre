@@ -207,6 +207,7 @@ export const verifyOtp = async (req, res) => {
         const response = {
             success: true,
             message: "Email verified successfully, logged in.",
+            token,
             user: {
                 id: user._id,
                 full_name: user.full_name,
@@ -302,6 +303,7 @@ export const loginUser = async (req, res) => {
         const response = {
             success: true,
             message: "Logged in successfully",
+            token,
             user: {
                 id: user._id,
                 full_name: user.full_name,
@@ -373,6 +375,7 @@ export const loginAdmin = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Logged in successfully",
+            token,
             user: {
                 id: user._id,
                 full_name: user.full_name,

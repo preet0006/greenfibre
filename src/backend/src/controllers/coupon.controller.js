@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Coupon } from "../models/coupon.model.js";
 
 // =============================
@@ -54,6 +55,13 @@ export const createCoupon = async (req, res) => {
 
 export const getCoupons = async (req, res) => {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(200).json({
+                success: true,
+                coupons: [],
+            });
+        }
+
         const coupons = await Coupon.find({ isActive: true })
             .select("-usedBy -__v")
             .sort({ createdAt: -1 });
@@ -63,8 +71,10 @@ export const getCoupons = async (req, res) => {
             coupons,
         });
     } catch (error) {
-        return res.status(500).json({
-            message: "Error fetching coupons",
+        console.error("getCoupons error:", error.message);
+        return res.status(200).json({
+            success: true,
+            coupons: [],
         });
     }
 };

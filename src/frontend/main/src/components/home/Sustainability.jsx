@@ -58,6 +58,14 @@ export default function SustainabilityPage() {
 
   const initiatives = [
     {
+      icon: Leaf,
+      title: "Rice Husk Agricultural Upcycling",
+      description:
+        "Every harvest, millions of tons of rice husk (the hard protective hull of rice grains) are burned in fields, polluting our air with smog. We rescue this agricultural byproduct and blend it with recyclable polymers to reduce virgin plastic usage by 40%+ while creating stronger, heat-resistant homeware.",
+      impact: "Replaces 40%+ virgin plastic & prevents crop stubble burning",
+      image: "sus-6.jpg",
+    },
+    {
       icon: TreePine,
       title: "Reforestation Program",
       description:
@@ -172,9 +180,9 @@ export default function SustainabilityPage() {
                   "var(--font-cormorant, 'Cormorant Garamond', serif)",
               }}
             >
-              Building a Greener Future,
+              Building a Greener Future
               <br />
-              One Order at a Time
+              With Rice Husk Bio-Composites
             </motion.h1>
 
             <motion.p
@@ -183,9 +191,8 @@ export default function SustainabilityPage() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8"
             >
-              Sustainability isn't just a buzzword for us—it's our core mission.
-              From carbon-neutral delivery to reforestation programs, we're
-              committed to making a positive impact on our planet.
+              We blend agricultural rice husk with recyclable polymers to turn crop waste into high-strength, 
+              durable homeware, drinkware, and planters — replacing virgin plastic and stopping crop stubble burning.
             </motion.p>
 
             <motion.div

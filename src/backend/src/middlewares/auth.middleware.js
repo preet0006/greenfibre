@@ -7,10 +7,18 @@ const loadUserFromCookieToken = async (token) => {
     return user;
 };
 
-// Storefront / customer auth — uses `token` cookie only
+const extractToken = (req, cookieName = "token") => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        return authHeader.slice(7).trim();
+    }
+    return req.cookies?.[cookieName] || req.cookies?.token;
+};
+
+// Storefront / customer auth — uses `token` cookie or Bearer header
 export const authMiddleware = async (req, res, next) => {
     try {
-        const token = req.cookies?.token;
+        const token = extractToken(req, "token");
 
         if (!token) {
             return res.status(401).json({
@@ -38,7 +46,7 @@ export const authMiddleware = async (req, res, next) => {
 // Optional customer auth for public endpoints that can be enhanced when logged in.
 export const optionalAuthMiddleware = async (req, _res, next) => {
     try {
-        const token = req.cookies?.token;
+        const token = extractToken(req, "token");
         if (!token) {
             return next();
         }
@@ -71,7 +79,7 @@ export const adminMiddleware = (req, res, next) => {
  */
 export const adminAuthMiddleware = async (req, res, next) => {
     try {
-        const token = req.cookies?.admin_token || req.cookies?.token;
+        const token = extractToken(req, "admin_token");
 
         if (!token) {
             return res.status(401).json({

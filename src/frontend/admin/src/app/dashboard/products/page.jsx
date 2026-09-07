@@ -981,7 +981,7 @@ function ProductDrawer({
               <div className="space-y-1.5">
                 <FL>Keywords (comma-separated)</FL>
                 <Input
-                  placeholder="organic, cotton, eco-friendly, sustainable"
+                  placeholder="rice-husk, bio-composite, eco-friendly, sustainable"
                   value={form.metaKeywords}
                   onChange={(e) => upd("metaKeywords", e.target.value)}
                   className={inputCls}

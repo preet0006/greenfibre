@@ -1,3 +1,4 @@
+import { getRazorpayInstance, getRazorpayKeyId, getRazorpayKeySecret } from "../config/razorpay.js";
 import { Order } from "../models/order.model.js";
 import { Cart } from "../models/cart.model.js";
 import { Product } from "../models/product.model.js";
@@ -257,7 +258,66 @@ export const createOrder = async (req, res) => {
             ],
         });
 
-        // ── Initiate Easebuzz payment (server-side) ───────────────────
+        const requestedGateway = String(req.body.paymentMethod || "Razorpay").toLowerCase();
+
+        if (requestedGateway !== "easebuzz") {
+            try {
+                const razorpay = getRazorpayInstance();
+                const amountInPaise = Math.max(100, Math.round(finalAmount * 100));
+                const receipt = `rcpt_${order._id.toString().slice(-8)}_${Date.now().toString().slice(-4)}`;
+
+                const razorpayOrder = await razorpay.orders.create({
+                    amount: amountInPaise,
+                    currency: "INR",
+                    receipt,
+                    notes: {
+                        orderId: order._id.toString(),
+                        userId: userId.toString(),
+                        customerName: shippingAddress.fullName || "",
+                        phone: shippingAddress.phone || "",
+                    },
+                });
+
+                order.razorpayOrderId = razorpayOrder.id;
+                order.paymentMethod = "Razorpay";
+                await order.save();
+
+                return res.status(201).json({
+                    success: true,
+                    message: "Order created successfully",
+                    order: {
+                        _id: order._id,
+                        totalAmount: order.totalAmount,
+                        discountAmount: order.discountAmount,
+                        finalAmount: order.finalAmount,
+                        couponCode: order.couponCode,
+                        shippingAddress: order.shippingAddress,
+                        items: order.items,
+                        paymentMethod: "Razorpay",
+                        razorpayOrderId: razorpayOrder.id,
+                        orderStatus: order.orderStatus,
+                        paymentStatus: order.paymentStatus,
+                    },
+                    paymentMethod: "Razorpay",
+                    razorpayOrderId: razorpayOrder.id,
+                    order_id: razorpayOrder.id,
+                    amount: razorpayOrder.amount,
+                    currency: razorpayOrder.currency,
+                    receipt: razorpayOrder.receipt,
+                    key_id: getRazorpayKeyId(),
+                });
+            } catch (rzpErr) {
+                console.error("Razorpay order creation error in createOrder:", rzpErr);
+                await Order.findByIdAndDelete(order._id);
+                return res.status(500).json({
+                    success: false,
+                    message: rzpErr?.error?.description || rzpErr?.message || "Failed to create payment order with Razorpay.",
+                    error: rzpErr?.error || rzpErr?.message,
+                });
+            }
+        }
+
+        // ── Initiate Easebuzz payment (server-side fallback) ───────────────────
         // Step 1: build payment params + hash on the backend
         const user = await User.findById(userId);
 
@@ -579,7 +639,150 @@ export const verifyPaymentGateway = async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 export const verifyPayment = async (req, res) => {
     try {
-        const { txnid, status, hash, ...paymentResponse } = req.body;
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            orderId,
+            txnid,
+            status,
+            hash,
+            ...paymentResponse
+        } = req.body;
+
+        // Support Razorpay verification
+        if (razorpay_order_id || razorpay_payment_id || razorpay_signature) {
+            if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Missing Razorpay verification parameters: razorpay_order_id, razorpay_payment_id, and razorpay_signature are required.",
+                });
+            }
+
+            const key_secret = getRazorpayKeySecret();
+            if (!key_secret) {
+                return res.status(500).json({
+                    success: false,
+                    message: "Server error: Razorpay key secret is not configured.",
+                });
+            }
+
+            const expectedSignature = crypto
+                .createHmac("sha256", key_secret)
+                .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+                .digest("hex");
+
+            let isValid = false;
+            try {
+                isValid =
+                    razorpay_signature.length === expectedSignature.length &&
+                    crypto.timingSafeEqual(
+                        Buffer.from(razorpay_signature, "utf-8"),
+                        Buffer.from(expectedSignature, "utf-8")
+                    );
+            } catch {
+                isValid = false;
+            }
+
+            if (!isValid) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid Razorpay payment signature.",
+                });
+            }
+
+            const targetOrder = await Order.findOne({
+                $or: [
+                    { razorpayOrderId: razorpay_order_id },
+                    ...(orderId ? [{ _id: orderId }] : []),
+                ],
+            }).populate("user", "full_name email");
+
+            if (!targetOrder) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Order not found for Razorpay payment.",
+                });
+            }
+
+            if (targetOrder.paymentStatus !== "paid") {
+                targetOrder.paymentStatus = "paid";
+                targetOrder.orderStatus = "processing";
+                targetOrder.paymentMethod = "Razorpay";
+                targetOrder.razorpayPaymentId = razorpay_payment_id;
+                targetOrder.razorpaySignature = razorpay_signature;
+                targetOrder.transactionId = razorpay_payment_id;
+                targetOrder.paymentResponse = req.body;
+                targetOrder.statusHistory.push({
+                    status: "processing",
+                    timestamp: new Date(),
+                    note: `Payment verified successfully via Razorpay (Payment ID: ${razorpay_payment_id})`,
+                });
+                await targetOrder.save();
+
+                // Deduct stock
+                for (const item of targetOrder.items || []) {
+                    try {
+                        const product = await Product.findById(item.product);
+                        if (product && product.colors && product.colors[item.colorIndex]) {
+                            product.colors[item.colorIndex].stock = Math.max(
+                                0,
+                                product.colors[item.colorIndex].stock - item.quantity
+                            );
+                            await product.save();
+                        }
+                    } catch (itemErr) {
+                        console.error("Error updating stock:", itemErr);
+                    }
+                }
+
+                // Apply coupon
+                if (targetOrder.couponCode) {
+                    try {
+                        await applyCouponUsage(targetOrder.couponCode, targetOrder.user?._id || targetOrder.user);
+                    } catch (couponErr) {
+                        console.error("Error applying coupon usage:", couponErr);
+                    }
+                }
+
+                // Clear cart
+                if (targetOrder.user) {
+                    try {
+                        await Cart.findOneAndUpdate(
+                            { user: targetOrder.user?._id || targetOrder.user },
+                            { items: [], totalAmount: 0 }
+                        );
+                    } catch (cartErr) {
+                        console.error("Error clearing cart:", cartErr);
+                    }
+                }
+
+                // Generate invoice asynchronously
+                setImmediate(async () => {
+                    try {
+                        const invoiceResult = await generateInvoicePdf(targetOrder);
+                        if (invoiceResult?.minioUrl) {
+                            targetOrder.invoiceUrl = invoiceResult.minioUrl;
+                            await targetOrder.save();
+                        }
+                        if (invoiceResult?.localPath) {
+                            cleanupTempInvoice(invoiceResult.localPath);
+                        }
+                    } catch (err) {
+                        console.error("Invoice generation error for Razorpay order:", err);
+                    }
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: "Payment verified successfully",
+                order_id: razorpay_order_id,
+                payment_id: razorpay_payment_id,
+                orderId: targetOrder._id,
+                order: targetOrder,
+            });
+        }
 
         if (!txnid || !hash) {
             return res

@@ -108,6 +108,11 @@ const orderSchema = new mongoose.Schema(
         transactionId: String, // Easebuzz transaction ID
         paymentResponse: Object, // Full Easebuzz response
 
+        // Razorpay payment details
+        razorpayOrderId: String,
+        razorpayPaymentId: String,
+        razorpaySignature: String,
+
         invoiceUrl: String,
 
         // Shipping - NimbusPost
@@ -143,6 +148,7 @@ const orderSchema = new mongoose.Schema(
 // Add index for faster queries
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ easebuzzOrderId: 1 });
+orderSchema.index({ razorpayOrderId: 1 });
 orderSchema.index({ orderStatus: 1 });
 
 export const Order = mongoose.model("Order", orderSchema);

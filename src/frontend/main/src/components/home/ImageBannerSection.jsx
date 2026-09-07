@@ -68,9 +68,118 @@ export default function ImageBannerSection() {
     );
   }
 
-  // No banners available
+  // Default Hero Banner when no custom banners are uploaded in DB
   if (imageBanners.length === 0) {
-    return null; // Don't show section if no banners
+    return (
+      <section className="relative overflow-hidden bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 py-20 lg:py-28 text-white mt-12 sm:mt-14">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-8">
+            <div className="lg:col-span-7 space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-1.5 text-xs sm:text-sm font-semibold text-green-400">
+                <span>🌾</span>
+                <span>Bio-Composite Innovation: Rice Husk + Polymer</span>
+              </div>
+              <h1 
+                className="text-4xl font-light tracking-tight sm:text-5xl lg:text-6xl text-white"
+                style={{ fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)" }}
+              >
+                Better For The Earth. <br />
+                <span className="font-semibold text-green-400 italic">Stronger For Everyday Life.</span>
+              </h1>
+              <p className="max-w-2xl text-base sm:text-lg text-stone-300 leading-relaxed font-light">
+                We upcycle discarded agricultural rice husk and blend it with durable polymers. 
+                This prevents crop stubble burning, reduces virgin plastic consumption, and creates exceptionally 
+                durable, heat-resistant home essentials with an authentic, organic speckled appearance.
+              </p>
+              
+              <div className="flex flex-wrap gap-2 sm:gap-3 pt-2">
+                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
+                  🌿 40%+ Virgin Plastic Saved
+                </span>
+                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
+                  🛡️ Superior Impact Strength
+                </span>
+                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
+                  ✨ Unique Speckled Texture
+                </span>
+                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
+                  🌱 100% Food-Grade Safe
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-4 pt-4">
+                <Link
+                  href="/shop"
+                  className="rounded-full bg-green-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-600/30 hover:bg-green-500 transition-all transform hover:-translate-y-0.5"
+                >
+                  Explore Rice Husk Collection
+                </Link>
+                <Link
+                  href="/sustainability"
+                  className="rounded-full border border-stone-600 px-8 py-3.5 text-sm font-semibold text-stone-200 hover:bg-stone-800 transition-all"
+                >
+                  Our Green Process
+                </Link>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 relative">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                    <Image
+                      src="/products/soup-bowl-250-ml.jpg"
+                      alt="Rice Husk Soup Bowl"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white">Soup Bowl 250 ml</span>
+                    </div>
+                  </div>
+                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                    <Image
+                      src="/products/romano-planter.jpg"
+                      alt="Romano Planter"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white">Romano Planter</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-4 pt-6">
+                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                    <Image
+                      src="/products/eco-spring-insulated-bottle.jpg"
+                      alt="Eco Spring Insulated Bottle"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white">Insulated Bottle</span>
+                    </div>
+                  </div>
+                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                    <Image
+                      src="/products/canister-700-ml.jpg"
+                      alt="Rice Husk Canister"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white">Canister 700 ml</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
   }
 
   const currentBanner = imageBanners[currentIndex];

@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import { Category } from "../models/category.model.js";
+import { OFFICIAL_CATEGORIES } from "../data/officialProducts.js";
 
 import {
     uploadOnCloudinary,
@@ -57,6 +59,13 @@ export const createCategory = async (req, res) => {
 // =============================
 export const getAllCategories = async (req, res) => {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(200).json({
+                success: true,
+                categories: OFFICIAL_CATEGORIES,
+            });
+        }
+
         const categories = await Category.find({
             isActive: true,
         }).sort({
@@ -78,6 +87,13 @@ export const getAllCategories = async (req, res) => {
 
             return categoryObj;
         });
+
+        if (!formattedCategories || formattedCategories.length === 0) {
+            return res.status(200).json({
+                success: true,
+                categories: OFFICIAL_CATEGORIES,
+            });
+        }
 
         res.status(200).json({
             success: true,

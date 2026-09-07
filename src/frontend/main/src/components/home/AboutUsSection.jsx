@@ -52,6 +52,7 @@ export default function AboutUsSection() {
                 src="/home-about.jpg" // Replace with your actual image
                 alt="Green Fibre - Sustainable Living"
                 fill
+                priority
                 className="object-cover"
                 sizes="(max-width: 1024px) 100vw, 50vw"
               />
@@ -102,48 +103,51 @@ export default function AboutUsSection() {
                   "var(--font-cormorant, 'Cormorant Garamond', serif)",
               }}
             >
-              Sustainability, Simplified
+              The Science of Rice Husk Bio-Composites
             </h2>
 
             {/* Description */}
             <div className="mb-8 space-y-4 text-base leading-relaxed text-gray-600 sm:text-lg">
               <p>
-                At Green Fibre, we believe that sustainable living shouldn't be
-                complicated. We're on a mission to make eco-friendly choices
-                accessible, affordable, and beautiful.
+                <strong className="text-gray-900 font-semibold">GreenFibre is not an apparel or clothing brand.</strong> We are a pioneering green manufacturing brand dedicated to solving two urgent environmental crises: agricultural crop stubble burning and single-use plastic waste.
               </p>
               <p>
-                Every product in our collection is carefully curated to reduce
-                environmental impact while enhancing your daily life. From
-                biodegradable essentials to reusable innovations, we're here to
-                help you build a greener future, one choice at a time.
+                By blending <strong className="text-gray-900 font-semibold">agricultural rice husk</strong> — the protective outer shell of rice grains that is traditionally burned — with recyclable polymers, we engineer a reinforced bio-composite material.
+              </p>
+              <p>
+                The outcome is extraordinary: <span className="text-green-700 font-medium">up to 40%+ reduction in virgin plastic</span>, significantly enhanced structural rigidity, higher impact strength, and a naturally warm, organic speckled texture that makes every tableware and home item look and feel premium.
               </p>
             </div>
 
             {/* Stats */}
             <div className="mb-8 grid grid-cols-3 gap-4 sm:gap-6">
-              {stats.map((stat, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: 0.4 + index * 0.1 }}
-                  className="text-center"
-                >
-                  <div className="mb-2 flex justify-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                      <stat.icon className="h-6 w-6 text-green-600" />
-                    </div>
+              <div className="text-center">
+                <div className="mb-2 flex justify-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                    <Leaf className="h-6 w-6 text-green-600" />
                   </div>
-                  <p className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-gray-600 sm:text-sm">
-                    {stat.label}
-                  </p>
-                </motion.div>
-              ))}
+                </div>
+                <p className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">40%+</p>
+                <p className="text-xs text-gray-600 sm:text-sm">Virgin Plastic Saved</p>
+              </div>
+              <div className="text-center">
+                <div className="mb-2 flex justify-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                    <Award className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">2x</p>
+                <p className="text-xs text-gray-600 sm:text-sm">Higher Durability</p>
+              </div>
+              <div className="text-center">
+                <div className="mb-2 flex justify-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                    <Users className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+                <p className="mb-1 text-2xl font-bold text-gray-900 sm:text-3xl">100%</p>
+                <p className="text-xs text-gray-600 sm:text-sm">Food-Grade & BPA Free</p>
+              </div>
             </div>
 
             {/* CTA Button */}

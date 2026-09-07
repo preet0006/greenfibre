@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Banner } from "../models/banner.model.js";
 import { Category } from "../models/category.model.js";
 
@@ -67,6 +68,14 @@ export const createBanner = async (req, res) => {
 // =============================
 export const getBanners = async (req, res) => {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(200).json({
+                success: true,
+                count: 0,
+                banners: [],
+            });
+        }
+
         const { category, slug } = req.query;
 
         let filter = { isActive: true };

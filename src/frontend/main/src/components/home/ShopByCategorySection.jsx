@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import {useCategoryStore} from "@/store/useCategoryStore";
+import { OFFICIAL_CATEGORIES } from "@/data/officialProducts";
 import { ArrowRight, Loader2, Leaf, ChevronRight } from "lucide-react";
 
 // ── Category Card ─────────────────────────────────────────────
@@ -23,9 +24,10 @@ function CategoryCard({ category, index }) {
         {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
           <Image
-            src={category.image.large}
+            src={category.image?.large || category.image?.original || "/products/soup-bowl-250-ml.jpg"}
             alt={category.name}
             fill
+            priority={index === 0}
             className="object-cover transition-transform duration-700 group-hover:scale-110"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
@@ -107,18 +109,8 @@ export default function ShopByCategorySection() {
     fetchCategories();
   }, []);
 
-  // Filter active categories, optionally show only featured
   const activeCategories = categories.filter((cat) => cat.isActive);
-
-  // If you want to show only featured categories, uncomment:
-  // const displayCategories = activeCategories.filter((cat) => cat.isFeatured);
-
-  const displayCategories = activeCategories;
-
-  // Don't show section if no categories
-  if (!loading && displayCategories.length === 0) {
-    return null;
-  }
+  const displayCategories = activeCategories.length > 0 ? activeCategories : OFFICIAL_CATEGORIES;
 
   return (
     <section className="relative overflow-hidden bg-linear-to-b from-white to-gray-50 py-16 sm:py-20 lg:py-24">

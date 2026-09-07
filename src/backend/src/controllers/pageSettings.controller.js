@@ -1,23 +1,39 @@
+import mongoose from "mongoose";
 import { PageSettings } from "../models/pageSettings.model.js";
+
+const DEFAULT_SETTINGS = {
+    announcementBar: { text: "Welcome to Green Fibre", isEnabled: true },
+    socialLinks: {},
+    seo: { title: "Green Fibre — Sustainability, Simplified" },
+};
 
 /* =====================================================
    GET PAGE SETTINGS (Public)
 ===================================================== */
 export const getPageSettings = async (req, res) => {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(200).json({
+                success: true,
+                settings: DEFAULT_SETTINGS,
+            });
+        }
+
         let settings = await PageSettings.findOne();
 
         if (!settings) {
             settings = await PageSettings.create({});
         }
 
-        res.json({
+        return res.status(200).json({
             success: true,
             settings,
         });
     } catch (error) {
-        res.status(500).json({
-            message: "Error fetching page settings",
+        console.warn("Get page settings error (returning default fallback):", error.message);
+        return res.status(200).json({
+            success: true,
+            settings: DEFAULT_SETTINGS,
         });
     }
 };
@@ -27,6 +43,12 @@ export const getPageSettings = async (req, res) => {
 ===================================================== */
 export const updatePageSettings = async (req, res) => {
     try {
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database is reconnecting. Please retry in a few seconds.",
+            });
+        }
+
         let settings = await PageSettings.findOne();
 
         if (!settings) {
@@ -36,13 +58,13 @@ export const updatePageSettings = async (req, res) => {
             await settings.save();
         }
 
-        res.json({
+        return res.status(200).json({
             success: true,
             message: "Page settings updated successfully",
             settings,
         });
     } catch (error) {
-        res.status(500).json({
+        return res.status(500).json({
             message: "Error updating page settings",
         });
     }

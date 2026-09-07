@@ -9,6 +9,7 @@ import useCartStore from "@/store/useCartStore";
 import useAddressStore from "@/store/useAddressStore";
 import useOrderStore from "@/store/useOrderStore";
 import useUserStore from "@/store/useUserStore";
+import { loadRazorpayScript } from "@/utils/loadRazorpay";
 import toast from "react-hot-toast";
 import {
   ShoppingCart,
@@ -582,7 +583,11 @@ export default function CheckoutPage() {
   const updateAddress = useAddressStore((s) => s.updateAddress);
 
   const createOrder = useOrderStore((s) => s.createOrder);
+  const createRazorpayOrder = useOrderStore((s) => s.createRazorpayOrder);
+  const verifyRazorpayPayment = useOrderStore((s) => s.verifyRazorpayPayment);
+  const clearCart = useCartStore((s) => s.clearCart);
   const orderLoading = useOrderStore((s) => s.actionLoading);
+  const [razorpayLoading, setRazorpayLoading] = useState(false);
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [couponCode, setCouponCode] = useState("");
@@ -682,8 +687,21 @@ export default function CheckoutPage() {
       return;
     }
 
-    const orderData = {
-      shippingAddress: {
+    try {
+      setRazorpayLoading(true);
+
+      // 1. Ensure Razorpay checkout script is loaded
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) {
+        toast.error(
+          "Unable to load Razorpay payment gateway. Please check your connection."
+        );
+        setRazorpayLoading(false);
+        return;
+      }
+
+      // 2. Prepare shipping address & order payload
+      const shippingAddress = {
         fullName: selectedAddress.fullName,
         companyName: selectedAddress.companyName,
         streetAddress: selectedAddress.streetAddress,
@@ -693,18 +711,114 @@ export default function CheckoutPage() {
         pincode: selectedAddress.pincode,
         phone: selectedAddress.phone,
         email: selectedAddress.email || user?.email || "",
-      },
-      couponCode: appliedCoupon?.code || undefined,
-    };
+      };
 
-    const result = await createOrder(orderData);
+      // Amount in paise (minimum 100 paise = ₹1.00)
+      const amountInPaise = Math.max(100, Math.round(finalTotal * 100));
 
-    if (result) {
-      // Backend already called Easebuzz initiateLink and returned a ready URL.
-      // Just redirect the browser there — no client-side form POST needed.
-      if (result.paymentUrl) {
-        window.location.href = result.paymentUrl;
+      // 3. Call backend POST /api/create-order
+      const result = await createRazorpayOrder({
+        amount: amountInPaise,
+        currency: "INR",
+        shippingAddress,
+        couponCode: appliedCoupon?.code || undefined,
+        notes: {
+          customerName: selectedAddress.fullName,
+          customerPhone: selectedAddress.phone,
+          customerEmail: selectedAddress.email || user?.email || "",
+        },
+      });
+
+      if (!result || !result.order_id) {
+        setRazorpayLoading(false);
+        return;
       }
+
+      const keyId =
+        process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || result.key_id;
+      if (!keyId) {
+        toast.error("Razorpay Key ID is not configured.");
+        setRazorpayLoading(false);
+        return;
+      }
+
+      // 4. Configure Razorpay Standard Checkout options
+      const options = {
+        key: keyId,
+        amount: result.amount,
+        currency: result.currency,
+        name: "Green Fibre",
+        description: "Eco-Friendly Rice Husk Bio-Composite Products",
+        image: "/greenfiber-logo.png",
+        order_id: result.order_id,
+        prefill: {
+          name: selectedAddress.fullName,
+          email: selectedAddress.email || user?.email || "",
+          contact: selectedAddress.phone || "",
+        },
+        theme: {
+          color: "#16a34a",
+        },
+        modal: {
+          confirm_close: true,
+          ondismiss: function () {
+            setRazorpayLoading(false);
+            toast("Payment modal closed by user.", { icon: "ℹ️" });
+          },
+        },
+        handler: async function (response) {
+          try {
+            toast.loading("Verifying payment...", { id: "razorpay-verify" });
+
+            // 5. Send razorpay_payment_id, razorpay_order_id, razorpay_signature to backend verify endpoint
+            const verifyRes = await verifyRazorpayPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderId: result.orderId,
+            });
+
+            toast.dismiss("razorpay-verify");
+
+            if (verifyRes?.success) {
+              toast.success("Payment verified successfully!");
+              await clearCart();
+              const targetOrderId =
+                verifyRes.orderId ||
+                result.orderId ||
+                response.razorpay_order_id;
+              router.push(`/orders/success?order=${targetOrderId}`);
+            } else {
+              toast.error(
+                verifyRes?.message || "Payment signature verification failed"
+              );
+              router.push(`/orders/failed?reason=signature_mismatch`);
+            }
+          } catch (err) {
+            toast.dismiss("razorpay-verify");
+            toast.error("Error during payment verification");
+          } finally {
+            setRazorpayLoading(false);
+          }
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+
+      // Handle payment.failed event
+      rzp.on("payment.failed", function (failResponse) {
+        setRazorpayLoading(false);
+        const errorMsg =
+          failResponse.error?.description ||
+          "Payment failed. Please try again.";
+        toast.error(errorMsg);
+      });
+
+      rzp.open();
+    } catch (err) {
+      console.error("handlePlaceOrder Razorpay error:", err);
+      toast.error("Failed to initiate payment. Please try again.");
+      setRazorpayLoading(false);
     }
   };
 
@@ -1037,19 +1151,20 @@ export default function CheckoutPage() {
                     !selectedAddress ||
                     !agreeTerms ||
                     hasOutOfStock ||
-                    orderLoading
+                    orderLoading ||
+                    razorpayLoading
                   }
                   className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {orderLoading ? (
+                  {orderLoading || razorpayLoading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Processing...
+                      Processing Payment...
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="h-4 w-4" />
-                      Place Order & Pay
+                      Pay with Razorpay ({formatPrice(finalTotal)})
                     </>
                   )}
                 </motion.button>

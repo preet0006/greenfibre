@@ -113,15 +113,15 @@ export default function AboutPage() {
                     "var(--font-cormorant, 'Cormorant Garamond', serif)",
                 }}
               >
-                Sustainability,
+                Engineering Green Products
                 <br />
-                Simplified
+                From Rice Husk
               </h1>
 
               <p className="text-lg text-gray-600 leading-relaxed mb-8">
-                We believe that living sustainably shouldn't be complicated or
-                expensive. Green Fibre was born from a simple idea: make
-                eco-friendly products accessible, affordable, and beautiful.
+                Green Fibre is a green material innovation brand. We blend agricultural rice husk 
+                with recyclable polymers to replace virgin plastic, prevent stubble burning, and craft stronger, 
+                high-durability everyday essentials for modern homes.
               </p>
 
               <div className="flex flex-wrap gap-4">
@@ -161,7 +161,9 @@ export default function AboutPage() {
                 src="/about-1.jpg"
                 alt="Green Fibre - Sustainable Living"
                 fill
+                priority
                 className="object-cover"
+                sizes="(max-width: 1024px) 100vw, 50vw"
               />
             </motion.div>
           </div>
@@ -230,6 +232,7 @@ export default function AboutPage() {
               alt="Our Story"
               fill
               className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
             />
           </motion.div>
 
@@ -253,33 +256,26 @@ export default function AboutPage() {
 
             <div className="space-y-4 text-base text-gray-700 leading-relaxed">
               <p>
-                Green Fibre started in a small apartment in 2020, driven by a
-                deep concern for our planet's future. Our founders, passionate
-                environmentalists and entrepreneurs, noticed a gap in the
-                market: sustainable products were either too expensive, hard to
-                find, or didn't meet quality standards.
+                Green Fibre was founded to solve a critical environmental dilemma: every harvest season, 
+                millions of metric tons of agricultural rice husk (the outer hull of rice grains) are burned 
+                in fields as farm waste, generating toxic smoke and severe air pollution. At the same time, 
+                our landfills are choked with non-biodegradable virgin plastics.
               </p>
 
               <p>
-                We set out to change that. What began as a curated collection of
-                20 eco-friendly home essentials has grown into a thriving
-                marketplace of over 500 sustainable products, serving a
-                community of 100,000+ conscious consumers across India.
+                We asked a simple question: <em>Why treat agricultural biomass as waste when it can replace plastic?</em>
               </p>
 
               <p>
-                Every product we offer tells a story of sustainability—from
-                organic cotton harvested by fair-trade farmers to biodegradable
-                packaging that returns to the earth. We don't just sell
-                products; we're building a movement toward a more sustainable
-                future.
+                By engineering an advanced compounding process, we blend pulverized rice husk fibers with durable, 
+                recyclable polymers. The resulting bio-composite delivers the best of both worlds: it significantly 
+                reduces virgin petroleum plastics, prevents crop burning, and creates homeware, planters, drinkware, 
+                and containers with higher structural rigidity, superior drop resistance, and an authentic natural speckled texture.
               </p>
 
               <p>
-                Today, Green Fibre stands as proof that sustainability and
-                quality can go hand in hand. Through our reforestation program,
-                we've planted over 250,000 trees, and we're just getting
-                started.
+                We are not a clothing or textile brand. We are an eco-materials company crafting long-lasting, 
+                food-safe, and sustainable lifestyle essentials that make daily green living effortless and beautiful.
               </p>
             </div>
           </motion.div>
@@ -431,6 +427,7 @@ export default function AboutPage() {
               alt="Our Mission"
               fill
               className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
             />
           </motion.div>
         </div>

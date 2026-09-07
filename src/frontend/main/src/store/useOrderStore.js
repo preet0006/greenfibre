@@ -47,6 +47,56 @@ const useOrderStore = create((set, get) => ({
     }
   },
 
+  // =========================
+  // RAZORPAY - CREATE ORDER
+  // POST /api/create-order
+  // =========================
+  createRazorpayOrder: async ({ amount, currency = "INR", receipt, orderId, notes }) => {
+    try {
+      set({ actionLoading: true });
+      const res = await api.post("/create-order", {
+        amount,
+        currency,
+        receipt,
+        orderId,
+        notes,
+      });
+      set({ actionLoading: false });
+      return res.data;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to create Razorpay order");
+      set({ actionLoading: false });
+      return null;
+    }
+  },
+
+  // =========================
+  // RAZORPAY - VERIFY PAYMENT
+  // POST /api/verify-payment
+  // =========================
+  verifyRazorpayPayment: async (paymentData) => {
+    try {
+      set({ actionLoading: true });
+      const res = await api.post("/verify-payment", paymentData);
+      set({ actionLoading: false });
+
+      if (res.data?.success) {
+        toast.success("Payment verified successfully!");
+        return { success: true, orderId: res.data.orderId, data: res.data };
+      } else {
+        toast.error(res.data?.message || "Payment verification failed");
+        return { success: false, message: res.data?.message };
+      }
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Payment verification failed"
+      );
+      set({ actionLoading: false });
+      return { success: false, error };
+    }
+  },
+
+
 
   // =========================
   // VERIFY PAYMENT

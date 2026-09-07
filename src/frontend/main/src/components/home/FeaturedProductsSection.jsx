@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import useProductStore from "@/store/useProductStore";
+import { OFFICIAL_PRODUCTS } from "@/data/officialProducts";
 import { ArrowRight, Leaf, ShoppingCart, Heart, Star, Loader2 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -201,13 +202,12 @@ export default function FeaturedProductsSection() {
   }, []);
 
   // Filter featured and active products
-  const featuredProducts = products.filter(
+  let featuredProducts = products.filter(
     (p) => p.isFeatured && p.isActive
   ).slice(0, 8); // Show max 8 products
 
-  // Don't show section if no featured products
-  if (!loading && featuredProducts.length === 0) {
-    return null;
+  if (featuredProducts.length === 0) {
+    featuredProducts = OFFICIAL_PRODUCTS.filter((p) => p.isFeatured).slice(0, 8);
   }
 
   return (
