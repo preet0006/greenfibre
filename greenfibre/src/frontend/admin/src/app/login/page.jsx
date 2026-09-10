@@ -296,16 +296,7 @@ export default function LoginPage() {
             <p className="text-xs text-gray-300">
               © {new Date().getFullYear()} Green Fibre · All rights reserved
             </p>
-            <p className="text-xs text-gray-300">
-              Designed & Developed by{" "}
-              <Link
-                href="https://aleczo.com"
-                target="_blank"
-                className="text-xs text-gray-400 hover:text-green-600 transition-colors"
-              >
-                Aleczo Media Pvt. Ltd.
-              </Link>
-            </p>
+
           </div>
         </div>
       </div>

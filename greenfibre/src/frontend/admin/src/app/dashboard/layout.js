@@ -364,20 +364,7 @@ export default function DashboardLayout({ children }) {
               <span className="font-semibold text-gray-600">Green Fibre</span> ·
               All rights reserved.
             </p>
-            <p className="text-[11px] text-gray-400 flex items-center gap-1.5">
-              Designed &amp; Developed by{" "}
-              <a
-                href="https://aleczo.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-transparent bg-clip-text hover:opacity-80 transition-opacity duration-200"
-                style={{
-                  backgroundImage: "linear-gradient(135deg, #15803d, #22c55e)",
-                }}
-              >
-                Aleczo Media Pvt. Ltd.
-              </a>
-            </p>
+
           </div>
         </footer>
       </div>
