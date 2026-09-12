@@ -511,7 +511,7 @@ export default function ProductDetailClient({ slug, initialProduct }) {
   return (
     <div className="min-h-screen bg-white">
       {/* Breadcrumb */}
-      <div className="border-b border-gray-100 bg-gray-50 mt-14">
+      <div className="border-b border-gray-100 bg-gray-50">
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Link href="/" className="hover:text-green-600 transition-colors">

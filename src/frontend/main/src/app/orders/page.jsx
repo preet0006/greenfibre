@@ -381,7 +381,7 @@ export default function OrdersPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero */}
-      <div className="relative overflow-hidden bg-linear-to-br mt-14 from-green-600 to-green-700">
+      <div className="relative overflow-hidden bg-linear-to-br from-green-600 to-green-700">
         <div
           className="pointer-events-none absolute inset-0 opacity-10"
           style={{

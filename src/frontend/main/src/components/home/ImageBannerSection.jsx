@@ -71,7 +71,7 @@ export default function ImageBannerSection() {
   // Default Hero Banner when no custom banners are uploaded in DB
   if (imageBanners.length === 0) {
     return (
-      <section className="relative overflow-hidden bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 py-20 lg:py-28 text-white mt-12 sm:mt-14">
+      <section className="relative overflow-hidden bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 py-20 lg:py-28 text-white">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-8">
@@ -203,7 +203,7 @@ export default function ImageBannerSection() {
   return (
     <section className="relative w-full overflow-hidden bg-gray-100">
       {/* Main Banner Carousel */}
-      <div className="relative h-75 mt-14 w-full sm:h-100 lg:h-150">
+      <div className="relative h-75 w-full sm:h-100 lg:h-150">
         <AnimatePresence initial={false} custom={direction} mode="wait">
           <motion.div
             key={currentIndex}

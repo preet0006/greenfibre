@@ -98,19 +98,10 @@ export default function RootLayout({ children }) {
           }}
         />
 
-        {/* Top eco accent line - natural green gradient */}
-        <div
-          className="fixed top-0 left-0 right-0 z-60 h-1"
-          style={{
-            background:
-              "linear-gradient(90deg, transparent 0%, #15803d 20%, #16a34a 40%, #22c55e 50%, #16a34a 60%, #15803d 80%, transparent 100%)",
-          }}
-        />
-
         <Navbar />
 
         {/* Main content area */}
-        <main className="relative z-10 flex-1 pt-[136px] md:pt-[144px]">
+        <main className="relative z-10 flex-1 pt-[120px] md:pt-[136px]">
           {children}
         </main>
 

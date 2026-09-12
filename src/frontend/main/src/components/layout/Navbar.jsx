@@ -758,10 +758,7 @@ export default function Navbar() {
             initial="hidden"
             animate="show"
             exit="exit"
-            className="fixed inset-x-4 z-40 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl md:hidden"
-            style={{
-              top: window.innerWidth < 768 ? 123 : 112,
-            }}
+            className="fixed inset-x-4 top-[124px] z-40 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl md:hidden"
           >
             {/* Inline search */}
             <form
