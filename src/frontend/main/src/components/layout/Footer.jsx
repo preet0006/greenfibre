@@ -156,7 +156,7 @@ export default function Footer() {
               </p>
             ) : (
               <p className="text-sm leading-relaxed text-gray-600 max-w-md">
-                Eco-friendly products engineered by blending agricultural rice husk with durable polymers. 
+                Eco-friendly products engineered by blending agricultural rice husk with durable polymers.
                 High-strength, food-safe, and sustainable essentials for conscious living.
               </p>
             )}
@@ -187,6 +187,8 @@ export default function Footer() {
                   <span className="leading-relaxed">{settings.address}</span>
                 </div>
               )}
+
+
             </div>
 
             {/* Social icons */}
@@ -264,6 +266,7 @@ export default function Footer() {
           </div>
         </div>
 
+
         {/* ── Eco badges ── */}
         <div className="mt-10 pt-10 border-t border-gray-100">
           <div className="flex flex-wrap items-center justify-center gap-8">
@@ -285,26 +288,15 @@ export default function Footer() {
         {/* ── Bottom bar ── */}
         <div className="mt-12 pt-8 border-t border-gray-100">
           <div className="flex flex-col items-center justify-between gap-4 sm:flex-row text-center sm:text-left">
-            <div className="space-y-1">
-              <p className="text-sm text-gray-500">
-                © {new Date().getFullYear()}{" "}
-                {settings.companyName || "Green Fibre"}. All rights reserved.
-              </p>
-              <p className="text-xs text-gray-400">
-                Powered by Charvik Moulds and Products Private Limited
-              </p>
-            </div>
-
             <p className="text-sm text-gray-500">
-              Crafted by{" "}
-              <a
-                className="text-green-600 hover:text-green-700 transition-colors font-medium"
-                href="https://aleczo.com"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Aleczo Media Pvt. Ltd.
-              </a>
+              © {new Date().getFullYear()}{" "}
+              {settings.companyName || "Green Fibre"}. All rights reserved.
+            </p>
+            <p className="text-sm text-gray-500">
+              Powered by{" "}
+              <span className="font-medium text-gray-700">
+                Charvik Moulds and Products Private Limited
+              </span>
             </p>
           </div>
         </div>

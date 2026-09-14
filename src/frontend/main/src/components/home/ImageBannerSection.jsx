@@ -1,22 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Autoplay, EffectCreative, Navigation } from "swiper/modules";
 import Image from "next/image";
 import Link from "next/link";
 import useBannerStore from "@/store/useBannerStore";
-import { ChevronLeft, ChevronRight, Play, Pause, Loader2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronRight as ChevronRightIcon,
+  Play,
+  Pause,
+  Loader2,
+  Sparkles,
+  ArrowRight,
+} from "lucide-react";
+
+import "swiper/css";
+import "swiper/css/effect-creative";
 
 export default function ImageBannerSection() {
   const banners = useBannerStore((s) => s.banners);
   const loading = useBannerStore((s) => s.loading);
   const fetchBanners = useBannerStore((s) => s.fetchBanners);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const [direction, setDirection] = useState(0); // 1 = next, -1 = prev
+  const swiperRef = useRef(null);
 
-  // Filter only active image banners (exclude videos for this section)
+  // Filter only active image banners
   const imageBanners = banners.filter(
     (b) => b.isActive && b.mediaType === "image"
   );
@@ -25,152 +38,146 @@ export default function ImageBannerSection() {
     fetchBanners();
   }, []);
 
-  // Auto-play carousel
-  useEffect(() => {
-    if (!isAutoPlaying || imageBanners.length <= 1) return;
-
-    const interval = setInterval(() => {
-      setDirection(1);
-      setCurrentIndex((prev) => (prev + 1) % imageBanners.length);
-    }, 5000); // Change every 5 seconds
-
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, imageBanners.length]);
-
-  const goToNext = () => {
-    setDirection(1);
-    setCurrentIndex((prev) => (prev + 1) % imageBanners.length);
-    setIsAutoPlaying(false); // Stop auto-play on manual interaction
-  };
-
-  const goToPrev = () => {
-    setDirection(-1);
-    setCurrentIndex((prev) =>
-      prev === 0 ? imageBanners.length - 1 : prev - 1
-    );
-    setIsAutoPlaying(false);
-  };
-
-  const goToSlide = (index) => {
-    setDirection(index > currentIndex ? 1 : -1);
-    setCurrentIndex(index);
-    setIsAutoPlaying(false);
-  };
-
   // Loading state
   if (loading) {
     return (
-      <div className="relative h-75 w-full overflow-hidden bg-gray-100 sm:h-100 lg:h-150">
+      <div className="relative h-[360px] sm:h-[460px] md:h-[540px] lg:h-[620px] w-full overflow-hidden bg-emerald-50/40">
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
         </div>
       </div>
     );
   }
 
-  // Default Hero Banner when no custom banners are uploaded in DB
+  // Fallback Hero when no dynamic banners exist (Subtle Light Green & White Theme)
   if (imageBanners.length === 0) {
     return (
-      <section className="relative overflow-hidden bg-gradient-to-b from-stone-900 via-stone-800 to-stone-900 py-20 lg:py-28 text-white">
-        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-8">
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-1.5 text-xs sm:text-sm font-semibold text-green-400">
-                <span>🌾</span>
-                <span>Bio-Composite Innovation: Rice Husk + Polymer</span>
-              </div>
-              <h1 
-                className="text-4xl font-light tracking-tight sm:text-5xl lg:text-6xl text-white"
-                style={{ fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)" }}
-              >
-                Better For The Earth. <br />
-                <span className="font-semibold text-green-400 italic">Stronger For Everyday Life.</span>
-              </h1>
-              <p className="max-w-2xl text-base sm:text-lg text-stone-300 leading-relaxed font-light">
-                We upcycle discarded agricultural rice husk and blend it with durable polymers. 
-                This prevents crop stubble burning, reduces virgin plastic consumption, and creates exceptionally 
-                durable, heat-resistant home essentials with an authentic, organic speckled appearance.
-              </p>
-              
-              <div className="flex flex-wrap gap-2 sm:gap-3 pt-2">
-                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
-                  🌿 40%+ Virgin Plastic Saved
-                </span>
-                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
-                  🛡️ Superior Impact Strength
-                </span>
-                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
-                  ✨ Unique Speckled Texture
-                </span>
-                <span className="rounded-full bg-stone-800/90 border border-stone-700 px-3.5 py-1 text-xs text-stone-300">
-                  🌱 100% Food-Grade Safe
-                </span>
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/50 text-stone-900 py-12 sm:py-16 lg:py-20 border-b border-emerald-100/60">
+        {/* Ambient soft glow & subtle texture */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-emerald-200/35 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-emerald-100/40 blur-3xl pointer-events-none" />
+        <div
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 2px 2px, #059669 1px, transparent 0)",
+            backgroundSize: "36px 36px",
+          }}
+        />
+
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            {/* Left Content */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-100/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-emerald-800 shadow-xs backdrop-blur-sm">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Agricultural Rice Husk Innovation</span>
               </div>
 
-              <div className="flex flex-wrap gap-4 pt-4">
+              <h1
+                className="text-4xl sm:text-5xl md:text-6xl font-light tracking-tight text-stone-900 leading-[1.06]"
+                style={{
+                  fontFamily:
+                    "var(--font-cormorant, 'Cormorant Garamond', serif)",
+                }}
+              >
+                From Crop Stubble to <br />
+                <span className="font-semibold italic text-emerald-700">
+                  Sustainable Luxury
+                </span>
+              </h1>
+
+              <p className="text-stone-600 text-sm sm:text-base md:text-lg font-normal leading-relaxed max-w-xl">
+                We transform discarded agricultural rice crop stubble into durable,
+                zero-waste tableware and lifestyle products — replacing single-use
+                plastics and preventing toxic stubble burning.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-4 pt-1">
                 <Link
                   href="/shop"
-                  className="rounded-full bg-green-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-green-600/30 hover:bg-green-500 transition-all transform hover:-translate-y-0.5"
+                  className="group inline-flex items-center gap-2 rounded-full bg-emerald-700 px-7 sm:px-8 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold uppercase tracking-wider text-white shadow-md shadow-emerald-700/20 transition-all hover:bg-emerald-800 hover:scale-105 active:scale-95"
                 >
-                  Explore Rice Husk Collection
+                  <span>Explore Catalog</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
                 <Link
-                  href="/sustainability"
-                  className="rounded-full border border-stone-600 px-8 py-3.5 text-sm font-semibold text-stone-200 hover:bg-stone-800 transition-all"
+                  href="/about"
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white/90 backdrop-blur-md px-6 sm:px-7 py-3 sm:py-3.5 text-xs sm:text-sm font-medium uppercase tracking-wider text-stone-700 shadow-xs transition-all hover:border-emerald-600 hover:text-emerald-800 hover:bg-white"
                 >
-                  Our Green Process
+                  Our Circular Science
                 </Link>
+              </div>
+
+              {/* Badges strip */}
+              <div className="grid grid-cols-3 gap-3 pt-5 border-t border-emerald-900/10">
+                <div className="space-y-0.5">
+                  <p className="text-xl sm:text-2xl font-bold text-stone-900">40%+</p>
+                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Plastic Saved</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xl sm:text-2xl font-bold text-emerald-700">100%</p>
+                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Food Safe</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xl sm:text-2xl font-bold text-stone-900">0%</p>
+                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Microplastics</p>
+                </div>
               </div>
             </div>
 
-            <div className="lg:col-span-5 relative">
+            {/* Right Photo Mosaic */}
+            <div className="lg:col-span-5 hidden sm:block">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-4">
-                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
                     <Image
                       src="/products/soup-bowl-250-ml.jpg"
                       alt="Rice Husk Soup Bowl"
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 1024px) 25vw, 20vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white">Soup Bowl 250 ml</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white drop-shadow-sm">Soup Bowl</span>
                     </div>
                   </div>
-                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
                     <Image
                       src="/products/romano-planter.jpg"
-                      alt="Romano Planter"
+                      alt="Rice Husk Romano Planter"
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 1024px) 25vw, 20vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white">Romano Planter</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white drop-shadow-sm">Romano Planter</span>
                     </div>
                   </div>
                 </div>
-                <div className="space-y-4 pt-6">
-                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                <div className="space-y-4 pt-4 sm:pt-6">
+                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
                     <Image
                       src="/products/eco-spring-insulated-bottle.jpg"
                       alt="Eco Spring Insulated Bottle"
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 1024px) 25vw, 20vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white">Insulated Bottle</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white drop-shadow-sm">Insulated Bottle</span>
                     </div>
                   </div>
-                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-stone-700/60 bg-stone-800 shadow-xl group">
+                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
                     <Image
                       src="/products/canister-700-ml.jpg"
                       alt="Rice Husk Canister"
                       fill
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 1024px) 25vw, 20vw"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white">Canister 700 ml</span>
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
+                      <span className="text-xs font-medium text-white drop-shadow-sm">Canister 700 ml</span>
                     </div>
                   </div>
                 </div>
@@ -182,141 +189,155 @@ export default function ImageBannerSection() {
     );
   }
 
-  const currentBanner = imageBanners[currentIndex];
-
-  // Animation variants
-  const slideVariants = {
-    enter: (direction) => ({
-      x: direction > 0 ? "100%" : "-100%",
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-    },
-    exit: (direction) => ({
-      x: direction > 0 ? "-100%" : "100%",
-      opacity: 0,
-    }),
-  };
-
   return (
-    <section className="relative w-full overflow-hidden bg-gray-100">
-      {/* Main Banner Carousel */}
-      <div className="relative h-75 w-full sm:h-100 lg:h-150">
-        <AnimatePresence initial={false} custom={direction} mode="wait">
-          <motion.div
-            key={currentIndex}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{
-              x: { type: "spring", stiffness: 300, damping: 30 },
-              opacity: { duration: 0.3 },
-            }}
-            className="absolute inset-0"
-          >
-            {/* Desktop Image */}
-            <div className="relative hidden h-full w-full lg:block">
-              <Image
-                src={currentBanner.mediaUrl.desktop}
-                alt={currentBanner.title}
-                fill
-                priority
-                className="object-cover"
-                sizes="100vw"
-              />
-            </div>
+    <section className="relative w-full overflow-hidden bg-stone-950">
+      {/* Main Banner Carousel with Swiper Creative Effect & enhanced hero height */}
+      <div className="relative h-[360px] sm:h-[460px] md:h-[540px] lg:h-[620px] max-h-[85vh] w-full">
+        <Swiper
+          modules={[Autoplay, EffectCreative, Navigation]}
+          effect="creative"
+          speed={850}
+          loop={imageBanners.length > 1}
+          watchSlidesProgress={true}
+          autoplay={
+            isAutoPlaying
+              ? {
+                delay: 2600,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
+              }
+              : false
+          }
+          creativeEffect={{
+            prev: {
+              shadow: false,
+              translate: ["-10%", 0, -1],
+              scale: 1.04,
+              opacity: 0,
+            },
+            next: {
+              translate: ["100%", 0, 0],
+            },
+          }}
+          onSwiper={(swiper) => {
+            swiperRef.current = swiper;
+          }}
+          onSlideChange={(swiper) => {
+            setActiveIndex(swiper.realIndex);
+          }}
+          className="h-full w-full [transform:translate3d(0,0,0)]"
+        >
+          {imageBanners.map((banner, index) => {
+            const desktopSrc =
+              banner.mediaUrl?.desktop ||
+              banner.mediaUrl?.original ||
+              (typeof banner.mediaUrl === "string" ? banner.mediaUrl : null) ||
+              banner.imageUrl;
 
-            {/* Tablet Image */}
-            <div className="relative hidden h-full w-full sm:block lg:hidden">
-              <Image
-                src={currentBanner.mediaUrl.tablet}
-                alt={currentBanner.title}
-                fill
-                priority
-                className="object-cover"
-                sizes="100vw"
-              />
-            </div>
+            const tabletSrc =
+              banner.mediaUrl?.tablet || desktopSrc;
 
-            {/* Mobile Image */}
-            <div className="relative block h-full w-full sm:hidden">
-              <Image
-                src={currentBanner.mediaUrl.mobile}
-                alt={currentBanner.title}
-                fill
-                priority
-                className="object-cover"
-                sizes="100vw"
-              />
-            </div>
+            const mobileSrc =
+              banner.mediaUrl?.mobile || desktopSrc;
 
-            {/* Gradient Overlay (optional) */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/50 via-transparent to-transparent" />
-
-            {/* Banner Title & Category (if you want to show) */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 lg:p-12">
-              <div className="mx-auto max-w-7xl">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                >
-                  {currentBanner.category && (
-                    <Link
-                      href={`/shop?category=${currentBanner.category.slug}`}
-                      className="inline-block"
-                    >
-                      <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/30 bg-white/10 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:text-sm">
-                        {currentBanner.category.name}
-                        <ChevronRight className="h-4 w-4" />
-                      </span>
-                    </Link>
+            return (
+              <SwiperSlide key={banner._id || index}>
+                <div className="relative h-full w-full overflow-hidden will-change-transform">
+                  {/* Desktop Image */}
+                  {desktopSrc && (
+                    <div className="relative hidden h-full w-full lg:block">
+                      <Image
+                        src={desktopSrc}
+                        alt={banner.title || "Green Fibre Banner"}
+                        fill
+                        priority={index === 0}
+                        className="object-cover scale-[1.03] transition-transform duration-[900ms] ease-out"
+                        sizes="100vw"
+                      />
+                    </div>
                   )}
-                  <h2
-                    className="mt-2 text-3xl font-semibold text-white drop-shadow-lg sm:text-4xl lg:text-5xl"
-                    style={{
-                      fontFamily:
-                        "var(--font-cormorant, 'Cormorant Garamond', serif)",
-                    }}
-                  >
-                    {currentBanner.title}
-                  </h2>
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
 
-        {/* Navigation Arrows (only show if multiple banners) */}
-        {imageBanners.length > 1 && (
-          <>
-            <button
-              onClick={goToPrev}
-              className="absolute left-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:h-12 sm:w-12 lg:left-8"
-              aria-label="Previous banner"
-            >
-              <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-            </button>
+                  {/* Tablet Image */}
+                  {tabletSrc && (
+                    <div className="relative hidden h-full w-full sm:block lg:hidden">
+                      <Image
+                        src={tabletSrc}
+                        alt={banner.title || "Green Fibre Banner"}
+                        fill
+                        priority={index === 0}
+                        className="object-cover scale-[1.03] transition-transform duration-[900ms] ease-out"
+                        sizes="100vw"
+                      />
+                    </div>
+                  )}
 
-            <button
-              onClick={goToNext}
-              className="absolute right-4 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:h-12 sm:w-12 lg:right-8"
-              aria-label="Next banner"
-            >
-              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-            </button>
-          </>
-        )}
+                  {/* Mobile Image */}
+                  {mobileSrc && (
+                    <div className="relative block h-full w-full sm:hidden">
+                      <Image
+                        src={mobileSrc}
+                        alt={banner.title || "Green Fibre Banner"}
+                        fill
+                        priority={index === 0}
+                        className="object-cover scale-[1.03] transition-transform duration-[900ms] ease-out"
+                        sizes="100vw"
+                      />
+                    </div>
+                  )}
+
+                  {/* Cinematic Gradient Overlays */}
+                  <div className="absolute inset-0 bg-stone-950/35 z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-stone-950/85 via-stone-950/35 to-transparent z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-stone-950/75 via-transparent to-stone-950/20 z-10" />
+
+                  {/* Banner Title & Category Overlay (Positioned Upper / Center) */}
+                  <div className="absolute inset-0 flex flex-col justify-center px-6 sm:px-12 lg:px-20 z-20 pb-8 sm:pb-12">
+                    <div className="mx-auto max-w-7xl w-full">
+                      {banner.category && (
+                        <Link
+                          href={`/shop?category=${banner.category.slug}`}
+                          className="inline-block"
+                        >
+                          <span className="mb-3 sm:mb-4 inline-flex items-center gap-2 rounded-full border border-white/30 bg-stone-900/75 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white backdrop-blur-md transition-all hover:bg-stone-900/95 sm:text-sm shadow-md">
+                            {banner.category.name}
+                            <ChevronRightIcon className="h-4 w-4 text-emerald-400" />
+                          </span>
+                        </Link>
+                      )}
+                      {banner.title && (
+                        <h2
+                          className="mt-1 text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-light text-white drop-shadow-xl uppercase leading-[1.04] max-w-4xl"
+                          style={{
+                            fontFamily:
+                              "var(--font-cormorant, 'Cormorant Garamond', serif)",
+                          }}
+                        >
+                          {banner.title}
+                        </h2>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </SwiperSlide>
+            );
+          })}
+        </Swiper>
+
+
 
         {/* Auto-play Toggle (only show if multiple banners) */}
         {imageBanners.length > 1 && (
           <button
-            onClick={() => setIsAutoPlaying(!isAutoPlaying)}
-            className="absolute bottom-6 right-6 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/10 text-white backdrop-blur-sm transition-all hover:bg-white/20 sm:bottom-8 sm:right-8"
+            onClick={() => {
+              if (isAutoPlaying) {
+                swiperRef.current?.autoplay?.stop();
+                setIsAutoPlaying(false);
+              } else {
+                swiperRef.current?.autoplay?.start();
+                setIsAutoPlaying(true);
+              }
+            }}
+            className="absolute bottom-6 right-6 z-20 flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-white/30 bg-stone-900/70 text-white backdrop-blur-md transition-all hover:bg-white hover:text-stone-950 hover:scale-105"
             aria-label={isAutoPlaying ? "Pause slideshow" : "Play slideshow"}
           >
             {isAutoPlaying ? (
@@ -329,16 +350,15 @@ export default function ImageBannerSection() {
 
         {/* Dot Indicators (only show if multiple banners) */}
         {imageBanners.length > 1 && (
-          <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-2 sm:bottom-8">
+          <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 gap-2">
             {imageBanners.map((_, index) => (
               <button
                 key={index}
-                onClick={() => goToSlide(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === currentIndex
-                    ? "w-8 bg-white"
+                onClick={() => swiperRef.current?.slideToLoop(index)}
+                className={`h-2 rounded-full transition-all duration-400 ${index === activeIndex
+                    ? "w-8 bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
                     : "w-2 bg-white/40 hover:bg-white/60"
-                }`}
+                  }`}
                 aria-label={`Go to banner ${index + 1}`}
               />
             ))}

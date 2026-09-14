@@ -112,7 +112,7 @@ function ProductCard({ product, index }) {
           )}
 
           {/* Product Name */}
-          <Link href={`/products/${product.slug}`}>
+          <Link href={`/shop/${product.slug}`}>
             <h3 className="mb-2 line-clamp-2 text-base font-semibold text-gray-900 transition-colors hover:text-green-600">
               {product.name}
             </h3>
