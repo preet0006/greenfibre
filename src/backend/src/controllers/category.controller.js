@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { Category } from "../models/category.model.js";
-import { OFFICIAL_CATEGORIES } from "../data/officialProducts.js";
 
 import {
     uploadOnCloudinary,
@@ -62,7 +61,7 @@ export const getAllCategories = async (req, res) => {
         if (mongoose.connection.readyState !== 1) {
             return res.status(200).json({
                 success: true,
-                categories: OFFICIAL_CATEGORIES,
+                categories: [],
             });
         }
 
@@ -72,11 +71,11 @@ export const getAllCategories = async (req, res) => {
             displayOrder: 1,
         });
 
-        // ✅ Keep same frontend structure
+        // Format image structure if needed
         const formattedCategories = categories.map((category) => {
             const categoryObj = category.toObject();
 
-            if (categoryObj.image) {
+            if (categoryObj.image && typeof categoryObj.image === "string") {
                 categoryObj.image = {
                     original: category.image,
                     large: category.image,
@@ -88,19 +87,13 @@ export const getAllCategories = async (req, res) => {
             return categoryObj;
         });
 
-        if (!formattedCategories || formattedCategories.length === 0) {
-            return res.status(200).json({
-                success: true,
-                categories: OFFICIAL_CATEGORIES,
-            });
-        }
-
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
-            categories: formattedCategories,
+            categories: formattedCategories || [],
         });
     } catch (error) {
-        res.status(500).json({
+        console.error("Error fetching categories:", error);
+        return res.status(500).json({
             message: "Error fetching categories",
         });
     }

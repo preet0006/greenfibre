@@ -19,6 +19,7 @@ import {
 
 import "swiper/css";
 import "swiper/css/effect-creative";
+import Hero3DSection from "./Hero3DSection";
 
 export default function ImageBannerSection() {
   const banners = useBannerStore((s) => s.banners);
@@ -49,144 +50,9 @@ export default function ImageBannerSection() {
     );
   }
 
-  // Fallback Hero when no dynamic banners exist (Subtle Light Green & White Theme)
+  // Fallback Hero with 3D 360 Bottle experience when no dynamic image banners exist
   if (imageBanners.length === 0) {
-    return (
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-50/90 via-white to-emerald-50/50 text-stone-900 py-12 sm:py-16 lg:py-20 border-b border-emerald-100/60">
-        {/* Ambient soft glow & subtle texture */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-emerald-200/35 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-emerald-100/40 blur-3xl pointer-events-none" />
-        <div
-          className="absolute inset-0 opacity-[0.03] pointer-events-none"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 2px 2px, #059669 1px, transparent 0)",
-            backgroundSize: "36px 36px",
-          }}
-        />
-
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* Left Content */}
-            <div className="lg:col-span-7 space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-100/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-emerald-800 shadow-xs backdrop-blur-sm">
-                <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-                <span>Agricultural Rice Husk Innovation</span>
-              </div>
-
-              <h1
-                className="text-4xl sm:text-5xl md:text-6xl font-light tracking-tight text-stone-900 leading-[1.06]"
-                style={{
-                  fontFamily:
-                    "var(--font-cormorant, 'Cormorant Garamond', serif)",
-                }}
-              >
-                From Crop Stubble to <br />
-                <span className="font-semibold italic text-emerald-700">
-                  Sustainable Luxury
-                </span>
-              </h1>
-
-              <p className="text-stone-600 text-sm sm:text-base md:text-lg font-normal leading-relaxed max-w-xl">
-                We transform discarded agricultural rice crop stubble into durable,
-                zero-waste tableware and lifestyle products — replacing single-use
-                plastics and preventing toxic stubble burning.
-              </p>
-
-              <div className="flex flex-wrap items-center gap-4 pt-1">
-                <Link
-                  href="/shop"
-                  className="group inline-flex items-center gap-2 rounded-full bg-emerald-700 px-7 sm:px-8 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold uppercase tracking-wider text-white shadow-md shadow-emerald-700/20 transition-all hover:bg-emerald-800 hover:scale-105 active:scale-95"
-                >
-                  <span>Explore Catalog</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-                <Link
-                  href="/about"
-                  className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white/90 backdrop-blur-md px-6 sm:px-7 py-3 sm:py-3.5 text-xs sm:text-sm font-medium uppercase tracking-wider text-stone-700 shadow-xs transition-all hover:border-emerald-600 hover:text-emerald-800 hover:bg-white"
-                >
-                  Our Circular Science
-                </Link>
-              </div>
-
-              {/* Badges strip */}
-              <div className="grid grid-cols-3 gap-3 pt-5 border-t border-emerald-900/10">
-                <div className="space-y-0.5">
-                  <p className="text-xl sm:text-2xl font-bold text-stone-900">40%+</p>
-                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Plastic Saved</p>
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-xl sm:text-2xl font-bold text-emerald-700">100%</p>
-                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Food Safe</p>
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-xl sm:text-2xl font-bold text-stone-900">0%</p>
-                  <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider">Microplastics</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Photo Mosaic */}
-            <div className="lg:col-span-5 hidden sm:block">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-4">
-                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
-                    <Image
-                      src="/products/soup-bowl-250-ml.jpg"
-                      alt="Rice Husk Soup Bowl"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      sizes="(max-width: 1024px) 25vw, 20vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white drop-shadow-sm">Soup Bowl</span>
-                    </div>
-                  </div>
-                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
-                    <Image
-                      src="/products/romano-planter.jpg"
-                      alt="Rice Husk Romano Planter"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      sizes="(max-width: 1024px) 25vw, 20vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white drop-shadow-sm">Romano Planter</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4 pt-4 sm:pt-6">
-                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
-                    <Image
-                      src="/products/eco-spring-insulated-bottle.jpg"
-                      alt="Eco Spring Insulated Bottle"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      sizes="(max-width: 1024px) 25vw, 20vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white drop-shadow-sm">Insulated Bottle</span>
-                    </div>
-                  </div>
-                  <div className="relative h-36 sm:h-44 lg:h-48 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-md shadow-emerald-950/5 group">
-                    <Image
-                      src="/products/canister-700-ml.jpg"
-                      alt="Rice Husk Canister"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                      sizes="(max-width: 1024px) 25vw, 20vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900/60 via-transparent to-transparent flex items-end p-3">
-                      <span className="text-xs font-medium text-white drop-shadow-sm">Canister 700 ml</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
+    return <Hero3DSection />;
   }
 
   return (

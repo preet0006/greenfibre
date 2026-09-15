@@ -74,63 +74,12 @@ export const createBlog = async (req, res) => {
 // =============================
 // Get BLOGS (Public)
 // =============================
-const DEFAULT_BLOGS = [
-    {
-        _id: "blog_1",
-        title: "Why Sustainable Plant-Based Homeware is the Future",
-        slug: "sustainable-plant-based-homeware",
-        excerpt: "Discover how eco-friendly husk and plant-fiber materials are replacing single-use plastics in modern homes.",
-        content: "Discover how eco-friendly husk and plant-fiber materials are replacing single-use plastics in modern homes.",
-        readingTime: 4,
-        coverImage: {
-            medium: "/products/romano-planter.jpg",
-            original: "/products/romano-planter.jpg",
-            large: "/products/romano-planter.jpg",
-            thumbnail: "/products/romano-planter.jpg",
-        },
-        createdAt: new Date().toISOString(),
-        tags: ["Sustainability", "Eco-Living"],
-    },
-    {
-        _id: "blog_2",
-        title: "Zero-Waste Kitchen: Simple Habits That Make a Big Impact",
-        slug: "zero-waste-kitchen-simple-habits",
-        excerpt: "Practical steps to minimize kitchen waste with reusable storage bowls, natural canisters, and mindful meal prep.",
-        content: "Practical steps to minimize kitchen waste with reusable storage bowls, natural canisters, and mindful meal prep.",
-        readingTime: 5,
-        coverImage: {
-            medium: "/products/canister-700-ml.jpg",
-            original: "/products/canister-700-ml.jpg",
-            large: "/products/canister-700-ml.jpg",
-            thumbnail: "/products/canister-700-ml.jpg",
-        },
-        createdAt: new Date().toISOString(),
-        tags: ["Zero Waste", "Kitchen"],
-    },
-    {
-        _id: "blog_3",
-        title: "Hydration on the Go: The Eco Spring Difference",
-        slug: "hydration-eco-spring-insulated-bottle",
-        excerpt: "Why choosing durable thermal-insulated bottles reduces carbon emissions and keeps your drinks at peak freshness.",
-        content: "Why choosing durable thermal-insulated bottles reduces carbon emissions and keeps your drinks at peak freshness.",
-        readingTime: 3,
-        coverImage: {
-            medium: "/products/eco-spring-insulated-bottle.jpg",
-            original: "/products/eco-spring-insulated-bottle.jpg",
-            large: "/products/eco-spring-insulated-bottle.jpg",
-            thumbnail: "/products/eco-spring-insulated-bottle.jpg",
-        },
-        createdAt: new Date().toISOString(),
-        tags: ["Eco-Living", "Drinkware"],
-    },
-];
-
 export const getAllBlogs = async (req, res) => {
     try {
         if (mongoose.connection.readyState !== 1) {
             return res.status(200).json({
                 success: true,
-                blogs: DEFAULT_BLOGS,
+                blogs: [],
             });
         }
 
@@ -140,11 +89,11 @@ export const getAllBlogs = async (req, res) => {
             createdAt: -1,
         });
 
-        // ✅ Keep same frontend structure
+        // Format blog images if present
         const formattedBlogs = blogs.map((blog) => {
             const blogObj = blog.toObject();
 
-            if (blogObj.coverImage) {
+            if (blogObj.coverImage && typeof blogObj.coverImage === "string") {
                 blogObj.coverImage = {
                     original: blog.coverImage,
                     large: blog.coverImage,
@@ -155,29 +104,21 @@ export const getAllBlogs = async (req, res) => {
 
             if (blogObj.images && blogObj.images.length > 0) {
                 blogObj.images = blog.images.map((img) => ({
-                    original: img,
+                    original: typeof img === "object" ? img.original || img : img,
                 }));
             }
 
             return blogObj;
         });
 
-        if (!formattedBlogs || formattedBlogs.length === 0) {
-            return res.status(200).json({
-                success: true,
-                blogs: DEFAULT_BLOGS,
-            });
-        }
-
         return res.status(200).json({
             success: true,
-            blogs: formattedBlogs,
+            blogs: formattedBlogs || [],
         });
     } catch (error) {
         console.error("getAllBlogs error:", error.message);
-        return res.status(200).json({
-            success: true,
-            blogs: DEFAULT_BLOGS,
+        return res.status(500).json({
+            message: "Error fetching blogs",
         });
     }
 };
@@ -189,13 +130,6 @@ export const getSingleBlog = async (req, res) => {
     const { slug } = req.params;
     try {
         if (mongoose.connection.readyState !== 1) {
-            const fallback = DEFAULT_BLOGS.find((b) => b.slug === slug);
-            if (fallback) {
-                return res.status(200).json({
-                    success: true,
-                    blog: fallback,
-                });
-            }
             return res.status(404).json({
                 message: "Blog not found",
             });
@@ -207,13 +141,6 @@ export const getSingleBlog = async (req, res) => {
         }).populate("author", "full_name");
 
         if (!blog) {
-            const fallback = DEFAULT_BLOGS.find((b) => b.slug === slug);
-            if (fallback) {
-                return res.status(200).json({
-                    success: true,
-                    blog: fallback,
-                });
-            }
             return res.status(404).json({
                 message: "Blog not found",
             });
@@ -221,8 +148,7 @@ export const getSingleBlog = async (req, res) => {
 
         const blogObj = blog.toObject();
 
-        // ✅ Keep same response structure
-        if (blogObj.coverImage) {
+        if (blogObj.coverImage && typeof blogObj.coverImage === "string") {
             blogObj.coverImage = {
                 original: blog.coverImage,
                 large: blog.coverImage,
@@ -232,7 +158,7 @@ export const getSingleBlog = async (req, res) => {
 
         if (blogObj.images && blogObj.images.length > 0) {
             blogObj.images = blog.images.map((img) => ({
-                original: img,
+                original: typeof img === "object" ? img.original || img : img,
             }));
         }
 
@@ -242,13 +168,6 @@ export const getSingleBlog = async (req, res) => {
         });
     } catch (error) {
         console.error("getSingleBlog error:", error.message);
-        const fallback = DEFAULT_BLOGS.find((b) => b.slug === slug);
-        if (fallback) {
-            return res.status(200).json({
-                success: true,
-                blog: fallback,
-            });
-        }
         return res.status(500).json({
             message: "Error fetching blog",
         });

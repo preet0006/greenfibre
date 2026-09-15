@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import { Product } from "../models/product.model.js";
 import { Category } from "../models/category.model.js";
-import { OFFICIAL_PRODUCTS } from "../data/officialProducts.js";
 import {
     uploadOnCloudinary,
     deleteFromCloudinary,
@@ -70,22 +69,14 @@ const calculateTotalStock = (colors) => {
 export const getProducts = async (req, res) => {
     try {
         if (mongoose.connection.readyState !== 1) {
-            let list = [...OFFICIAL_PRODUCTS];
-            if (req.query.category) {
-                const c = String(req.query.category).toLowerCase();
-                list = list.filter(p => p.category?.slug === c || p.category?._id === c || p.category?.name?.toLowerCase() === c);
-            }
-            if (req.query.isFeatured === "true") {
-                list = list.filter(p => p.isFeatured);
-            }
             return res.status(200).json({
                 success: true,
-                products: list,
+                products: [],
                 pagination: {
                     page: Number(req.query.page) || 1,
                     limit: Number(req.query.limit) || 20,
-                    total: list.length,
-                    pages: 1,
+                    total: 0,
+                    pages: 0,
                 },
             });
         }
@@ -176,27 +167,6 @@ export const getProducts = async (req, res) => {
             return transformed;
         });
 
-        if (!productsWithImages || productsWithImages.length === 0) {
-            let list = [...OFFICIAL_PRODUCTS];
-            if (category) {
-                const c = String(category).toLowerCase();
-                list = list.filter(p => p.category?.slug === c || p.category?._id === c || p.category?.name?.toLowerCase() === c);
-            }
-            if (isFeatured === "true") {
-                list = list.filter(p => p.isFeatured);
-            }
-            return res.status(200).json({
-                success: true,
-                products: list,
-                pagination: {
-                    page: Number(page) || 1,
-                    limit: Number(limit) || 20,
-                    total: list.length,
-                    pages: 1,
-                },
-            });
-        }
-
         return res.status(200).json({
             success: true,
             products: productsWithImages,
@@ -204,7 +174,7 @@ export const getProducts = async (req, res) => {
                 page: Number(page),
                 limit: Number(limit),
                 total,
-                pages: Math.ceil(total / Number(limit)),
+                pages: Math.ceil(total / Number(limit)) || 0,
             },
         });
     } catch (error) {
@@ -316,15 +286,6 @@ export const getSingleProduct = async (req, res) => {
     const { slug } = req.params;
     try {
         if (mongoose.connection.readyState !== 1) {
-            const fallback = OFFICIAL_PRODUCTS.find(
-                (p) => p.slug === slug || p._id === slug
-            );
-            if (fallback) {
-                return res.status(200).json({
-                    success: true,
-                    product: fallback,
-                });
-            }
             return res.status(404).json({
                 message: "Product not found",
             });
@@ -342,13 +303,6 @@ export const getSingleProduct = async (req, res) => {
             .populate("subCategory", "name slug");
 
         if (!product) {
-            const fallback = OFFICIAL_PRODUCTS.find(p => p.slug === slug || p._id === slug);
-            if (fallback) {
-                return res.status(200).json({
-                    success: true,
-                    product: fallback,
-                });
-            }
             return res.status(404).json({
                 message: "Product not found",
             });
@@ -366,15 +320,6 @@ export const getSingleProduct = async (req, res) => {
         });
     } catch (error) {
         console.error("Get single product error:", error.message);
-        const fallback = OFFICIAL_PRODUCTS.find(
-            (p) => p.slug === slug || p._id === slug
-        );
-        if (fallback) {
-            return res.status(200).json({
-                success: true,
-                product: fallback,
-            });
-        }
         return res.status(500).json({
             message: "Error fetching product",
         });
