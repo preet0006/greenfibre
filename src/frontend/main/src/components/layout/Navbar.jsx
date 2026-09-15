@@ -356,11 +356,10 @@ export default function Navbar() {
 
       {/* ── Main navbar ── */}
       <header
-        className={`fixed left-0 right-0 z-70 transition-all duration-300 ${
-          scrolled
+        className={`fixed left-0 right-0 z-70 transition-all duration-300 ${scrolled
             ? "bg-white shadow-sm border-b border-gray-100"
             : "bg-white/95 backdrop-blur-sm"
-        }`}
+          }`}
         style={{ top: 40 }}
       >
         <div className="mx-auto flex h-20 md:h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -385,11 +384,10 @@ export default function Navbar() {
               <button
                 onMouseEnter={() => setCatOpen(true)}
                 onClick={() => setCatOpen(!catOpen)}
-                className={`flex items-center gap-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                  isActive("/shop")
+                className={`flex items-center gap-1 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${isActive("/shop")
                     ? "bg-green-50 text-green-600"
                     : "text-gray-700 hover:bg-gray-50 hover:text-green-600"
-                }`}
+                  }`}
               >
                 Shop
                 <motion.span
@@ -418,11 +416,10 @@ export default function Navbar() {
               <Link
                 key={href}
                 href={href}
-                className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                  isActive(href)
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${isActive(href)
                     ? "bg-green-50 text-green-600"
                     : "text-gray-700 hover:bg-gray-50 hover:text-green-600"
-                }`}
+                  }`}
               >
                 {label}
               </Link>
@@ -444,11 +441,10 @@ export default function Navbar() {
                   }
                 }}
                 aria-label={searchOpen ? "Close search" : "Open search"}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
-                  searchOpen
+                className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${searchOpen
                     ? "bg-green-50 text-green-600"
                     : "text-gray-600 hover:bg-gray-50 hover:text-green-600"
-                }`}
+                  }`}
               >
                 <AnimatePresence mode="wait">
                   {searchOpen ? (
@@ -582,10 +578,10 @@ export default function Navbar() {
 
                                   {product.originalPrice >
                                     product.discountedPrice && (
-                                    <span className="text-xs text-gray-400 line-through">
-                                      ₹{product.originalPrice}
-                                    </span>
-                                  )}
+                                      <span className="text-xs text-gray-400 line-through">
+                                        ₹{product.originalPrice}
+                                      </span>
+                                    )}
                                 </div>
                               </div>
                             </Link>
@@ -799,11 +795,10 @@ export default function Navbar() {
                 >
                   <Link
                     href={href}
-                    className={`flex items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
-                      isActive(href)
+                    className={`flex items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${isActive(href)
                         ? "bg-green-50 text-green-600"
                         : "text-gray-700 hover:bg-gray-50 hover:text-green-600"
-                    }`}
+                      }`}
                   >
                     {label}
                   </Link>

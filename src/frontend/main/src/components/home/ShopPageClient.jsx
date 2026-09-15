@@ -137,11 +137,10 @@ function ProductCard({ product, compact = false }) {
           <button
             onClick={handleWishlist}
             disabled={wishLoading}
-            className={`absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm border shadow-sm transition-all hover:scale-110 disabled:opacity-50 ${
-              isWishlisted
-                ? "bg-red-500 border-red-500 text-white"
-                : "bg-white/95 border-gray-200 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500"
-            }`}
+            className={`absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm border shadow-sm transition-all hover:scale-110 disabled:opacity-50 ${isWishlisted
+              ? "bg-red-500 border-red-500 text-white"
+              : "bg-white/95 border-gray-200 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500"
+              }`}
           >
             <Heart
               className={`h-4 w-4 ${isWishlisted ? "fill-current" : ""}`}
@@ -231,9 +230,8 @@ function FilterSidebar({
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen lg:h-auto lg:top-24 w-80 lg:w-full bg-white border-r lg:border-r-0 lg:border border-gray-200 rounded-none lg:rounded-xl overflow-y-auto transition-transform lg:transition-none ${
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
+        className={`fixed lg:sticky top-0 left-0 z-50 h-screen lg:h-auto lg:top-24 w-80 lg:w-full bg-white border-r lg:border-r-0 lg:border border-gray-200 rounded-none lg:rounded-xl overflow-y-auto transition-transform lg:transition-none ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
       >
         {/* Header (mobile) */}
         <div className="flex items-center justify-between border-b border-gray-200 p-4 lg:hidden">
@@ -255,11 +253,10 @@ function FilterSidebar({
             <div className="space-y-2">
               <button
                 onClick={() => onFilterChange({ category: "" })}
-                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
-                  !filters.category
-                    ? "bg-green-50 text-green-700 font-semibold"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${!filters.category
+                  ? "bg-green-50 text-green-700 font-semibold"
+                  : "text-gray-700 hover:bg-gray-50"
+                  }`}
               >
                 All Categories
               </button>
@@ -267,11 +264,10 @@ function FilterSidebar({
                 <button
                   key={cat._id}
                   onClick={() => onFilterChange({ category: cat._id })}
-                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
-                    filters.category === cat._id
-                      ? "bg-green-50 text-green-700 font-semibold"
-                      : "text-gray-700 hover:bg-gray-50"
-                  }`}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${filters.category === cat._id
+                    ? "bg-green-50 text-green-700 font-semibold"
+                    : "text-gray-700 hover:bg-gray-50"
+                    }`}
                 >
                   {cat.name}
                 </button>
@@ -453,8 +449,8 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
   // Filter products by search query (client-side)
   const filteredProducts = searchQuery
     ? displayProducts.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
     : displayProducts;
 
   const activeCategory = categories.find(
@@ -466,59 +462,18 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Hero */}
-      <div className="relative bg-linear-to-b from-green-50 to-white border-b border-gray-100">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
-          {/* Breadcrumb */}
-          <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
-            <Link href="/" className="hover:text-green-600 transition-colors">
-              Home
-            </Link>
-            <ChevronRight className="h-4 w-4" />
-            <span className="text-gray-900 font-medium">Shop</span>
-            {activeCategory && (
-              <>
-                <ChevronRight className="h-4 w-4" />
-                <span className="text-gray-900 font-medium">
-                  {activeCategory.name}
-                </span>
-              </>
-            )}
-          </div>
-
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1
-                className="text-4xl sm:text-5xl font-semibold text-gray-900"
-                style={{
-                  fontFamily:
-                    "var(--font-cormorant, 'Cormorant Garamond', serif)",
-                }}
-              >
-                {activeCategory ? activeCategory.name : "All Products"}
-              </h1>
-              <p className="mt-2 text-gray-600">
-                {displayPagination?.total ?? filteredProducts.length}{" "}
-                {(displayPagination?.total ?? filteredProducts.length) === 1
-                  ? "product"
-                  : "products"}{" "}
-                available
-              </p>
-            </div>
-
-            {/* Search */}
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition-all focus:border-green-600 focus:ring-2 focus:ring-green-100"
-              />
-            </div>
-          </div>
+      {/* ── Top Banner directly after Navbar ── */}
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-2">
+        <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-white">
+          <Image
+            src="https://res.cloudinary.com/dsebrpcyz/image/upload/x_0,y_894,w_2172,h_384,c_crop/v1789466045/copy_of_chatgpt_image_sep_15_2026_03_20_44_pm_phfl27.png"
+            alt="Sustainable Living Essentials - Green Fibre Collection"
+            width={2172}
+            height={384}
+            priority
+            className="w-full h-auto object-cover block brightness-[1.08] contrast-[1.02]"
+            sizes="(max-width: 1280px) 100vw, 1280px"
+          />
         </div>
       </div>
 
@@ -566,21 +521,19 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                 <div className="hidden sm:flex items-center gap-1 rounded-lg border border-gray-200 p-1">
                   <button
                     onClick={() => setViewMode("grid")}
-                    className={`rounded-md p-1.5 transition-colors ${
-                      viewMode === "grid"
-                        ? "bg-green-50 text-green-600"
-                        : "text-gray-500 hover:bg-gray-100"
-                    }`}
+                    className={`rounded-md p-1.5 transition-colors ${viewMode === "grid"
+                      ? "bg-green-50 text-green-600"
+                      : "text-gray-500 hover:bg-gray-100"
+                      }`}
                   >
                     <Grid3x3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setViewMode("compact")}
-                    className={`rounded-md p-1.5 transition-colors ${
-                      viewMode === "compact"
-                        ? "bg-green-50 text-green-600"
-                        : "text-gray-500 hover:bg-gray-100"
-                    }`}
+                    className={`rounded-md p-1.5 transition-colors ${viewMode === "compact"
+                      ? "bg-green-50 text-green-600"
+                      : "text-gray-500 hover:bg-gray-100"
+                      }`}
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </button>
@@ -591,11 +544,10 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
             {/* Loading */}
             {isInitialLoading && (
               <div
-                className={`grid gap-6 ${
-                  viewMode === "compact"
-                    ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                    : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                }`}
+                className={`grid gap-6 ${viewMode === "compact"
+                  ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                  }`}
               >
                 {[...Array(viewMode === "compact" ? 10 : 6)].map((_, i) => (
                   <SkeletonCard key={i} compact={viewMode === "compact"} />
@@ -634,11 +586,10 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                     variants={stagger}
                     initial="hidden"
                     animate="show"
-                    className={`grid gap-6 ${
-                      viewMode === "compact"
-                        ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                        : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                    }`}
+                    className={`grid gap-6 ${viewMode === "compact"
+                      ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                      : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                      }`}
                   >
                     {filteredProducts.map((product) => (
                       <ProductCard
@@ -667,11 +618,10 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                         <button
                           key={page}
                           onClick={() => handlePageChange(page)}
-                          className={`h-10 w-10 rounded-lg text-sm font-semibold transition-all ${
-                            displayPagination.page === page
-                              ? "bg-green-600 text-white shadow-sm"
-                              : "border-2 border-gray-200 text-gray-700 hover:border-gray-300"
-                          }`}
+                          className={`h-10 w-10 rounded-lg text-sm font-semibold transition-all ${displayPagination.page === page
+                            ? "bg-green-600 text-white shadow-sm"
+                            : "border-2 border-gray-200 text-gray-700 hover:border-gray-300"
+                            }`}
                         >
                           {page}
                         </button>
