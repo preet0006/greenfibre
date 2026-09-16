@@ -27,7 +27,12 @@ const productSchema = new mongoose.Schema(
             required: true,
             validate: {
                 validator: function (value) {
-                    return value <= this.originalPrice;
+                    const orig =
+                        this.originalPrice ??
+                        this.getUpdate?.()?.originalPrice ??
+                        this.getUpdate?.()?.$set?.originalPrice;
+                    if (orig === undefined) return true;
+                    return value <= orig;
                 },
                 message: "Discounted price cannot exceed original price",
             },

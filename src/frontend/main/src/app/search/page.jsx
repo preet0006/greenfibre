@@ -149,13 +149,13 @@ function SearchContent() {
                       href={`/shop/${product.slug}`}
                       className="group block overflow-hidden rounded-3xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-green-200 hover:shadow-xl hover:shadow-green-100/40"
                     >
-                      <div className="relative aspect-square overflow-hidden bg-gray-50/80 p-3 sm:p-4 flex items-center justify-center">
+                      <div className="relative aspect-square overflow-hidden bg-gray-50/80 flex items-center justify-center">
                         {image && (
                           <Image
                             src={image}
                             alt={product.name}
                             fill
-                            className="object-contain p-3 sm:p-4 transition-transform duration-500 group-hover:scale-105"
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         )}
                       </div>

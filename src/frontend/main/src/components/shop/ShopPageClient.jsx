@@ -102,14 +102,14 @@ function ProductCard({ product, compact = false }) {
         className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md"
       >
         {/* Image */}
-        <div className="relative aspect-square overflow-hidden bg-gray-50/80 p-3 sm:p-4 flex items-center justify-center">
+        <div className="relative aspect-square overflow-hidden bg-gray-50/80 flex items-center justify-center">
           {imgSrc ? (
             <Image
               src={imgSrc}
               alt={product.name}
               fill
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              className="object-contain p-3 sm:p-4 transition-transform duration-500 group-hover:scale-105"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
