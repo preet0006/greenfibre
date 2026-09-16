@@ -17,7 +17,7 @@ const connectDB = async () => {
     }
 };
 
-const rawProducts = [
+const productsToImport = [
     {
         name: "Bean Green",
         slug: "bean-green-300-ml",
@@ -30,8 +30,10 @@ const rawProducts = [
         colors: [
             {
                 name: "Blush Cream",
-                stock: 0,
-                images: ["https://res.cloudinary.com/dsebrpcyz/image/upload/v1789454444/ChatGPT_Image_Sep_15_2026_12_09_21_PM_vtn9ht.png"],
+                stock: 20,
+                images: [
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789454444/ChatGPT_Image_Sep_15_2026_12_09_21_PM_vtn9ht.png",
+                ],
             },
         ],
         features: {
@@ -68,11 +70,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A sustainable Tulsi planter designed for home, balcony, pooja and gifting use, crafted with Green Fibre's natural eco-friendly material.",
         categorySlug: "home-and-living",
+        categoryId: "6a9bf3e39d345de922350848",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452144/ChatGPT_Image_Sep_15_2026_11_24_53_AM_c4j4uj.png",
                 ],
@@ -106,13 +109,18 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A premium rice husk fibre composite soup bowl designed for everyday serving and sustainable dining.",
         categorySlug: "kitchen-and-dining",
+        categoryId: "6a9bf3e39d345de922350846",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat & Sage",
-                stock: 0,
+                stock: 20,
                 images: [
-                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452122/ChatGPT_Image_Sep_14_2026_12_24_16_AM_a6gy7s.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/1_hero_bowl_of_goodness_zjcypd.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/2_from_our_kitchen_pcvdqf.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/3_beautifully_useful_cvqwni.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/4_more_than_a_bowl_q2njoo.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/05_last_pic_bivhlw.png",
                 ],
             },
         ],
@@ -148,12 +156,13 @@ const rawProducts = [
         discountedPrice: 0,
         description: "Heat-resistant round coasters with a matching holder for desks and dining tables.",
         categorySlug: "home-and-living",
+        categoryId: "6a9bf3e39d345de922350848",
         subCategory: null,
         colors: [
             {
                 name: "Off-White",
-                stock: 0,
-                images: ["/products/eco-coaster.jpg"],
+                stock: 20,
+                images: [],
             },
         ],
         features: {
@@ -181,7 +190,7 @@ const rawProducts = [
         ],
     },
     {
-        name: "Green Eco-sip Bottle 400ml",
+        name: "Green Eco-sip Bottle",
         slug: "green-eco-sip-bottle-400-ml",
         originalPrice: 0,
         discountedPrice: 0,
@@ -192,7 +201,7 @@ const rawProducts = [
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452123/ChatGPT_Image_Sep_15_2026_11_14_58_AM_yzwgoe.png",
                 ],
@@ -228,7 +237,7 @@ const rawProducts = [
         ],
     },
     {
-        name: "Green Eco-sip Bottle 900ml",
+        name: "Green Eco-sip Bottle",
         slug: "green-eco-sip-bottle-900-ml",
         originalPrice: 0,
         discountedPrice: 0,
@@ -239,9 +248,13 @@ const rawProducts = [
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
-                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452123/ChatGPT_Image_Sep_15_2026_11_18_27_AM_n5r7ia.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543067/1_hero_hydration_ntxocy.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543068/2_thoughtful_design_nqgrjl.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543068/3_stainless_steel_insulation_bxa0ed.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543068/4_900ml_jz7zdl.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543068/06_last_pic_rocyti.png",
                 ],
             },
         ],
@@ -281,11 +294,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A lightweight and elegant casserole designed to keep everyday cooked food warm while bringing a premium sustainable touch to the dining table.",
         categorySlug: "kitchen-and-dining",
+        categoryId: "6a9bf3e39d345de922350846",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452121/ChatGPT_Image_Sep_14_2026_12_10_06_AM_p9yzq3.png",
                 ],
@@ -323,11 +337,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A lightweight and practical storage solution designed to organise everyday household essentials.",
         categorySlug: "storage-and-baskets",
+        categoryId: "6a9bf3e39d345de922350849",
         subCategory: null,
         colors: [
             {
                 name: "Celeste Green",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452121/ChatGPT_Image_Sep_12_2026_04_54_36_PM_tzfn9z.png",
                 ],
@@ -365,11 +380,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A stylish lightweight planter designed to add a natural touch to modern homes, indoor greenery and gifting.",
         categorySlug: "home-and-living",
+        categoryId: "6a9bf3e39d345de922350848",
         subCategory: null,
         colors: [
             {
                 name: "Pink",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452122/ChatGPT_Image_Sep_12_2026_04_59_20_PM_d6ig6p.png",
                 ],
@@ -407,11 +423,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A minimal and elegant tissue paper holder designed to keep everyday spaces neat and organised.",
         categorySlug: "home-and-living",
+        categoryId: "6a9bf3e39d345de922350848",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat & Espresso",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452121/ChatGPT_Image_Sep_12_2026_04_45_12_PM_elxvys.png",
                 ],
@@ -447,13 +464,18 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A practical kitchen storage bowl set designed for everyday food storage and serving.",
         categorySlug: "storage-and-baskets",
+        categoryId: "6a9bf3e39d345de922350849",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
-                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452122/ChatGPT_Image_Sep_15_2026_11_06_36_AM_ajsfg9.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/1_hero_bowl_of_goodness_zjcypd.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/2_from_our_kitchen_pcvdqf.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/3_beautifully_useful_cvqwni.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/4_more_than_a_bowl_q2njoo.png",
+                    "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543178/05_last_pic_bivhlw.png",
                 ],
             },
         ],
@@ -491,11 +513,12 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A premium cylindrical cannister designed to keep everyday dry ingredients and kitchen essentials organised.",
         categorySlug: "kitchen-and-dining",
+        categoryId: "6a9bf3e39d345de922350846",
         subCategory: null,
         colors: [
             {
                 name: "Natural Oat",
-                stock: 0,
+                stock: 20,
                 images: [
                     "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789452121/ChatGPT_Image_Sep_15_2026_10_58_27_AM_wdxmqa.png",
                 ],
@@ -537,6 +560,7 @@ const rawProducts = [
         discountedPrice: 0,
         description: "A sustainable multi-purpose container designed for everyday home, kitchen and storage use.",
         categorySlug: "storage-and-baskets",
+        categoryId: "6a9bf3e39d345de922350849",
         subCategory: null,
         colors: [
             {
@@ -568,7 +592,7 @@ const importProducts = async () => {
     await connectDB();
 
     const categories = await Category.find();
-    console.log(`Found ${categories.length} categories in database.`);
+    console.log(`📂 Found ${categories.length} categories in database.`);
 
     const categoryMap = {};
     categories.forEach((cat) => {
@@ -582,7 +606,7 @@ const importProducts = async () => {
     let insertedCount = 0;
     let updatedCount = 0;
 
-    for (const item of rawProducts) {
+    for (const item of productsToImport) {
         let categoryId = item.categoryId;
         if (!categoryId && item.categorySlug) {
             categoryId = categoryMap[item.categorySlug];
@@ -604,7 +628,7 @@ const importProducts = async () => {
             features: item.features || {},
             materialInfo: item.materialInfo || {},
             isFeatured: item.isFeatured ?? false,
-            isActive: item.isActive ?? true,
+            isActive: item.isActive !== undefined ? item.isActive : true,
             metaTitle: item.metaTitle,
             metaDescription: item.metaDescription,
             metaKeywords: item.metaKeywords,
@@ -614,6 +638,7 @@ const importProducts = async () => {
         if (existing) {
             await Product.findByIdAndUpdate(existing._id, productDoc, {
                 runValidators: true,
+                new: true,
             });
             console.log(`🔄 Updated product: ${item.name} (${item.slug})`);
             updatedCount++;
@@ -624,7 +649,11 @@ const importProducts = async () => {
         }
     }
 
-    console.log(`\n🎉 Import completed! Created: ${insertedCount}, Updated: ${updatedCount}, Total: ${rawProducts.length}`);
+    console.log(`\n🎉 Import completed successfully!`);
+    console.log(`   - Created: ${insertedCount}`);
+    console.log(`   - Updated: ${updatedCount}`);
+    console.log(`   - Total Processed: ${productsToImport.length}`);
+
     process.exit(0);
 };
 

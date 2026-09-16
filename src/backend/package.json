@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "seed:products": "node src/scripts/seedRiceHuskProducts.js"
+    "seed:products": "node src/scripts/seedRiceHuskProducts.js",
+    "import:products": "node src/scripts/importUserProducts.js",
+    "update:stock": "node src/scripts/updateStock.js"
   },
   "keywords": [],
   "author": "Prashant",
