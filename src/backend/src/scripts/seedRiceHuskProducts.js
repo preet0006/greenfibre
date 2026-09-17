@@ -487,34 +487,25 @@ const seedDatabase = async () => {
         console.log("🌱 Seeding authentic Rice Husk hero banners...");
         await Banner.create([
             {
-                title: "Crafted From Rice Husk & Polymer",
+                title: "Small Sips, Big Impact",
                 subtitle: "Transforming agricultural rice husk into high-strength, beautiful, and durable eco-essentials.",
                 mediaType: "image",
-                mediaUrl: "/home-about.jpg",
-                category: createdCategories["kitchen-dining"],
+                mediaUrl: "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543040/1_hero_small_sips_ltzdys.webp",
+                category: createdCategories["kitchen-dining"] || createdCategories["drinkware"],
                 isActive: true,
                 order: 1,
             },
             {
-                title: "Sustainable Living, Redefined",
-                subtitle: "Upcycled Agricultural Biomass Engineered For Premium Durability & High Strength.",
+                title: "",
+                subtitle: "",
                 mediaType: "image",
-                mediaUrl: "/products/romano-planter.jpg",
-                category: createdCategories["home-living"],
+                mediaUrl: "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543040/06_last_pic_gqoc0e.png",
+                category: createdCategories["drinkware"] || createdCategories["home-living"],
                 isActive: true,
                 order: 2,
             },
-            {
-                title: "Eco Drinkware & Modular Storage",
-                subtitle: "Shatter-Resistant, Food-Safe & Thermal Insulated Bio-Composites.",
-                mediaType: "image",
-                mediaUrl: "/products/eco-spring-insulated-bottle.jpg",
-                category: createdCategories["drinkware"],
-                isActive: true,
-                order: 3,
-            },
         ]);
-        console.log("  ✓ Seeded 3 authentic Rice Husk banners");
+        console.log("  ✓ Seeded authentic Rice Husk banners");
 
         console.log("\n🎉 Database seeding completed successfully!");
         console.log(`- 5 Categories seeded`);
