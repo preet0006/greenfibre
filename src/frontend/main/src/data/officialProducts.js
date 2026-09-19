@@ -1,5 +1,20 @@
 export const OFFICIAL_CATEGORIES = [
     {
+        _id: "cat_gift_boxes",
+        name: "Gift Boxes & Hampers",
+        slug: "gift-boxes",
+        description: "Curated sustainable luxury gift sets, corporate hampers, and festive boxes crafted with eco-friendly rice husk composites and zero-waste packaging.",
+        image: {
+            original: "/products/gift-boxes-category.jpg",
+            large: "/products/gift-boxes-category.jpg",
+            medium: "/products/gift-boxes-category.jpg",
+            thumbnail: "/products/gift-boxes-category.jpg",
+        },
+        isFeatured: true,
+        isActive: true,
+        displayOrder: 1,
+    },
+    {
         _id: "cat_kitchen_dining",
         name: "Kitchen & Dining",
         slug: "kitchen-dining",
@@ -12,7 +27,7 @@ export const OFFICIAL_CATEGORIES = [
         },
         isFeatured: true,
         isActive: true,
-        displayOrder: 1,
+        displayOrder: 2,
     },
     {
         _id: "cat_drinkware",

@@ -13,7 +13,7 @@ import {
 import Hero3DViewer from "./Hero3DViewer";
 
 export default function Hero3DSection({
-  modelUrl = process.env.NEXT_PUBLIC_HERO_3D_MODEL_URL || "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789382471/green-fibre-bottle-logo-only_q97ih2.glb",
+  modelUrl = process.env.NEXT_PUBLIC_HERO_3D_MODEL_URL || "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789734715/bottle_xg3utw.glb",
 }) {
   return (
     <section className="relative w-full overflow-hidden bg-gradient-to-b from-green-50/60 via-white to-green-50/30 text-gray-900 border-b border-green-100 py-6 sm:py-8 lg:py-10">

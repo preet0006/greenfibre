@@ -204,15 +204,15 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, fullName: e.target.value })
                     }
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.fullName
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                     placeholder="Enter full name"
                   />
                   {errors.fullName && (
-                    <p className="mt-1 text-xs text-red-500">
+                    <p className="mt-1.5 text-xs font-medium text-red-500">
                       {errors.fullName}
                     </p>
                   )}
@@ -227,32 +227,32 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, companyName: e.target.value })
                     }
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                    className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-4 py-3 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
                     placeholder="Company name"
                   />
                 </div>
               </div>
 
-              {/* Street Address */}
+              {/* Street Address (Flat / House / Road / Street) */}
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Street Address <span className="text-red-500">*</span>
+                  Flat, House No., Building, Street Address <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={form.streetAddress}
                   onChange={(e) =>
                     setForm({ ...form, streetAddress: e.target.value })
                   }
-                  rows={2}
-                  className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                  rows={3}
+                  className={`w-full min-h-[105px] rounded-xl border px-4 py-3.5 text-sm leading-relaxed transition-all focus:outline-none focus:ring-4 resize-y ${
                     errors.streetAddress
-                      ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                      : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                      ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                      : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                   }`}
-                  placeholder="House no., Building name, Street"
+                  placeholder="Flat / House / Apartment No., Building Name, Street / Road, Area"
                 />
                 {errors.streetAddress && (
-                  <p className="mt-1 text-xs text-red-500">
+                  <p className="mt-1.5 text-xs font-medium text-red-500">
                     {errors.streetAddress}
                   </p>
                 )}
@@ -261,7 +261,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
               {/* Landmark */}
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Landmark (Optional)
+                  Nearby Landmark (Optional)
                 </label>
                 <input
                   type="text"
@@ -269,8 +269,8 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   onChange={(e) =>
                     setForm({ ...form, landmark: e.target.value })
                   }
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
-                  placeholder="Near landmark"
+                  className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-4 py-3 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
+                  placeholder="E.g., Near City Mall, Opp. Metro Pillar 42, Behind Primary School"
                 />
               </div>
 
@@ -284,15 +284,15 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     type="text"
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.city
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                     placeholder="City"
                   />
                   {errors.city && (
-                    <p className="mt-1 text-xs text-red-500">{errors.city}</p>
+                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.city}</p>
                   )}
                 </div>
                 <div>
@@ -304,10 +304,10 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, state: e.target.value })
                     }
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.state
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                   >
                     <option value="">Select state</option>
@@ -318,7 +318,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     ))}
                   </select>
                   {errors.state && (
-                    <p className="mt-1 text-xs text-red-500">{errors.state}</p>
+                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.state}</p>
                   )}
                 </div>
                 <div>
@@ -332,15 +332,15 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, pincode: e.target.value })
                     }
                     maxLength={6}
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.pincode
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                     placeholder="123456"
                   />
                   {errors.pincode && (
-                    <p className="mt-1 text-xs text-red-500">
+                    <p className="mt-1.5 text-xs font-medium text-red-500">
                       {errors.pincode}
                     </p>
                   )}
@@ -360,15 +360,15 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, phone: e.target.value })
                     }
                     maxLength={10}
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.phone
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                     placeholder="10-digit number"
                   />
                   {errors.phone && (
-                    <p className="mt-1 text-xs text-red-500">{errors.phone}</p>
+                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.phone}</p>
                   )}
                 </div>
                 <div>
@@ -381,15 +381,15 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className={`w-full rounded-xl border px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-2 ${
+                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.email
-                        ? "border-red-300 focus:border-red-500 focus:ring-red-100"
-                        : "border-gray-200 focus:border-green-500 focus:ring-green-100"
+                        ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
+                        : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
                     }`}
                     placeholder="email@example.com"
                   />
                   {errors.email && (
-                    <p className="mt-1 text-xs text-red-500">{errors.email}</p>
+                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.email}</p>
                   )}
                 </div>
               </div>
