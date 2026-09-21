@@ -12,16 +12,16 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
-SSH_HOST = os.environ.get('VPS_HOST', '187.127.167.18')
+SSH_HOST = os.environ.get('VPS_HOST', '72.61.250.120')
 SSH_PORT = int(os.environ.get('VPS_PORT', 22))
 SSH_USER = os.environ.get('VPS_USER', 'root')
-SSH_PASS = os.environ.get('VPS_PASS', 'puneet')
+SSH_PASS = os.environ.get('VPS_PASS', 'Root@#1234567')
 
 LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_SRC_DIR = os.path.join(LOCAL_DIR, "src")
 LOCAL_ARCHIVE = os.path.join(LOCAL_DIR, "deploy_pack.tar.gz")
 
-REMOTE_TARGET_DIR = '/root/Greenfiber'
+REMOTE_TARGET_DIR = '/var/www/greenfibre/src'
 REMOTE_ARCHIVE_PATH = '/root/deploy_pack.tar.gz'
 
 def should_exclude(path):
@@ -109,10 +109,17 @@ def main():
         run_ssh_command(
             ssh, 
             "mkdir -p /root/env_backups && "
-            "cp /root/Greenfiber/backend/.env /root/env_backups/backend.env 2>/dev/null || true && "
-            "cp /root/Greenfiber/frontend/main/.env.production /root/env_backups/main.env 2>/dev/null || true && "
-            "cp /root/Greenfiber/frontend/admin/.env.production /root/env_backups/admin.env 2>/dev/null || true",
+            "cp /var/www/greenfibre/src/backend/.env /root/env_backups/backend.env 2>/dev/null || true && "
+            "cp /var/www/greenfibre/src/frontend/main/.env.production /root/env_backups/main.env 2>/dev/null || true && "
+            "cp /var/www/greenfibre/src/frontend/admin/.env.production /root/env_backups/admin.env 2>/dev/null || true",
             "Backing up remote env files"
+        )
+        
+        # Ensure target directory exists
+        run_ssh_command(
+            ssh,
+            f"mkdir -p {REMOTE_TARGET_DIR}",
+            "Creating remote target directory"
         )
         
         # Extract target code archive
@@ -132,31 +139,41 @@ def main():
         # Restore environment files in case anything got overwritten
         run_ssh_command(
             ssh,
-            "cp /root/env_backups/backend.env /root/Greenfiber/backend/.env 2>/dev/null || true && "
-            "cp /root/env_backups/main.env /root/Greenfiber/frontend/main/.env.production 2>/dev/null || true && "
-            "cp /root/env_backups/admin.env /root/Greenfiber/frontend/admin/.env.production 2>/dev/null || true",
+            "cp /root/env_backups/backend.env /var/www/greenfibre/src/backend/.env 2>/dev/null || true && "
+            "cp /root/env_backups/main.env /var/www/greenfibre/src/frontend/main/.env.production 2>/dev/null || true && "
+            "cp /root/env_backups/admin.env /var/www/greenfibre/src/frontend/admin/.env.production 2>/dev/null || true",
             "Restoring env files"
         )
         
         # Update and restart Backend
         run_ssh_command(
             ssh,
-            "cd /root/Greenfiber/backend && npm install && pm2 restart green-api",
-            "Installing Backend dependencies and restarting PM2 process"
+            "cd /var/www/greenfibre/src/backend && npm install && "
+            "(pm2 restart greenfibre-api || pm2 start src/index.js --name greenfibre-api)",
+            "Installing Backend dependencies and starting/restarting PM2 process"
         )
         
         # Update, build, and restart Admin Dashboard
         run_ssh_command(
             ssh,
-            "cd /root/Greenfiber/frontend/admin && npm install && npm run build && pm2 restart green-admin",
-            "Installing Admin dependencies, building dashboard, and restarting PM2 process"
+            "cd /var/www/greenfibre/src/frontend/admin && npm install && npm run build && "
+            "(pm2 restart greenfibre-admin || pm2 start npm --name greenfibre-admin -- start)",
+            "Installing Admin dependencies, building dashboard, and starting/restarting PM2 process"
         )
         
         # Update, build, and restart Main Storefront
         run_ssh_command(
             ssh,
-            "cd /root/Greenfiber/frontend/main && npm install && npm run build && pm2 restart green-main",
-            "Installing Main storefront dependencies, building storefront Next.js app, and restarting PM2 process"
+            "cd /var/www/greenfibre/src/frontend/main && npm install && npm run build && "
+            "(pm2 restart greenfibre-main || pm2 start npm --name greenfibre-main -- start)",
+            "Installing Main storefront dependencies, building storefront Next.js app, and starting/restarting PM2 process"
+        )
+        
+        # Also clean up the duplicate /root/Greenfiber processes if they exist
+        run_ssh_command(
+            ssh,
+            "pm2 delete green-api green-admin green-main 2>/dev/null || true",
+            "Cleaning up duplicate PM2 processes"
         )
         
         # Show final PM2 status
