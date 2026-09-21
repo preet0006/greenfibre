@@ -50,18 +50,36 @@ export const registerUser = async (req, res) => {
         }
 
         const existingUser = await User.findOne({ email: normalizedEmail });
-        if (existingUser)
-            return res.status(400).json({
-                message: "User is already registered with this email",
-            });
+        let user;
 
-        const user = await User.create({
-            full_name: full_name.trim(),
-            email: normalizedEmail,
-            password,
-            phone: phone || undefined,
-            role: "user",
-        });
+        if (existingUser) {
+            if (existingUser.isVerified) {
+                return res.status(400).json({
+                    message: "User is already registered with this email",
+                });
+            }
+            // User registered previously but did not complete email verification:
+            // Update their info and allow sending a fresh OTP
+            existingUser.full_name = full_name.trim();
+            existingUser.password = password; // triggers pre('save') bcrypt hash
+            if (phone) existingUser.phone = phone;
+            await existingUser.save();
+            user = existingUser;
+
+            // Clear any stale unverified OTPs
+            await OTP.deleteMany({
+                userId: user._id,
+                purpose: "email_verification",
+            });
+        } else {
+            user = await User.create({
+                full_name: full_name.trim(),
+                email: normalizedEmail,
+                password,
+                phone: phone || undefined,
+                role: "user",
+            });
+        }
 
         // Generate OTP
         const { otp, expiry } = generateOtp();
@@ -81,16 +99,16 @@ export const registerUser = async (req, res) => {
                 title: "Verify Your Email",
                 subtitle: "Welcome to Greenfibre",
                 body: `
-      <p>Hi <b>${full_name.trim()}</b>,</p>
-      <p>Welcome to <b>Greenfibre</b> — your destination for eco-friendly products.</p>
-      <p>Please use the verification code below to activate your account.</p>
-    `,
+          <p>Hi <b>${full_name.trim()}</b>,</p>
+          <p>Welcome to <b>Greenfibre</b> — your destination for eco-friendly products.</p>
+          <p>Please use the verification code below to activate your account.</p>
+        `,
                 highlight: otp,
                 footerNote: `
-      <p style="font-size:13px;">
-        This code is valid for <b>5 minutes</b>. Do not share it with anyone.
-      </p>
-    `,
+          <p style="font-size:13px;">
+            This code is valid for <b>5 minutes</b>. Do not share it with anyone.
+          </p>
+        `,
             })
         );
 
@@ -106,9 +124,14 @@ export const registerUser = async (req, res) => {
                 message: first?.message || "Invalid registration data",
             });
         }
+        if (error?.code === 11000) {
+            return res.status(400).json({
+                message: "A user with this email or phone already exists",
+            });
+        }
         return res
             .status(500)
-            .json({ message: "Error while register" });
+            .json({ message: error.message || "Error while register" });
     }
 };
 
@@ -569,15 +592,15 @@ export const resendOtp = async (req, res) => {
                 title: "New Verification Code",
                 subtitle: "Account Verification",
                 body: `
-      <p>You requested a new verification code for your Greenfibre account.</p>
-      <p>Please use the code below to continue.</p>
-    `,
+          <p>You requested a new verification code for your Greenfibre account.</p>
+          <p>Please use the code below to continue.</p>
+        `,
                 highlight: otp,
                 footerNote: `
-      <p style="font-size:13px;">
-        This code is valid for <b>5 minutes</b>. If you didn't request this, you can safely ignore this email.
-      </p>
-    `,
+          <p style="font-size:13px;">
+            This code is valid for <b>5 minutes</b>. If you didn't request this, you can safely ignore this email.
+          </p>
+        `,
             })
         );
 
@@ -635,15 +658,15 @@ export const forgotPassword = async (req, res) => {
                 title: "Password Reset Request",
                 subtitle: "Account Security",
                 body: `
-      <p>We received a request to reset your Greenfibre account password.</p>
-      <p>Use the code below to proceed securely.</p>
-    `,
+          <p>We received a request to reset your Greenfibre account password.</p>
+          <p>Use the code below to proceed securely.</p>
+        `,
                 highlight: otp,
                 footerNote: `
-      <p style="font-size:13px;">
-        This code will expire in <b>5 minutes</b>. If this wasn't you, ignore this email.
-      </p>
-    `,
+          <p style="font-size:13px;">
+            This code will expire in <b>5 minutes</b>. If this wasn't you, ignore this email.
+          </p>
+        `,
             })
         );
 

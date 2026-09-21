@@ -12,6 +12,12 @@ import { sendMail } from "../utils/sendMail.js";
 import { baseEmailTemplate } from "../utils/emailTemplate.js";
 import { cleanupTempInvoice } from "../utils/invoiceHelpers.js";
 import { applyCouponUsage } from "./coupon.controller.js";
+import {
+    createShiprocketOrder,
+    generateAWB,
+    requestPickup,
+    cancelShiprocketOrder,
+} from "../utils/shiprocket.js";
 
 // Easebuzz configuration — read lazily so a server restart always picks up
 // the current .env values without any code changes needed.
@@ -23,11 +29,6 @@ const getEasebuzzUrl = () =>
         ? "https://pay.easebuzz.in"
         : "https://testpay.easebuzz.in";
 
-
-// NimbusPost configuration
-const NIMBUSPOST_EMAIL = process.env.NIMBUSPOST_EMAIL;
-const NIMBUSPOST_PASSWORD = process.env.NIMBUSPOST_PASSWORD;
-const NIMBUSPOST_URL = "https://api.nimbuspost.com/v1";
 
 // Helper: Generate Easebuzz payment initiation hash
 // Format: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5|udf6|udf7|udf8|udf9|udf10|salt
@@ -54,32 +55,6 @@ const generateEasebuzzHash = (data) => {
     return crypto.createHash("sha512").update(hashString).digest("hex");
 };
 
-// Helper: Get NimbusPost token
-let nimbuspostToken = null;
-let tokenExpiry = null;
-
-const getNimbusPostToken = async () => {
-    // Return cached token if still valid
-    if (nimbuspostToken && tokenExpiry && Date.now() < tokenExpiry) {
-        return nimbuspostToken;
-    }
-
-    try {
-        const response = await axios.post(`${NIMBUSPOST_URL}/users/login`, {
-            email: NIMBUSPOST_EMAIL,
-            password: NIMBUSPOST_PASSWORD,
-        });
-
-        nimbuspostToken = response.data.data;
-        // Token typically valid for 24 hours, cache for 23 hours
-        tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
-
-        return nimbuspostToken;
-    } catch (error) {
-        console.error("NimbusPost login error:", error);
-        throw new Error("Failed to authenticate with NimbusPost");
-    }
-};
 
 
 export const createOrder = async (req, res) => {
@@ -1324,81 +1299,116 @@ export const updateOrderStatus = async (req, res) => {
 
         // Handle specific status updates
         if (status === "shipped") {
+            // ── Step 1: If admin manually provided tracking info, save it now ──
             if (trackingNumber && courierName) {
                 order.shippingDetails.trackingNumber = trackingNumber;
                 order.shippingDetails.courierName = courierName;
                 order.shippingDetails.shippedAt = new Date();
             }
 
-            // Optional: Create NimbusPost shipment
-            try {
-                const token = await getNimbusPostToken();
+            // ── Step 2: Create Shiprocket order → assign AWB → request pickup ──
+            // Skipped if SHIPROCKET_ENABLED != "true" (local dev safety)
+            if (process.env.SHIPROCKET_ENABLED === "true") {
+                const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
 
-                const shipmentData = {
-                    order_number: order.easebuzzOrderId,
-                    shipping_charges: 0,
-                    discount: order.discountAmount,
-                    cod_charges: 0,
-                    payment_type:
-                        order.paymentStatus === "paid" ? "prepaid" : "cod",
-                    order_amount: order.finalAmount,
-                    package_weight: 500, // grams - calculate based on products
-                    package_length: 10,
-                    package_breadth: 10,
-                    package_height: 10,
-                    consignee: {
-                        name: order.shippingAddress.fullName,
-                        address: order.shippingAddress.streetAddress,
-                        address_2: order.shippingAddress.landmark || "",
-                        city: order.shippingAddress.city,
-                        state: order.shippingAddress.state,
-                        pincode: order.shippingAddress.pincode,
-                        phone: order.shippingAddress.phone,
-                    },
-                    pickup: {
-                        // Your warehouse details
-                        warehouse_name:
-                            process.env.WAREHOUSE_NAME || "Main Warehouse",
-                        name: process.env.WAREHOUSE_CONTACT_NAME,
-                        address: process.env.WAREHOUSE_ADDRESS,
-                        city: process.env.WAREHOUSE_CITY,
-                        state: process.env.WAREHOUSE_STATE,
-                        pincode: process.env.WAREHOUSE_PINCODE,
-                        phone: process.env.WAREHOUSE_PHONE,
-                    },
-                    order_items: order.items.map((item) => ({
-                        name: item.name,
-                        qty: item.quantity,
-                        price: item.price,
-                        sku: `${item.product}-${item.colorIndex}`,
-                    })),
-                };
+                try {
+                    console.log(`🚚 Creating Shiprocket order for order ${order._id} (Test Mode: ${isTestMode})...`);
 
-                const nimbusResponse = await axios.post(
-                    `${NIMBUSPOST_URL}/shipments`,
-                    shipmentData,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                            "Content-Type": "application/json",
-                        },
+                    const srResponse = await createShiprocketOrder(order);
+                    const srOrderId = srResponse.order_id || srResponse.sr_order_id;
+                    const srShipmentId = srResponse.shipment_id;
+
+                    if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
+                    if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
+
+                    console.log(`✅ Shiprocket order created. sr_order_id=${srOrderId}, shipment_id=${srShipmentId}`);
+
+                    // ── Guardrail: In TEST MODE, stop after createShiprocketOrder (no real courier bookings) ──
+                    if (isTestMode) {
+                        console.log(
+                            `🧪 [SHIPROCKET_TEST_MODE=true] Order created with TEST- prefix at test warehouse. ` +
+                            `generateAWB() and requestPickup() SKIPPED to prevent booking live couriers.`
+                        );
+                        order.statusHistory.push({
+                            status: "shipped",
+                            timestamp: new Date(),
+                            note: `[Test Mode] Shiprocket order ${srOrderId} created. AWB & Pickup skipped.`,
+                        });
+                    } else if (srShipmentId) {
+                        // ── LIVE MODE: Full Chain (AWB -> Pickup) with Rollback on Partial Failure ──
+                        let awbAssigned = false;
+                        try {
+                            const awbData = await generateAWB(srShipmentId);
+                            const awb = awbData.awb_code;
+                            const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
+
+                            if (awb) {
+                                order.shippingDetails.trackingNumber = awb;
+                                order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
+                            }
+                            if (courierNameSr && !order.shippingDetails.courierName) {
+                                order.shippingDetails.courierName = courierNameSr;
+                            }
+                            console.log(`✅ AWB assigned: ${awb} via ${courierNameSr}`);
+                            awbAssigned = true;
+
+                            // Request courier pickup
+                            try {
+                                await requestPickup(srShipmentId);
+                                console.log(`✅ Pickup requested for shipment ${srShipmentId}`);
+                            } catch (pickupErr) {
+                                const pickupErrMsg = pickupErr?.response?.data?.message || pickupErr.message;
+                                console.error(`⚠️ Shiprocket pickup request warning for shipment ${srShipmentId}:`, pickupErrMsg);
+                                order.statusHistory.push({
+                                    status: "shipped",
+                                    timestamp: new Date(),
+                                    note: `Shiprocket pickup request pending: ${pickupErrMsg}`,
+                                });
+                            }
+
+                        } catch (awbErr) {
+                            const awbErrMsg = awbErr?.response?.data?.message || awbErr.message;
+                            console.error(`🚨 Shiprocket AWB generation failed for order ${order._id}:`, awbErrMsg);
+
+                            // Rollback: cancel the newly created Shiprocket order so it is not orphaned
+                            if (srOrderId) {
+                                try {
+                                    console.log(`🔄 Rolling back orphaned Shiprocket order ${srOrderId}...`);
+                                    await cancelShiprocketOrder([srOrderId]);
+                                    console.log(`✅ Rollback successful: Shiprocket order ${srOrderId} cancelled.`);
+                                } catch (rollbackErr) {
+                                    console.error(`❌ Rollback failed for Shiprocket order ${srOrderId}:`, rollbackErr?.response?.data || rollbackErr.message);
+                                }
+                            }
+
+                            order.statusHistory.push({
+                                status: "shipped",
+                                timestamp: new Date(),
+                                note: `Shiprocket AWB generation failed: ${awbErrMsg}. Order rolled back on Shiprocket.`,
+                            });
+                        }
                     }
-                );
 
-                if (nimbusResponse.data.status) {
-                    order.shippingDetails.nimbusOrderId =
-                        nimbusResponse.data.data.order_id;
-                    order.shippingDetails.trackingNumber =
-                        nimbusResponse.data.data.awb_number;
-                    order.shippingDetails.trackingUrl =
-                        nimbusResponse.data.data.tracking_url;
+                    if (!order.shippingDetails.shippedAt) {
+                        order.shippingDetails.shippedAt = new Date();
+                    }
+
+                } catch (srError) {
+                    console.error(
+                        "Shiprocket order creation error (non-fatal, order status still updated):",
+                        srError?.response?.data || srError.message
+                    );
+                    order.statusHistory.push({
+                        status: "shipped",
+                        timestamp: new Date(),
+                        note: `Shiprocket order creation failed: ${srError?.response?.data?.message || srError.message}`,
+                    });
                 }
-            } catch (nimbusError) {
-                console.error(
-                    "NimbusPost shipment creation error:",
-                    nimbusError
-                );
-                // Continue even if NimbusPost fails - can be done manually
+            } else {
+                console.log("🚧 [DEV] SHIPROCKET_ENABLED=false — Shiprocket skipped. Order status updated locally only.");
+                if (!order.shippingDetails.shippedAt) {
+                    order.shippingDetails.shippedAt = new Date();
+                }
             }
         }
 
@@ -1425,6 +1435,19 @@ export const updateOrderStatus = async (req, res) => {
                     { code: order.couponCode },
                     { $inc: { usedCount: -1 } }
                 );
+            }
+
+            // Best-effort: cancel the Shiprocket order if one was created
+            if (process.env.SHIPROCKET_ENABLED === "true" && order.shippingDetails?.shiprocketOrderId) {
+                try {
+                    await cancelShiprocketOrder([order.shippingDetails.shiprocketOrderId]);
+                    console.log(`✅ Shiprocket order ${order.shippingDetails.shiprocketOrderId} cancelled.`);
+                } catch (srCancelErr) {
+                    console.error(
+                        "Shiprocket order cancellation error (non-fatal):",
+                        srCancelErr?.response?.data || srCancelErr.message
+                    );
+                }
             }
         }
 

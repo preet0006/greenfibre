@@ -115,12 +115,14 @@ const orderSchema = new mongoose.Schema(
 
         invoiceUrl: String,
 
-        // Shipping - NimbusPost
+        // Shipping
         shippingDetails: {
             courierName: String,
-            trackingNumber: String, // AWB number from NimbusPost
+            trackingNumber: String,      // AWB number
             trackingUrl: String,
-            nimbusOrderId: String, // NimbusPost order ID
+            nimbusOrderId: String,       // Legacy: NimbusPost order ID (kept for backwards compat)
+            shiprocketOrderId: String,   // Shiprocket sr_order_id
+            shiprocketShipmentId: String, // Shiprocket shipment_id
             estimatedDelivery: Date,
             shippedAt: Date,
             deliveredAt: Date,

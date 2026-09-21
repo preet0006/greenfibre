@@ -9,7 +9,9 @@
     "start": "node src/index.js",
     "seed:products": "node src/scripts/seedRiceHuskProducts.js",
     "import:products": "node src/scripts/importUserProducts.js",
-    "update:stock": "node src/scripts/updateStock.js"
+    "update:stock": "node src/scripts/updateStock.js",
+    "check:shipping": "node src/scripts/checkShiprocket.js",
+    "test:webhook": "node src/scripts/simulateWebhook.js"
   },
   "keywords": [],
   "author": "Prashant",

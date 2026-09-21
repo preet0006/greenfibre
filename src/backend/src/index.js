@@ -24,6 +24,8 @@ import pageSettingsRoutes from "./routes/pageSettings.route.js";
 import dashboardRoutes from "./routes/dashboard.route.js";
 import categoryRoutes from "./routes/category.route.js";
 import razorpayRoutes from "./routes/razorpay.route.js";
+import shiprocketRoutes from "./routes/shiprocket.route.js";
+import { handleShiprocketWebhook } from "./controllers/shiprocket.controller.js";
 
 dotenv.config({
     path: "./.env",
@@ -145,6 +147,15 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api", razorpayRoutes);
 app.use("/api/razorpay", razorpayRoutes);
+app.use("/api/shipping", shiprocketRoutes);
+app.post("/delivery-update", handleShiprocketWebhook);
+
+app.all("/", (req, res) => {
+    if (req.method === "POST") {
+        return handleShiprocketWebhook(req, res);
+    }
+    return res.status(200).json({ success: true, message: "Green Fibre API is running" });
+});
 
 app.get("/api/health", (_req, res) => {
     res.status(200).json({ success: true, message: "OK" });
