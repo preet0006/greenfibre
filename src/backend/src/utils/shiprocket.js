@@ -15,13 +15,12 @@
  */
 
 import axios from "axios";
+import { Order } from "../models/order.model.js";
 
-const SR_BASE_LIVE    = "https://apiv2.shiprocket.in/v1/external";
-const SR_BASE_SANDBOX = "https://api-sandbox.shiprocket.in/v1/external";
+const SR_BASE_LIVE = "https://apiv2.shiprocket.in/v1/external";
 
-// Resolves the correct base URL based on SHIPROCKET_TEST_MODE env flag
-const getSrBase = () =>
-    process.env.SHIPROCKET_TEST_MODE === "true" ? SR_BASE_SANDBOX : SR_BASE_LIVE;
+// Shiprocket operates exclusively on apiv2.shiprocket.in (no separate sandbox endpoint exists)
+const getSrBase = () => SR_BASE_LIVE;
 
 // ── Token cache ────────────────────────────────────────────────────────────
 // Token is valid for 10 days (240 hours). We cache for 9 days to maintain safety margin.
@@ -157,7 +156,7 @@ export const checkServiceability = async (
         params: {
             pickup_postcode: pickupPostcode,
             delivery_postcode: deliveryPostcode,
-            weight: weight / 1000, // Shiprocket expects kg
+            weight: (Number(weight) || 500) / 1000, // Shiprocket expects kg
             cod,
         },
     });
@@ -183,25 +182,84 @@ export const createShiprocketOrder = async (order) => {
         ? (process.env.SHIPROCKET_TEST_PICKUP_LOCATION || "TEST-WAREHOUSE")
         : (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary");
 
-    // Build order items array
-    const orderItems = order.items.map((item) => ({
-        name: item.name,
-        sku: `${item.product}-${item.colorIndex}`,
-        units: item.quantity,
-        selling_price: item.price,
-        discount: 0,
-        tax: 0,
-        hsn: process.env.SHIPROCKET_HSN || "",
-    }));
+    const shippingAddr = order.shippingAddress || {};
+
+    // Customer name formatting: split into first & last name (max 50 chars each)
+    const rawFullName = (shippingAddr.fullName || "Customer").trim();
+    const nameParts = rawFullName.split(/\s+/);
+    const firstName = (nameParts[0] || "Customer").slice(0, 50);
+    const lastName = (nameParts.slice(1).join(" ") || ".").slice(0, 50);
+
+    // Sanitize phone (must be 10 digits)
+    const cleanPhone = (shippingAddr.phone || "")
+        .replace(/\D/g, "")
+        .slice(-10) || "9999999999";
+
+    // Sanitize pincode (must be 6 digits)
+    const cleanPincode = (shippingAddr.pincode || "")
+        .toString()
+        .replace(/\D/g, "")
+        .slice(0, 6) || "110001";
+
+    // Email fallback
+    const cleanEmail = (
+        shippingAddr.email ||
+        order.user?.email ||
+        process.env.COMPANY_EMAIL ||
+        "support@greenfibre.org"
+    ).trim();
+
+    // Sanitize line items
+    const orderItems = (order.items || []).map((item, idx) => {
+        const itemName = (item.name || `Green Fibre Item ${idx + 1}`).trim().slice(0, 50);
+        const itemQty = Math.max(1, Math.round(Number(item.quantity) || 1));
+        const itemPrice = Math.max(1, Math.round(Number(item.price) || 1));
+        const itemSku = (
+            item.product
+                ? `${item.product}-${item.colorIndex ?? 0}`
+                : `GF-SKU-${idx + 1}`
+        ).slice(0, 50);
+
+        return {
+            name: itemName,
+            sku: itemSku,
+            units: itemQty,
+            selling_price: itemPrice,
+            discount: 0,
+            tax: 0,
+            hsn: process.env.SHIPROCKET_HSN || "",
+        };
+    });
+
+    if (orderItems.length === 0) {
+        orderItems.push({
+            name: "Green Fibre Eco Product",
+            sku: "GF-PROD-1",
+            units: 1,
+            selling_price: Math.max(1, Math.round(Number(order.finalAmount) || 1)),
+            discount: 0,
+            tax: 0,
+            hsn: process.env.SHIPROCKET_HSN || "",
+        });
+    }
 
     // Use easebuzzOrderId / razorpayOrderId / _id as our base reference
     const rawRef =
         order.easebuzzOrderId ||
         order.razorpayOrderId ||
-        order._id.toString();
+        order._id?.toString() ||
+        `GF_${Date.now()}`;
 
     // In test mode, prefix order_id with TEST- to distinguish in Shiprocket dashboard
     const orderRef = isTestMode ? `TEST-${rawRef}` : rawRef;
+
+    const subTotal = Math.max(
+        1,
+        Math.round(
+            Number(order.finalAmount) ||
+            orderItems.reduce((s, i) => s + i.selling_price * i.units, 0)
+        )
+    );
 
     const payload = {
         order_id: orderRef,
@@ -211,17 +269,17 @@ export const createShiprocketOrder = async (order) => {
             .slice(0, 19),
         pickup_location: pickupLocation,
 
-        // Billing = shipping
-        billing_customer_name: order.shippingAddress.fullName,
-        billing_last_name: "",
-        billing_address: order.shippingAddress.streetAddress,
-        billing_address_2: order.shippingAddress.landmark || "",
-        billing_city: order.shippingAddress.city,
-        billing_pincode: order.shippingAddress.pincode,
-        billing_state: order.shippingAddress.state,
+        // Customer details
+        billing_customer_name: firstName,
+        billing_last_name: lastName,
+        billing_address: (shippingAddr.streetAddress || "Main Street").trim(),
+        billing_address_2: (shippingAddr.landmark || "").trim(),
+        billing_city: (shippingAddr.city || "Delhi").trim(),
+        billing_pincode: cleanPincode,
+        billing_state: (shippingAddr.state || "Delhi").trim(),
         billing_country: "India",
-        billing_email: order.shippingAddress.email || "",
-        billing_phone: order.shippingAddress.phone,
+        billing_email: cleanEmail,
+        billing_phone: cleanPhone,
 
         shipping_is_billing: true,
 
@@ -229,12 +287,11 @@ export const createShiprocketOrder = async (order) => {
 
         payment_method:
             order.paymentStatus === "paid" ? "Prepaid" : "COD",
-        sub_total: order.finalAmount,
-        length: Number(process.env.SHIPROCKET_PKG_LENGTH) || 10,
-        breadth: Number(process.env.SHIPROCKET_PKG_BREADTH) || 10,
-        height: Number(process.env.SHIPROCKET_PKG_HEIGHT) || 10,
-        weight:
-            (Number(process.env.SHIPROCKET_PKG_WEIGHT_G) || 500) / 1000, // kg
+        sub_total: subTotal,
+        length: Math.max(5, Number(process.env.SHIPROCKET_PKG_LENGTH) || 10),
+        breadth: Math.max(5, Number(process.env.SHIPROCKET_PKG_BREADTH) || 10),
+        height: Math.max(5, Number(process.env.SHIPROCKET_PKG_HEIGHT) || 10),
+        weight: Math.max(0.05, (Number(process.env.SHIPROCKET_PKG_WEIGHT_G) || 500) / 1000), // kg
     };
 
     const res = await makeSrRequest({
@@ -261,7 +318,7 @@ export const createShiprocketOrder = async (order) => {
  *
  * @param {number|string} shipmentId - Shiprocket shipment_id
  * @param {number|string|null} courierId - Optional specific courier ID
- * @returns {Object} AWB assignment response data
+ * @returns {Object} AWB assignment response data containing awb_code, courier_name, etc.
  */
 export const generateAWB = async (shipmentId, courierId = null) => {
     const payload = {
@@ -277,14 +334,24 @@ export const generateAWB = async (shipmentId, courierId = null) => {
         data: payload,
     });
 
-    if (!res.data?.response?.data?.awb_code) {
-        console.error("Shiprocket AWB generation unexpected response:", res.data);
-        throw new Error(
-            `Shiprocket AWB generation failed: ${JSON.stringify(res.data)}`
-        );
+    const respData = res.data?.response?.data || res.data?.data || res.data || {};
+    const awbCode = respData.awb_code || res.data?.awb_code;
+    const courierName = respData.courier_name || respData.assigned_courier || res.data?.courier_name || "";
+
+    if (!awbCode) {
+        const errorMsg =
+            respData.awb_assign_error ||
+            res.data?.message ||
+            JSON.stringify(res.data);
+        console.error("Shiprocket AWB generation failed:", errorMsg);
+        throw new Error(`Shiprocket AWB generation failed: ${errorMsg}`);
     }
 
-    return res.data.response.data;
+    return {
+        ...respData,
+        awb_code: awbCode,
+        courier_name: courierName,
+    };
 };
 
 // ── 4. Pickup scheduling ─────────────────────────────────────────────────────
@@ -357,13 +424,15 @@ export const getShipmentDetails = async (shipmentId) => {
         url: `/shipments/${shipmentId}`,
     });
     return res.data;
-// ── 9. Auto-Fulfill Order ───────────────────────────────────────────────────
+};
+
+// ── 8. Auto-Fulfill Order ───────────────────────────────────────────────────
 
 /**
  * Automatically pushes a confirmed/paid order to Shiprocket, generates AWB, and schedules pickup.
  * Safe to call asynchronously — handles errors gracefully without throwing.
  *
- * @param {Object} order - Mongoose Order document
+ * @param {Object} order - Mongoose Order document or plain order object
  */
 export const autoFulfillOrder = async (order) => {
     if (process.env.SHIPROCKET_ENABLED !== "true") {
@@ -371,73 +440,66 @@ export const autoFulfillOrder = async (order) => {
         return;
     }
 
-    if (order.shippingDetails?.shiprocketOrderId) {
-        console.log(`ℹ️ [AUTO-FULFILLMENT] Order ${order._id} already dispatched with Shiprocket order ID ${order.shippingDetails.shiprocketOrderId}.`);
-        return;
-    }
-
-    const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
-    console.log(`🚀 [AUTO-FULFILLMENT] Initiating automatic Shiprocket dispatch for order ${order._id} (Test Mode: ${isTestMode})...`);
+    if (!order) return;
 
     try {
-        const srResponse = await createShiprocketOrder(order);
+        // Fetch fresh Mongoose order instance if needed
+        let dbOrder = typeof order.save === "function"
+            ? order
+            : await Order.findById(order._id);
+
+        if (!dbOrder) {
+            console.warn("⚠️ [AUTO-FULFILLMENT] Order not found in database for fulfillment:", order._id);
+            return;
+        }
+
+        if (dbOrder.hasStockConflict) {
+            console.warn(`🛑 [AUTO-FULFILLMENT] Order ${dbOrder._id} has an active stock conflict. Automatic courier dispatch halted for manual ops review.`);
+            return;
+        }
+
+        if (dbOrder.shippingDetails?.shiprocketOrderId) {
+            console.log(`ℹ️ [AUTO-FULFILLMENT] Order ${dbOrder._id} already dispatched with Shiprocket order ID ${dbOrder.shippingDetails.shiprocketOrderId}.`);
+            return;
+        }
+
+        const srResponse = await createShiprocketOrder(dbOrder);
         const srOrderId = srResponse.order_id || srResponse.sr_order_id;
         const srShipmentId = srResponse.shipment_id;
 
-        if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
-        if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
-        if (!order.shippingDetails.shippedAt) order.shippingDetails.shippedAt = new Date();
+        if (!dbOrder.shippingDetails) {
+            dbOrder.shippingDetails = {};
+        }
 
-        console.log(`✅ [AUTO-FULFILLMENT] Shiprocket order created! sr_order_id=${srOrderId}, shipment_id=${srShipmentId}`);
+        if (srOrderId) dbOrder.shippingDetails.shiprocketOrderId = String(srOrderId);
+        if (srShipmentId) dbOrder.shippingDetails.shiprocketShipmentId = String(srShipmentId);
 
-        if (isTestMode) {
-            console.log(
-                `🧪 [SHIPROCKET_TEST_MODE=true] Order created with TEST- prefix at test warehouse. ` +
-                `AWB generation skipped to prevent live courier bookings.`
-            );
-            order.statusHistory.push({
-                status: "shipped",
-                timestamp: new Date(),
-                note: `[Auto-Fulfill / Test Mode] Shiprocket order ${srOrderId} created.`,
-            });
-            order.orderStatus = "shipped";
-            await order.save();
-        } else if (srShipmentId) {
-            // LIVE MODE: Generate AWB & Request Pickup
+        console.log(`✅ [STAGE 1: AUTO-CREATE] Shiprocket order reserved! sr_order_id=${srOrderId}, shipment_id=${srShipmentId}`);
+
+        dbOrder.orderStatus = "processing";
+        dbOrder.statusHistory.push({
+            status: "processing",
+            timestamp: new Date(),
+            note: `Shiprocket order #${srOrderId} reserved. Awaiting admin release for AWB + courier pickup.`,
+        });
+
+        await dbOrder.save();
+        return { success: true, srOrderId, srShipmentId };
+    } catch (error) {
+        const errorData = error?.response?.data || error.message;
+        console.error("❌ [STAGE 1: AUTO-CREATE] Error creating Shiprocket order:", errorData);
+        if (order && typeof order.save === "function") {
             try {
-                const awbData = await generateAWB(srShipmentId);
-                const awb = awbData.awb_code;
-                const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
-
-                if (awb) {
-                    order.shippingDetails.trackingNumber = awb;
-                    order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
-                }
-                if (courierNameSr) {
-                    order.shippingDetails.courierName = courierNameSr;
-                }
-                order.orderStatus = "shipped";
                 order.statusHistory.push({
-                    status: "shipped",
+                    status: order.orderStatus || "processing",
                     timestamp: new Date(),
-                    note: `[Auto-Fulfill] AWB ${awb} assigned via ${courierNameSr}. Pickup requested.`,
+                    note: `Automatic Shiprocket order reservation failed: ${error?.response?.data?.message || error.message}`,
                 });
                 await order.save();
-                console.log(`✅ [AUTO-FULFILLMENT] AWB assigned: ${awb} via ${courierNameSr}`);
-
-                // Schedule pickup
-                try {
-                    await requestPickup(srShipmentId);
-                    console.log(`✅ [AUTO-FULFILLMENT] Courier pickup scheduled for shipment ${srShipmentId}`);
-                } catch (pickupErr) {
-                    console.warn(`⚠️ [AUTO-FULFILLMENT] Pickup request pending:`, pickupErr?.response?.data || pickupErr.message);
-                }
-            } catch (awbErr) {
-                console.error(`🚨 [AUTO-FULFILLMENT] AWB generation failed:`, awbErr?.response?.data || awbErr.message);
+            } catch (histErr) {
+                console.error("Failed to append fulfillment error note:", histErr);
             }
         }
-    } catch (srErr) {
-        console.error("❌ [AUTO-FULFILLMENT] Error creating Shiprocket order:", srErr?.response?.data || srErr.message);
+        return { success: false, error: errorData };
     }
 };
-

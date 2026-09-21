@@ -1,5 +1,9 @@
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import axios from "axios";
 import { connectDB } from "../db/connectDB.js";
@@ -22,11 +26,11 @@ async function simulate() {
 
     const payload = {
         order_id: order.easebuzzOrderId || order.razorpayOrderId || order._id.toString(),
-        sr_order_id: order.shippingDetails?.shiprocketOrderId || "353193559",
-        shipment_id: order.shippingDetails?.shiprocketShipmentId || "352569429",
+        ...(order.shippingDetails?.shiprocketOrderId ? { sr_order_id: order.shippingDetails.shiprocketOrderId } : {}),
+        ...(order.shippingDetails?.shiprocketShipmentId ? { shipment_id: order.shippingDetails.shiprocketShipmentId } : {}),
         current_status: statusArg.toUpperCase(),
         courier_name: order.shippingDetails?.courierName || "Delhivery Surface",
-        awb: order.shippingDetails?.trackingNumber || "987654321012",
+        ...(order.shippingDetails?.trackingNumber ? { awb: order.shippingDetails.trackingNumber } : {}),
         scans: [
             {
                 date: new Date().toISOString(),

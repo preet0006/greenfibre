@@ -1,12 +1,16 @@
 import dotenv from "dotenv";
-dotenv.config();
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import axios from "axios";
 import { getShiprocketToken } from "../utils/shiprocket.js";
 
 async function main() {
     console.log("==================================================");
-    console.log("🔍 Checking Shiprocket Sandbox Environment...");
+    console.log("🔍 Checking Shiprocket Live API Environment (Diagnostic Mode)...");
     console.log("==================================================");
 
     let token;
@@ -19,7 +23,7 @@ async function main() {
         return;
     }
 
-    const srBase = "https://api-sandbox.shiprocket.in/v1/external";
+    const srBase = "https://apiv2.shiprocket.in/v1/external";
     const client = axios.create({
         baseURL: srBase,
         timeout: 15000,

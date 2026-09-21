@@ -7,6 +7,7 @@ import {
     getAllOrders,
     updateOrderStatus,
     getSingleOrder,
+    releaseShipment,
 } from "../controllers/order.controller.js";
 import {
     authMiddleware,
@@ -35,11 +36,12 @@ router.get("/verify", (req, res) => {
 // AJAX client: frontend calls this after an in-page payment flow (JSON response).
 router.post("/payment/verify", verifyPayment);
 
-// ── Order queries ─────────────────────────────────────────────
+// ── Order queries & management ───────────────────────────────
 router.get("/my-orders", authMiddleware, getMyOrders);
 router.get("/admin", adminAuthMiddleware, getAllOrders);
 router.get("/:orderId", authMiddleware, getSingleOrder);
 router.patch("/status/:orderId", adminAuthMiddleware, updateOrderStatus);
+router.post("/admin/:orderId/release-shipment", adminAuthMiddleware, releaseShipment);
 
 export default router;
 

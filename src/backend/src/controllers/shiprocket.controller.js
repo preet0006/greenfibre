@@ -20,30 +20,38 @@ const SR_STATUS_MAP = {
     // 1. Placed / Booked
     "new": "placed",
     "booked": "placed",
+    "order confirmed": "placed",
 
     // 2. Pickup / Processing
     "pickup scheduled": "processing",
     "pickup generated": "processing",
     "pickup queued": "processing",
     "pickup error": "processing",
+    "pickup rescheduled": "processing",
     "out for pickup": "processing",
     "manifest generated": "processing",
+    "processing": "processing",
 
     // 3. Shipped / In Transit / Out for Delivery
     "picked up": "shipped",
     "in transit": "shipped",
     "shipped": "shipped",
     "reached at destination hub": "shipped",
+    "reached at origin hub": "shipped",
     "out for delivery": "shipped",
     "misrouted": "shipped",
+    "delayed": "shipped",
 
     // 4. NDR (Non-delivery / Attempted delivery)
     "delivery failed": "shipped",
     "undelivered": "shipped",
     "rto ndr": "shipped",
+    "ndr": "shipped",
 
     // 5. Delivered
     "delivered": "delivered",
+    "complete": "delivered",
+    "completed": "delivered",
 
     // 6. Returns / RTO
     "return initiated": "cancelled",
@@ -64,13 +72,26 @@ const SR_STATUS_MAP = {
     "destroyed": "cancelled",
 };
 
+// ── Status hierarchy to prevent out-of-order webhook events from regressing order state ──
+const STATUS_RANK = {
+    pending: 0,
+    placed: 1,
+    processing: 2,
+    shipped: 3,
+    delivered: 4,
+    cancelled: 5,
+    failed: 5,
+};
+
 /**
  * Normalize a Shiprocket status string to a Green Fibre orderStatus value.
+ * Supports spaces, underscores, and hyphens (e.g. IN_TRANSIT, IN-TRANSIT, IN TRANSIT).
  * Returns null if the status is unknown / unmapped.
  */
 function mapSrStatus(srStatus) {
     if (!srStatus) return null;
-    return SR_STATUS_MAP[srStatus.toLowerCase().trim()] || null;
+    const clean = srStatus.toLowerCase().trim().replace(/[_\-]+/g, " ");
+    return SR_STATUS_MAP[clean] || SR_STATUS_MAP[srStatus.toLowerCase().trim()] || null;
 }
 
 // ── POST /api/shipping/delivery-update ────────────────────────────────────────
@@ -90,14 +111,19 @@ function mapSrStatus(srStatus) {
  */
 export const handleShiprocketWebhook = async (req, res) => {
     try {
-        // ── 1. Verify webhook security token ──────────────────────────────────
+        // ── 1. Verify webhook security token (FAIL CLOSED) ─────────────────────
         const webhookSecret = process.env.SHIPPING_WEBHOOK_SECRET;
+        if (!webhookSecret) {
+            console.error("🔒 Shipping webhook error: SHIPPING_WEBHOOK_SECRET is not configured in environment variables.");
+            return res.status(500).json({ received: false, error: "server_misconfigured" });
+        }
+
         const incomingKey =
             req.headers["x-api-key"] ||
             req.headers["x-shiprocket-token"] ||
             (req.headers["authorization"] ? req.headers["authorization"].replace(/^Bearer\s+/i, "") : null);
 
-        if (webhookSecret && incomingKey !== webhookSecret) {
+        if (incomingKey !== webhookSecret) {
             console.warn("🔒 Shipping webhook: unauthorized header token rejected.");
             return res.status(401).json({ received: false, error: "Unauthorized" });
         }
@@ -173,9 +199,23 @@ export const handleShiprocketWebhook = async (req, res) => {
             return res.status(200).json({ received: true, processed: false, reason: "duplicate_event" });
         }
 
-        // ── 4. Apply Updates ──────────────────────────────────────────────────
+        // ── 4. Out-of-Order Regression Protection ─────────────────────────────
+        const currentRank = STATUS_RANK[order.orderStatus] ?? 0;
+        const incomingRank = STATUS_RANK[newStatus] ?? 0;
+
+        // If order is already in a higher status (e.g. delivered) and an out-of-order event arrives (e.g. delayed in-transit)
+        // do not regress the main orderStatus unless it's an explicit cancellation / return
+        const isRegression = incomingRank < currentRank && newStatus !== "cancelled";
+
+        const targetOrderStatus = isRegression ? order.orderStatus : newStatus;
+
+        if (isRegression) {
+            console.warn(`⚠️ Shiprocket webhook: out-of-order event "${newStatus}" received for order ${order._id} (already "${order.orderStatus}"). Note appended without status regression.`);
+        }
+
+        // ── 5. Apply Updates ──────────────────────────────────────────────────
         const updateSet = {
-            orderStatus: newStatus,
+            orderStatus: targetOrderStatus,
         };
 
         if (payload.courier_name && !order.shippingDetails?.courierName) {
@@ -206,13 +246,13 @@ export const handleShiprocketWebhook = async (req, res) => {
             },
         });
 
-        console.log(`✅ Order ${order._id} updated to "${newStatus}" via Shiprocket webhook (${srStatus}).`);
+        console.log(`✅ Order ${order._id} updated (${isRegression ? `kept "${order.orderStatus}"` : `newStatus: "${newStatus}"`}) via Shiprocket webhook (${srStatus}).`);
         return res.status(200).json({
             received: true,
             processed: true,
             orderId: order._id,
             previousStatus: order.orderStatus,
-            newStatus,
+            newStatus: targetOrderStatus,
         });
 
     } catch (error) {

@@ -119,6 +119,15 @@ export const createOrder = async (req, res) => {
                 typeof firstImage === "string"
                     ? firstImage
                     : firstImage?.original || firstImage?.card || "";
+            const itemPrice = typeof product.discountedPrice === "number"
+                ? product.discountedPrice
+                : (typeof product.originalPrice === "number" ? product.originalPrice : null);
+
+            if (itemPrice === null || isNaN(itemPrice)) {
+                return res.status(400).json({
+                    message: `Invalid price configuration for product ${product.name}`,
+                });
+            }
 
             orderItems.push({
                 product: product._id,
@@ -128,10 +137,10 @@ export const createOrder = async (req, res) => {
                 colorName: color.name,
                 colorHex: color.hex,
                 quantity: cartItem.quantity,
-                price: cartItem.price,
+                price: itemPrice,
             });
 
-            totalAmount += cartItem.price * cartItem.quantity;
+            totalAmount += itemPrice * cartItem.quantity;
         }
 
         // Apply coupon if provided
@@ -532,12 +541,31 @@ export const verifyPaymentGateway = async (req, res) => {
             order.paymentResponse = paymentResponse;
             order.orderStatus = "processing";
 
-            // Reduce stock
+            // Atomic stock deduction
             for (const item of order.items) {
-                const product = await Product.findById(item.product);
-                if (product && product.colors[item.colorIndex]) {
-                    product.colors[item.colorIndex].stock -= item.quantity;
-                    await product.save();
+                try {
+                    const updated = await Product.findOneAndUpdate(
+                        { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
+                        { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
+                        { new: true }
+                    );
+                    if (!updated) {
+                        await Product.findByIdAndUpdate(item.product, {
+                            $set: { [`colors.${item.colorIndex}.stock`]: 0 },
+                        });
+                        order.hasStockConflict = true;
+                        if (!order.stockConflictNotes) order.stockConflictNotes = [];
+                        const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
+                        order.stockConflictNotes.push(conflictNote);
+                        order.statusHistory.push({
+                            status: order.orderStatus,
+                            timestamp: new Date(),
+                            note: conflictNote,
+                        });
+                        console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${order._id}`);
+                    }
+                } catch (stockErr) {
+                    console.error("Atomic stock decrement error:", stockErr);
                 }
             }
 
@@ -548,6 +576,9 @@ export const verifyPaymentGateway = async (req, res) => {
                     order.user._id || order.user
                 );
             }
+
+            // Persist order updates (paid status, stock conflict flags, history) immediately
+            await order.save();
 
             // Clear user's cart
             await Cart.findOneAndUpdate(
@@ -699,16 +730,29 @@ export const verifyPayment = async (req, res) => {
                 });
                 await targetOrder.save();
 
-                // Deduct stock
+                // Atomic stock deduction
                 for (const item of targetOrder.items || []) {
                     try {
-                        const product = await Product.findById(item.product);
-                        if (product && product.colors && product.colors[item.colorIndex]) {
-                            product.colors[item.colorIndex].stock = Math.max(
-                                0,
-                                product.colors[item.colorIndex].stock - item.quantity
-                            );
-                            await product.save();
+                        const updated = await Product.findOneAndUpdate(
+                            { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
+                            { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
+                            { new: true }
+                        );
+                        if (!updated) {
+                            await Product.findByIdAndUpdate(item.product, {
+                                $set: { [`colors.${item.colorIndex}.stock`]: 0 },
+                            });
+                            targetOrder.hasStockConflict = true;
+                            if (!targetOrder.stockConflictNotes) targetOrder.stockConflictNotes = [];
+                            const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
+                            targetOrder.stockConflictNotes.push(conflictNote);
+                            targetOrder.statusHistory.push({
+                                status: targetOrder.orderStatus,
+                                timestamp: new Date(),
+                                note: conflictNote,
+                            });
+                            await targetOrder.save();
+                            console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${targetOrder._id}`);
                         }
                     } catch (itemErr) {
                         console.error("Error updating stock:", itemErr);
@@ -867,11 +911,31 @@ export const verifyPayment = async (req, res) => {
             order.paymentResponse = paymentResponse;
             order.orderStatus = "processing";
 
+            // Atomic stock deduction
             for (const item of order.items) {
-                const product = await Product.findById(item.product);
-                if (product && product.colors[item.colorIndex]) {
-                    product.colors[item.colorIndex].stock -= item.quantity;
-                    await product.save();
+                try {
+                    const updated = await Product.findOneAndUpdate(
+                        { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
+                        { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
+                        { new: true }
+                    );
+                    if (!updated) {
+                        await Product.findByIdAndUpdate(item.product, {
+                            $set: { [`colors.${item.colorIndex}.stock`]: 0 },
+                        });
+                        order.hasStockConflict = true;
+                        if (!order.stockConflictNotes) order.stockConflictNotes = [];
+                        const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
+                        order.stockConflictNotes.push(conflictNote);
+                        order.statusHistory.push({
+                            status: order.orderStatus,
+                            timestamp: new Date(),
+                            note: conflictNote,
+                        });
+                        console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${order._id}`);
+                    }
+                } catch (stockErr) {
+                    console.error("Atomic stock decrement error:", stockErr);
                 }
             }
 
@@ -881,6 +945,9 @@ export const verifyPayment = async (req, res) => {
                     order.user._id || order.user
                 );
             }
+
+            // Persist order updates (paid status, stock conflict flags, history) immediately
+            await order.save();
 
             await Cart.findOneAndUpdate(
                 { user: order.user._id || order.user },
@@ -899,8 +966,11 @@ export const verifyPayment = async (req, res) => {
                         invoiceResult.localPath
                     );
                     cleanupTempInvoice(invoiceResult.localPath);
+
+                    // 🚚 Automatically dispatch order via Shiprocket
+                    await autoFulfillOrder(order);
                 } catch (err) {
-                    console.error("❌ Invoice/email error (AJAX):", err);
+                    console.error("❌ Invoice/fulfillment error (AJAX):", err);
                 }
             });
 
@@ -941,20 +1011,20 @@ export const verifyPayment = async (req, res) => {
             .json({ success: false, message: "Error verifying payment" });
     }
 };
- 
+
 
 async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
     try {
         const userEmail = order.user.email;
         const userName = order.user.full_name || "Customer";
- 
+
         const emailBody = `
             <p style="margin-bottom:20px;">Dear ${userName},</p>
             <p style="margin-bottom:20px;">
                 Thank you for your order! Your payment has been received successfully 
                 and your order is now being processed.
             </p>
- 
+
             <div style="
                 margin:25px 0;
                 padding:20px;
@@ -1006,7 +1076,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                     </tr>
                 </table>
             </div>
- 
+
             <h3 style="
                 margin:30px 0 15px;
                 font-size:18px;
@@ -1015,7 +1085,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
             ">
                 Order Items
             </h3>
- 
+
             ${order.items
                 .map(
                     (item) => `
@@ -1043,7 +1113,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
             `
                 )
                 .join("")}
- 
+
             <h3 style="
                 margin:30px 0 15px;
                 font-size:18px;
@@ -1052,7 +1122,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
             ">
                 Shipping Address
             </h3>
- 
+
             <div style="
                 padding:15px;
                 background:#f0fdf4;
@@ -1068,7 +1138,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                 ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.pincode}<br/>
                 <strong>Phone:</strong> ${order.shippingAddress.phone}
             </div>
- 
+
             <div style="
                 margin:30px 0;
                 padding:20px;
@@ -1099,16 +1169,16 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                     </li>
                 </ul>
             </div>
- 
+
             <p style="margin-top:25px; font-size:14px; color:#6b7280;">
                 📎 Your invoice is attached to this email for your records.
             </p>
- 
+
             <p style="margin-top:20px; font-size:14px; color:#374151;">
                 If you have any questions about your order, feel free to reply to this email.
             </p>
         `;
- 
+
         const emailHtml = baseEmailTemplate({
             title: "Order Confirmed! 🎉",
             subtitle: "Thank you for choosing Green Fibre",
@@ -1129,7 +1199,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                 </div>
             `,
         });
- 
+
         // Prepare attachments
         const attachments = [];
         if (invoiceAttachment && fs.existsSync(invoiceAttachment)) {
@@ -1138,7 +1208,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                 path: invoiceAttachment,
             });
         }
- 
+
         // Send email
         await sendMail(
             userEmail,
@@ -1146,7 +1216,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
             emailHtml,
             attachments
         );
- 
+
         console.log("✅ Order confirmation email sent to:", userEmail);
         return true;
     } catch (error) {
@@ -1154,7 +1224,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
         throw error;
     }
 }
- 
+
 
 // =============================
 // GET MY ORDERS
@@ -1210,29 +1280,40 @@ export const getAllOrders = async (req, res) => {
         const { page = 1, limit = 20, status, search } = req.query;
 
         const filter = {};
-        if (status) filter.orderStatus = status;
+        if (status && status !== "All") filter.orderStatus = status;
+
+        if (search && search.trim()) {
+            const q = search.trim();
+            const searchRegex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+
+            // Look up matching users first to search by customer name/email
+            const matchingUsers = await User.find({
+                $or: [{ full_name: searchRegex }, { email: searchRegex }],
+            }).select("_id");
+            const userIds = matchingUsers.map((u) => u._id);
+
+            filter.$or = [
+                { easebuzzOrderId: searchRegex },
+                { razorpayOrderId: searchRegex },
+                { "shippingAddress.fullName": searchRegex },
+                { "shippingAddress.phone": searchRegex },
+                { "shippingAddress.email": searchRegex },
+                { "shippingDetails.trackingNumber": searchRegex },
+                { "shippingDetails.shiprocketOrderId": searchRegex },
+                { user: { $in: userIds } },
+                ...(q.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: q }] : []),
+            ];
+        }
 
         const skip = (Number(page) - 1) * Number(limit);
+        const total = await Order.countDocuments(filter);
 
-        let orders = await Order.find(filter)
+        const orders = await Order.find(filter)
             .populate("user", "full_name email profile_image")
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(Number(limit))
             .lean();
-
-        // Search filter (after population)
-        if (search) {
-            const q = search.toLowerCase();
-            orders = orders.filter(
-                (o) =>
-                    o.user?.full_name?.toLowerCase().includes(q) ||
-                    o.user?.email?.toLowerCase().includes(q) ||
-                    o.easebuzzOrderId?.toLowerCase().includes(q)
-            );
-        }
-
-        const total = await Order.countDocuments(filter);
 
         // Transform images
         const ordersWithImages = orders.map((order) => ({
@@ -1243,7 +1324,7 @@ export const getAllOrders = async (req, res) => {
                       profile_image: order.user.profile_image || null,
                   }
                 : null,
-            items: order.items.map((item) => ({
+            items: (order.items || []).map((item) => ({
                 ...item,
                 image: item.image || null,
             })),
@@ -1256,7 +1337,7 @@ export const getAllOrders = async (req, res) => {
                 page: Number(page),
                 limit: Number(limit),
                 total,
-                pages: Math.ceil(total / Number(limit)),
+                pages: Math.ceil(total / Number(limit)) || 1,
             },
         });
     } catch (error) {
@@ -1296,6 +1377,10 @@ export const updateOrderStatus = async (req, res) => {
             });
         }
 
+        if (!order.shippingDetails) {
+            order.shippingDetails = {};
+        }
+
         // Update status
         order.orderStatus = status;
         order.statusHistory.push({
@@ -1311,108 +1396,86 @@ export const updateOrderStatus = async (req, res) => {
                 order.shippingDetails.trackingNumber = trackingNumber;
                 order.shippingDetails.courierName = courierName;
                 order.shippingDetails.shippedAt = new Date();
-            }
-
-            // ── Step 2: Create Shiprocket order → assign AWB → request pickup ──
-            // Skipped if SHIPROCKET_ENABLED != "true" (local dev safety)
-            if (process.env.SHIPROCKET_ENABLED === "true") {
+            } else if (process.env.SHIPROCKET_ENABLED === "true") {
                 const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
 
                 try {
-                    console.log(`🚚 Creating Shiprocket order for order ${order._id} (Test Mode: ${isTestMode})...`);
+                    let srOrderId = order.shippingDetails?.shiprocketOrderId;
+                    let srShipmentId = order.shippingDetails?.shiprocketShipmentId;
 
-                    const srResponse = await createShiprocketOrder(order);
-                    const srOrderId = srResponse.order_id || srResponse.sr_order_id;
-                    const srShipmentId = srResponse.shipment_id;
+                    // If Shiprocket order was not reserved in Stage 1, create it now
+                    if (!srOrderId || !srShipmentId) {
+                        console.log(`🚚 Creating missing Shiprocket order for order ${order._id} (Test Mode: ${isTestMode})...`);
+                        const srResponse = await createShiprocketOrder(order);
+                        srOrderId = srResponse.order_id || srResponse.sr_order_id;
+                        srShipmentId = srResponse.shipment_id;
 
-                    if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
-                    if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
+                        if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
+                        if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
+                    }
 
-                    console.log(`✅ Shiprocket order created. sr_order_id=${srOrderId}, shipment_id=${srShipmentId}`);
-
-                    // ── Guardrail: In TEST MODE, stop after createShiprocketOrder (no real courier bookings) ──
-                    if (isTestMode) {
-                        console.log(
-                            `🧪 [SHIPROCKET_TEST_MODE=true] Order created with TEST- prefix at test warehouse. ` +
-                            `generateAWB() and requestPickup() SKIPPED to prevent booking live couriers.`
-                        );
-                        order.statusHistory.push({
-                            status: "shipped",
-                            timestamp: new Date(),
-                            note: `[Test Mode] Shiprocket order ${srOrderId} created. AWB & Pickup skipped.`,
-                        });
-                    } else if (srShipmentId) {
-                        // ── LIVE MODE: Full Chain (AWB -> Pickup) with Rollback on Partial Failure ──
-                        let awbAssigned = false;
-                        try {
-                            const awbData = await generateAWB(srShipmentId);
-                            const awb = awbData.awb_code;
-                            const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
-
-                            if (awb) {
-                                order.shippingDetails.trackingNumber = awb;
-                                order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
-                            }
-                            if (courierNameSr && !order.shippingDetails.courierName) {
-                                order.shippingDetails.courierName = courierNameSr;
-                            }
-                            console.log(`✅ AWB assigned: ${awb} via ${courierNameSr}`);
-                            awbAssigned = true;
-
-                            // Request courier pickup
-                            try {
-                                await requestPickup(srShipmentId);
-                                console.log(`✅ Pickup requested for shipment ${srShipmentId}`);
-                            } catch (pickupErr) {
-                                const pickupErrMsg = pickupErr?.response?.data?.message || pickupErr.message;
-                                console.error(`⚠️ Shiprocket pickup request warning for shipment ${srShipmentId}:`, pickupErrMsg);
-                                order.statusHistory.push({
-                                    status: "shipped",
-                                    timestamp: new Date(),
-                                    note: `Shiprocket pickup request pending: ${pickupErrMsg}`,
-                                });
-                            }
-
-                        } catch (awbErr) {
-                            const awbErrMsg = awbErr?.response?.data?.message || awbErr.message;
-                            console.error(`🚨 Shiprocket AWB generation failed for order ${order._id}:`, awbErrMsg);
-
-                            // Rollback: cancel the newly created Shiprocket order so it is not orphaned
-                            if (srOrderId) {
-                                try {
-                                    console.log(`🔄 Rolling back orphaned Shiprocket order ${srOrderId}...`);
-                                    await cancelShiprocketOrder([srOrderId]);
-                                    console.log(`✅ Rollback successful: Shiprocket order ${srOrderId} cancelled.`);
-                                } catch (rollbackErr) {
-                                    console.error(`❌ Rollback failed for Shiprocket order ${srOrderId}:`, rollbackErr?.response?.data || rollbackErr.message);
-                                }
-                            }
-
+                    // If AWB is not yet assigned, generate AWB and request pickup (Stage 2)
+                    if (srShipmentId && !order.shippingDetails.trackingNumber) {
+                        if (isTestMode) {
+                            console.log(`🧪 [SHIPROCKET_TEST_MODE=true] Shiprocket order ${srOrderId} checked. AWB & Pickup skipped.`);
                             order.statusHistory.push({
                                 status: "shipped",
                                 timestamp: new Date(),
-                                note: `Shiprocket AWB generation failed: ${awbErrMsg}. Order rolled back on Shiprocket.`,
+                                note: `[Test Mode] Shiprocket order ${srOrderId} created/checked. AWB & Pickup skipped.`,
                             });
+                        } else {
+                            try {
+                                const awbData = await generateAWB(srShipmentId);
+                                const awb = awbData.awb_code;
+                                const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
+
+                                if (awb) {
+                                    order.shippingDetails.trackingNumber = awb;
+                                    order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
+                                }
+                                if (courierNameSr && !order.shippingDetails.courierName) {
+                                    order.shippingDetails.courierName = courierNameSr;
+                                }
+                                console.log(`✅ AWB assigned: ${awb} via ${courierNameSr}`);
+
+                                // Request courier pickup
+                                try {
+                                    await requestPickup(srShipmentId);
+                                    console.log(`✅ Pickup requested for shipment ${srShipmentId}`);
+                                } catch (pickupErr) {
+                                    const pickupErrMsg = pickupErr?.response?.data?.message || pickupErr.message;
+                                    console.warn(`⚠️ Shiprocket pickup request pending:`, pickupErrMsg);
+                                    order.statusHistory.push({
+                                        status: "shipped",
+                                        timestamp: new Date(),
+                                        note: `Shiprocket pickup request pending: ${pickupErrMsg}`,
+                                    });
+                                }
+                            } catch (awbErr) {
+                                const awbErrMsg = awbErr?.response?.data?.message || awbErr.message;
+                                console.error(`🚨 Shiprocket AWB generation failed for order ${order._id}:`, awbErrMsg);
+                                order.statusHistory.push({
+                                    status: "shipped",
+                                    timestamp: new Date(),
+                                    note: `Shiprocket AWB generation failed: ${awbErrMsg}`,
+                                });
+                            }
                         }
                     }
 
                     if (!order.shippingDetails.shippedAt) {
                         order.shippingDetails.shippedAt = new Date();
                     }
-
                 } catch (srError) {
-                    console.error(
-                        "Shiprocket order creation error (non-fatal, order status still updated):",
-                        srError?.response?.data || srError.message
-                    );
+                    console.error("Shiprocket shipment processing error:", srError?.response?.data || srError.message);
                     order.statusHistory.push({
                         status: "shipped",
                         timestamp: new Date(),
-                        note: `Shiprocket order creation failed: ${srError?.response?.data?.message || srError.message}`,
+                        note: `Shiprocket processing error: ${srError?.response?.data?.message || srError.message}`,
                     });
                 }
             } else {
-                console.log("🚧 [DEV] SHIPROCKET_ENABLED=false — Shiprocket skipped. Order status updated locally only.");
+                console.log("🚧 [DEV] SHIPROCKET_ENABLED=false — Order marked as shipped locally.");
                 if (!order.shippingDetails.shippedAt) {
                     order.shippingDetails.shippedAt = new Date();
                 }
@@ -1427,12 +1490,14 @@ export const updateOrderStatus = async (req, res) => {
             order.cancelledAt = new Date();
             order.cancellationReason = note;
 
-            // Restore stock
-            for (const item of order.items) {
-                const product = await Product.findById(item.product);
-                if (product && product.colors[item.colorIndex]) {
-                    product.colors[item.colorIndex].stock += item.quantity;
-                    await product.save();
+            // Atomic restore stock
+            for (const item of order.items || []) {
+                try {
+                    await Product.findByIdAndUpdate(item.product, {
+                        $inc: { [`colors.${item.colorIndex}.stock`]: item.quantity },
+                    });
+                } catch (restoreErr) {
+                    console.error("Error restoring stock on cancellation:", restoreErr);
                 }
             }
 
@@ -1522,6 +1587,146 @@ export const getSingleOrder = async (req, res) => {
         console.error("Get single order error:", error);
         return res.status(500).json({
             message: "Error fetching order",
+        });
+    }
+};
+
+// =============================
+// ADMIN: RELEASE SHIPMENT (STAGE 2)
+// POST /api/order/admin/:orderId/release-shipment
+// =============================
+export const releaseShipment = async (req, res) => {
+    let order = null;
+    try {
+        const { orderId } = req.params;
+        order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: "Order not found",
+            });
+        }
+
+        if (!order.shippingDetails) {
+            order.shippingDetails = {};
+        }
+
+        // Already released / AWB assigned
+        if (order.shippingDetails.trackingNumber) {
+            return res.status(400).json({
+                success: false,
+                message: `Shipment is already released (AWB: ${order.shippingDetails.trackingNumber})`,
+                order,
+            });
+        }
+
+        if (process.env.SHIPROCKET_ENABLED !== "true") {
+            order.orderStatus = "shipped";
+            order.shippingDetails.shippedAt = new Date();
+            order.statusHistory.push({
+                status: "shipped",
+                timestamp: new Date(),
+                note: "Shipment released locally (SHIPROCKET_ENABLED=false)",
+            });
+            await order.save();
+            return res.status(200).json({
+                success: true,
+                message: "Shipment released locally (Shiprocket disabled)",
+                order,
+            });
+        }
+
+        let srOrderId = order.shippingDetails.shiprocketOrderId;
+        let srShipmentId = order.shippingDetails.shiprocketShipmentId;
+
+        // Stage 1 Fallback: Create Shiprocket order if not already reserved
+        if (!srOrderId || !srShipmentId) {
+            console.log(`🚚 [STAGE 2 RELEASE] Creating missing Shiprocket order for ${order._id}...`);
+            const srResponse = await createShiprocketOrder(order);
+            srOrderId = srResponse.order_id || srResponse.sr_order_id;
+            srShipmentId = srResponse.shipment_id;
+
+            if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
+            if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
+        }
+
+        if (!srShipmentId) {
+            return res.status(500).json({
+                success: false,
+                message: "Failed to obtain Shiprocket shipment ID for courier release.",
+                order,
+            });
+        }
+
+        console.log(`📦 [STAGE 2 RELEASE] Assigning AWB for shipment ${srShipmentId}...`);
+        try {
+            const awbData = await generateAWB(srShipmentId);
+            const awb = awbData.awb_code;
+            const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
+
+            if (awb) {
+                order.shippingDetails.trackingNumber = awb;
+                order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
+            }
+            if (courierNameSr) {
+                order.shippingDetails.courierName = courierNameSr;
+            }
+
+            order.shippingDetails.shippedAt = new Date();
+            order.orderStatus = "shipped";
+            order.statusHistory.push({
+                status: "shipped",
+                timestamp: new Date(),
+                note: `[Stage 2: Manual Release] AWB ${awb || "assigned"} via ${courierNameSr || "Shiprocket"}. Pickup requested.`,
+            });
+
+            // Schedule pickup
+            try {
+                await requestPickup(srShipmentId);
+                console.log(`✅ [STAGE 2 RELEASE] Pickup scheduled for shipment ${srShipmentId}`);
+            } catch (pickupErr) {
+                const pickupErrMsg = pickupErr?.response?.data?.message || pickupErr.message;
+                console.warn(`⚠️ [STAGE 2 RELEASE] Pickup request pending:`, pickupErrMsg);
+                order.statusHistory.push({
+                    status: "shipped",
+                    timestamp: new Date(),
+                    note: `Shiprocket pickup request pending: ${pickupErrMsg}`,
+                });
+            }
+
+            await order.save();
+
+            return res.status(200).json({
+                success: true,
+                message: `Shipment released successfully! AWB: ${awb || "Generated"}`,
+                order,
+            });
+        } catch (awbErr) {
+            const awbErrMsg = awbErr?.response?.data?.message || awbErr.message;
+            console.error(`🚨 [STAGE 2 RELEASE] AWB generation failed for order ${order._id}:`, awbErrMsg);
+
+            order.statusHistory.push({
+                status: order.orderStatus || "processing",
+                timestamp: new Date(),
+                note: `Shipment release failed: ${awbErrMsg}`,
+            });
+            await order.save();
+
+            return res.status(500).json({
+                success: false,
+                message: `AWB generation failed: ${awbErrMsg}`,
+                error: awbErrMsg,
+                order,
+            });
+        }
+    } catch (error) {
+        console.error("Release shipment error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error releasing shipment",
+            error: error.message,
+            order: order || undefined,
         });
     }
 };

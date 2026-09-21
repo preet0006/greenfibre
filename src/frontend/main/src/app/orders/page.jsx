@@ -22,6 +22,10 @@ import {
   Calendar,
   Leaf,
   Eye,
+  X,
+  MapPin,
+  Tag,
+  ExternalLink,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -100,8 +104,258 @@ function PaymentBadge({ status }) {
   );
 }
 
+// ── Customer Order Detail Modal (Popup) ──────────────────────────
+function CustomerOrderDetailModal({ order, onClose }) {
+  if (!order) return null;
+
+  const addr = order.shippingAddress || {};
+  const shipping = order.shippingDetails || {};
+  const totalItems = (order.items || []).reduce((sum, item) => sum + item.quantity, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal Container */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 15 }}
+        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+        className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto z-10"
+      >
+        {/* Sticky Header */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center justify-between z-10 rounded-t-3xl">
+          <div>
+            <h3
+              className="text-xl font-bold text-gray-900"
+              style={{ fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)" }}
+            >
+              Order Details
+            </h3>
+            <p className="text-xs font-mono text-gray-500 mt-0.5">
+              #{order.easebuzzOrderId || order._id}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Status & Payment Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-gray-50 rounded-2xl p-4 border border-gray-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={order.orderStatus} />
+              <PaymentBadge status={order.paymentStatus} />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+              Placed on {formatDate(order.createdAt)}
+            </div>
+          </div>
+
+          {/* Ordered Items List */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5">
+              <Package className="w-4 h-4 text-green-600" />
+              Ordered Items ({totalItems})
+            </h4>
+            <div className="space-y-3">
+              {(order.items || []).map((item, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center gap-3.5 p-3.5 rounded-2xl border border-gray-100 bg-gray-50/70 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
+                    {item.image ? (
+                      <Image
+                        src={item.image}
+                        alt={item.name || "Product"}
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-gray-300">
+                        <Package className="w-6 h-6" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-gray-900 truncate">
+                      {item.name}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                      {item.colorName && (
+                        <div className="flex items-center gap-1">
+                          {item.colorHex && (
+                            <div
+                              className="h-3 w-3 rounded-full border border-gray-300"
+                              style={{ backgroundColor: item.colorHex }}
+                            />
+                          )}
+                          <span className="font-medium text-gray-700">{item.colorName}</span>
+                          <span>•</span>
+                        </div>
+                      )}
+                      <span>Qty: {item.quantity}</span>
+                      <span>•</span>
+                      <span>@ {formatPrice(item.price)}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-gray-900">
+                      {formatPrice(item.price * item.quantity)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pricing Breakdown */}
+          <div className="rounded-2xl border border-green-100 bg-gradient-to-br from-green-50/60 to-emerald-50/40 p-4 sm:p-5">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-green-900 mb-3 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-green-700" />
+              Payment Summary
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span className="font-semibold text-gray-900">{formatPrice(order.totalAmount)}</span>
+              </div>
+              {order.discountAmount > 0 && (
+                <div className="flex justify-between text-green-700">
+                  <span className="flex items-center gap-1">
+                    <Tag className="w-3.5 h-3.5" />
+                    Coupon Discount {order.couponCode ? `(${order.couponCode})` : ""}
+                  </span>
+                  <span className="font-semibold">-{formatPrice(order.discountAmount)}</span>
+                </div>
+              )}
+              <div className="pt-2.5 border-t border-green-200/80 flex justify-between items-center text-base font-bold text-gray-900">
+                <span>Total Paid</span>
+                <span className="text-xl text-green-700 font-extrabold">{formatPrice(order.finalAmount)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Shipping Address */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2.5 flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-green-600" />
+              Delivery Address
+            </h4>
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-xs sm:text-sm text-gray-700 space-y-1">
+              <p className="font-bold text-gray-900">{addr.fullName || "Customer"}</p>
+              {addr.companyName && <p className="text-gray-500">{addr.companyName}</p>}
+              <p>{addr.streetAddress}</p>
+              {addr.landmark && <p className="text-gray-500">Landmark: {addr.landmark}</p>}
+              <p className="font-medium text-gray-800">
+                {addr.city}, {addr.state} - {addr.pincode}
+              </p>
+              <div className="pt-2 mt-2 border-t border-gray-200/60 flex flex-wrap items-center gap-4 text-xs text-gray-600">
+                {addr.phone && <p>📞 {addr.phone}</p>}
+                {addr.email && <p>✉️ {addr.email}</p>}
+              </div>
+            </div>
+          </div>
+
+          {/* Tracking Details (if available) */}
+          {(shipping.trackingNumber || shipping.courierName || shipping.trackingUrl) && (
+            <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4 sm:p-5 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                <Truck className="w-4 h-4 text-purple-700" />
+                Live Tracking Information
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {shipping.courierName && (
+                  <div>
+                    <span className="text-gray-500">Courier:</span>{" "}
+                    <span className="font-semibold text-gray-900">{shipping.courierName}</span>
+                  </div>
+                )}
+                {shipping.trackingNumber && (
+                  <div>
+                    <span className="text-gray-500">AWB Code:</span>{" "}
+                    <span className="font-mono font-bold text-purple-800">{shipping.trackingNumber}</span>
+                  </div>
+                )}
+              </div>
+              {shipping.trackingUrl && (
+                <a
+                  href={shipping.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-900 hover:underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Track Live on Courier Portal →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Status Timeline */}
+          {order.statusHistory && order.statusHistory.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-green-600" />
+                Status Timeline
+              </h4>
+              <ol className="relative border-l-2 border-green-200 ml-2 space-y-4 pl-4 text-xs">
+                {order.statusHistory.map((history, i) => (
+                  <li key={i} className="relative">
+                    <span className="absolute -left-[1.35rem] top-0.5 h-2.5 w-2.5 rounded-full bg-green-500 ring-4 ring-white" />
+                    <p className="font-bold text-gray-900 capitalize text-sm">
+                      {history.status}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {formatDate(history.timestamp)}
+                    </p>
+                    {history.note && (
+                      <p className="text-xs text-gray-600 mt-1 bg-gray-50 p-2 rounded-xl border border-gray-100">
+                        {history.note}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {/* Invoice Download Button */}
+          {order.invoiceUrl && (
+            <div className="pt-2">
+              <a
+                href={order.invoiceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full h-11 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold transition-all shadow-sm active:scale-[0.99]"
+              >
+                <Download className="w-4 h-4" />
+                Download Tax Invoice
+              </a>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Order card ────────────────────────────────────────────────
-function OrderCard({ order }) {
+function OrderCard({ order, onViewDetails }) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
 
@@ -153,13 +407,14 @@ function OrderCard({ order }) {
                 <Download className="h-4 w-4" />
               </a>
             )}
-            <Link
-              href={`/orders/${order._id}`}
-              className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-green-700"
+            <button
+              type="button"
+              onClick={() => onViewDetails(order)}
+              className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-green-700 active:scale-95 cursor-pointer shadow-sm"
             >
               <Eye className="h-4 w-4" />
               View Details
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -334,6 +589,7 @@ export default function OrdersPage() {
 
   const [filterStatus, setFilterStatus] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   useEffect(() => {
     if (authChecked && !user) {
@@ -459,7 +715,11 @@ export default function OrdersPage() {
         ) : (
           <div className="space-y-4">
             {myOrders.map((order) => (
-              <OrderCard key={order._id} order={order} />
+              <OrderCard
+                key={order._id}
+                order={order}
+                onViewDetails={setSelectedOrder}
+              />
             ))}
           </div>
         )}
@@ -547,6 +807,16 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+
+      {/* ── Order Detail Modal (Popup) ── */}
+      <AnimatePresence>
+        {selectedOrder && (
+          <CustomerOrderDetailModal
+            order={selectedOrder}
+            onClose={() => setSelectedOrder(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

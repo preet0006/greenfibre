@@ -90,18 +90,19 @@ const orderSchema = new mongoose.Schema(
         },
 
         orderStatus: {
-    type: String,
-    enum: [
-        "pending",
-        "placed",
-        "processing",
-        "shipped",
-        "delivered",
-        "cancelled",
-        "payment_failed",
-    ],
-    default: "pending",
-},
+            type: String,
+            enum: [
+                "pending",
+                "placed",
+                "processing",
+                "shipped",
+                "delivered",
+                "cancelled",
+                "failed",
+                "payment_failed",
+            ],
+            default: "pending",
+        },
 
         // Easebuzz payment details
         easebuzzOrderId: String, // Unique order ID for Easebuzz
@@ -117,16 +118,26 @@ const orderSchema = new mongoose.Schema(
 
         // Shipping
         shippingDetails: {
-            courierName: String,
-            trackingNumber: String,      // AWB number
-            trackingUrl: String,
-            nimbusOrderId: String,       // Legacy: NimbusPost order ID (kept for backwards compat)
-            shiprocketOrderId: String,   // Shiprocket sr_order_id
-            shiprocketShipmentId: String, // Shiprocket shipment_id
-            estimatedDelivery: Date,
-            shippedAt: Date,
-            deliveredAt: Date,
+            type: {
+                courierName: String,
+                trackingNumber: String,      // AWB number
+                trackingUrl: String,
+                nimbusOrderId: String,       // Legacy: NimbusPost order ID (kept for backwards compat)
+                shiprocketOrderId: String,   // Shiprocket sr_order_id
+                shiprocketShipmentId: String, // Shiprocket shipment_id
+                estimatedDelivery: Date,
+                shippedAt: Date,
+                deliveredAt: Date,
+            },
+            default: () => ({}),
         },
+
+        // Operational conflict flag (e.g. out-of-stock race condition at payment)
+        hasStockConflict: {
+            type: Boolean,
+            default: false,
+        },
+        stockConflictNotes: [String],
 
         // Status history
         statusHistory: [
