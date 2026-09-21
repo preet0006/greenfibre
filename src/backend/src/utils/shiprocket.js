@@ -357,21 +357,87 @@ export const getShipmentDetails = async (shipmentId) => {
         url: `/shipments/${shipmentId}`,
     });
     return res.data;
-};
-
-// ── 8. Order details ─────────────────────────────────────────────────────────
+// ── 9. Auto-Fulfill Order ───────────────────────────────────────────────────
 
 /**
- * Get Shiprocket order details by Shiprocket order ID.
+ * Automatically pushes a confirmed/paid order to Shiprocket, generates AWB, and schedules pickup.
+ * Safe to call asynchronously — handles errors gracefully without throwing.
  *
- * @param {number|string} srOrderId - Shiprocket sr_order_id
- * @returns {Object} Order detail response
+ * @param {Object} order - Mongoose Order document
  */
-export const getShiprocketOrderDetails = async (srOrderId) => {
-    const res = await makeSrRequest({
-        method: "GET",
-        url: `/orders/show/${srOrderId}`,
-    });
-    return res.data;
+export const autoFulfillOrder = async (order) => {
+    if (process.env.SHIPROCKET_ENABLED !== "true") {
+        console.log("🚧 [DEV] SHIPROCKET_ENABLED is not 'true'. Skipping automatic Shiprocket dispatch.");
+        return;
+    }
+
+    if (order.shippingDetails?.shiprocketOrderId) {
+        console.log(`ℹ️ [AUTO-FULFILLMENT] Order ${order._id} already dispatched with Shiprocket order ID ${order.shippingDetails.shiprocketOrderId}.`);
+        return;
+    }
+
+    const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
+    console.log(`🚀 [AUTO-FULFILLMENT] Initiating automatic Shiprocket dispatch for order ${order._id} (Test Mode: ${isTestMode})...`);
+
+    try {
+        const srResponse = await createShiprocketOrder(order);
+        const srOrderId = srResponse.order_id || srResponse.sr_order_id;
+        const srShipmentId = srResponse.shipment_id;
+
+        if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
+        if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
+        if (!order.shippingDetails.shippedAt) order.shippingDetails.shippedAt = new Date();
+
+        console.log(`✅ [AUTO-FULFILLMENT] Shiprocket order created! sr_order_id=${srOrderId}, shipment_id=${srShipmentId}`);
+
+        if (isTestMode) {
+            console.log(
+                `🧪 [SHIPROCKET_TEST_MODE=true] Order created with TEST- prefix at test warehouse. ` +
+                `AWB generation skipped to prevent live courier bookings.`
+            );
+            order.statusHistory.push({
+                status: "shipped",
+                timestamp: new Date(),
+                note: `[Auto-Fulfill / Test Mode] Shiprocket order ${srOrderId} created.`,
+            });
+            order.orderStatus = "shipped";
+            await order.save();
+        } else if (srShipmentId) {
+            // LIVE MODE: Generate AWB & Request Pickup
+            try {
+                const awbData = await generateAWB(srShipmentId);
+                const awb = awbData.awb_code;
+                const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
+
+                if (awb) {
+                    order.shippingDetails.trackingNumber = awb;
+                    order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
+                }
+                if (courierNameSr) {
+                    order.shippingDetails.courierName = courierNameSr;
+                }
+                order.orderStatus = "shipped";
+                order.statusHistory.push({
+                    status: "shipped",
+                    timestamp: new Date(),
+                    note: `[Auto-Fulfill] AWB ${awb} assigned via ${courierNameSr}. Pickup requested.`,
+                });
+                await order.save();
+                console.log(`✅ [AUTO-FULFILLMENT] AWB assigned: ${awb} via ${courierNameSr}`);
+
+                // Schedule pickup
+                try {
+                    await requestPickup(srShipmentId);
+                    console.log(`✅ [AUTO-FULFILLMENT] Courier pickup scheduled for shipment ${srShipmentId}`);
+                } catch (pickupErr) {
+                    console.warn(`⚠️ [AUTO-FULFILLMENT] Pickup request pending:`, pickupErr?.response?.data || pickupErr.message);
+                }
+            } catch (awbErr) {
+                console.error(`🚨 [AUTO-FULFILLMENT] AWB generation failed:`, awbErr?.response?.data || awbErr.message);
+            }
+        }
+    } catch (srErr) {
+        console.error("❌ [AUTO-FULFILLMENT] Error creating Shiprocket order:", srErr?.response?.data || srErr.message);
+    }
 };
 

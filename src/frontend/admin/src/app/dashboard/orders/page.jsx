@@ -112,6 +112,21 @@ function copyToClipboard(text) {
 function OrderDetailModal({ order, onClose }) {
   if (!order) return null;
 
+  const [status, setStatus] = useState(order.orderStatus || "placed");
+  const [updating, setUpdating] = useState(false);
+  const updateOrderStatus = useOrderStore((s) => s.updateOrderStatus);
+
+  useEffect(() => {
+    setStatus(order.orderStatus || "placed");
+  }, [order.orderStatus]);
+
+  const handleUpdateStatus = async () => {
+    if (!status || status === order.orderStatus) return;
+    setUpdating(true);
+    await updateOrderStatus(order._id, { status });
+    setUpdating(false);
+  };
+
   const user = order.user || {};
   const addr = order.shippingAddress || {};
   const shipping = order.shippingDetails || {};
@@ -120,12 +135,12 @@ function OrderDetailModal({ order, onClose }) {
     PAYMENT_STATUS[order.paymentStatus] || PAYMENT_STATUS.pending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-white rounded-3xl shadow-2xl shadow-green-100/60 border border-green-50 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-3xl max-h-[90vh] overflow-y-auto z-10">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-5 flex items-center justify-between z-10 rounded-t-3xl">
           <div>
@@ -152,7 +167,7 @@ function OrderDetailModal({ order, onClose }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-2xl p-4">
               <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-2">
-                Order Status
+                Current Order Status
               </p>
               <div className="flex items-center gap-2">
                 <div
@@ -196,6 +211,93 @@ function OrderDetailModal({ order, onClose }) {
               </div>
             </div>
           </div>
+
+          {/* 🚀 Change Order Status Control */}
+          <div className="bg-gradient-to-br from-green-50/80 to-emerald-50/40 border border-green-200/80 rounded-2xl p-4 sm:p-5">
+            <div className="mb-3">
+              <p className="text-xs text-green-900 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <RefreshCw className="w-3.5 h-3.5 text-green-700" />
+                Change Order Status
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Selecting <strong className="text-purple-700">Shipped</strong> will automatically create a Shiprocket order and generate tracking AWB.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="flex-1 h-11 px-3.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 cursor-pointer"
+              >
+                <option value="placed">📦 Placed (Order Confirmed)</option>
+                <option value="processing">⚙️ Processing (In Warehouse)</option>
+                <option value="shipped">🚚 Shipped (Dispatch via Shiprocket)</option>
+                <option value="delivered">✅ Delivered (Completed)</option>
+                <option value="cancelled">❌ Cancelled</option>
+              </select>
+
+              <button
+                type="button"
+                disabled={updating || status === order.orderStatus}
+                onClick={handleUpdateStatus}
+                className="h-11 px-6 rounded-xl bg-green-600 hover:bg-green-700 active:scale-[0.98] text-white text-sm font-semibold shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+              >
+                {updating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    Update Status
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* 🚚 Shipping & Tracking Info */}
+          {(shipping.trackingNumber || shipping.courierName || shipping.shiprocketOrderId) && (
+            <div className="bg-purple-50/60 border border-purple-200/60 rounded-2xl p-4 sm:p-5">
+              <p className="text-xs text-purple-900 font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-purple-700" />
+                Shiprocket Tracking Details
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {shipping.courierName && (
+                  <div>
+                    <span className="text-gray-400">Courier Partner:</span>{" "}
+                    <span className="font-semibold text-gray-800">{shipping.courierName}</span>
+                  </div>
+                )}
+                {shipping.trackingNumber && (
+                  <div>
+                    <span className="text-gray-400">AWB Tracking Number:</span>{" "}
+                    <span className="font-mono font-bold text-purple-700">{shipping.trackingNumber}</span>
+                  </div>
+                )}
+                {shipping.shiprocketOrderId && (
+                  <div>
+                    <span className="text-gray-400">Shiprocket Order ID:</span>{" "}
+                    <span className="font-mono text-gray-800">{shipping.shiprocketOrderId}</span>
+                  </div>
+                )}
+              </div>
+              {shipping.trackingUrl && (
+                <a
+                  href={shipping.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View Live Tracking on Shiprocket
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Amounts */}
           <div className="bg-linear-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border border-green-100">
@@ -491,7 +593,10 @@ function OrderRow({ order, index, onViewDetails }) {
     PAYMENT_STATUS[order.paymentStatus] || PAYMENT_STATUS.pending;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+    <div
+      onClick={() => onViewDetails(order)}
+      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-green-200 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+    >
       <div className="flex items-center gap-4 px-5 py-4">
         <span className="text-xs font-bold text-gray-300 w-5 shrink-0 text-center">
           {index + 1}
@@ -599,6 +704,11 @@ export default function OrdersPage() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPayment, setFilterPayment] = useState("All");
   const [selectedOrder, setSelectedOrder] = useState(null);
+
+  const activeOrder = useMemo(() => {
+    if (!selectedOrder) return null;
+    return orders.find((o) => o._id === selectedOrder._id) || selectedOrder;
+  }, [selectedOrder, orders]);
 
   useEffect(() => {
     fetchAllOrders();
@@ -945,6 +1055,14 @@ export default function OrdersPage() {
           </>
         )}
       </div>
+
+      {/* ── Order Detail Modal ── */}
+      {activeOrder && (
+        <OrderDetailModal
+          order={activeOrder}
+          onClose={() => setSelectedOrder(null)}
+        />
+      )}
     </>
   );
 }

@@ -101,7 +101,7 @@ export default function RootLayout({ children }) {
         <Navbar />
 
         {/* Main content area */}
-        <main className="relative z-10 flex-1 pt-[120px] md:pt-[136px]">
+        <main className="flex-1 pt-[120px] md:pt-[136px]">
           {children}
         </main>
 

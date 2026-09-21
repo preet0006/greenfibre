@@ -17,6 +17,7 @@ import {
     generateAWB,
     requestPickup,
     cancelShiprocketOrder,
+    autoFulfillOrder,
 } from "../utils/shiprocket.js";
 
 // Easebuzz configuration — read lazily so a server restart always picks up
@@ -574,8 +575,11 @@ export const verifyPaymentGateway = async (req, res) => {
                         invoiceResult.localPath
                     );
                     cleanupTempInvoice(invoiceResult.localPath);
+
+                    // 🚚 Automatically dispatch order via Shiprocket
+                    await autoFulfillOrder(order);
                 } catch (err) {
-                    console.error("❌ Invoice/email error:", err);
+                    console.error("❌ Invoice/fulfillment error:", err);
                 }
             });
 
@@ -743,8 +747,11 @@ export const verifyPayment = async (req, res) => {
                         if (invoiceResult?.localPath) {
                             cleanupTempInvoice(invoiceResult.localPath);
                         }
+
+                        // 🚚 Automatically dispatch order via Shiprocket
+                        await autoFulfillOrder(targetOrder);
                     } catch (err) {
-                        console.error("Invoice generation error for Razorpay order:", err);
+                        console.error("Invoice/fulfillment error for order:", err);
                     }
                 });
             }

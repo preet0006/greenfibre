@@ -408,16 +408,18 @@ function AddressForm({ initial, onClose, onSave, loading }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-8 pt-36">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-3 sm:p-6">
+      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
       <motion.div
         variants={scaleIn}
         initial="hidden"
         animate="show"
         exit="exit"
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+        className="relative z-10 flex flex-col w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <div className="shrink-0 flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <h3
             className="text-lg font-semibold text-gray-900"
             style={{

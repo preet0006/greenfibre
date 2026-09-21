@@ -7,6 +7,7 @@ import { Product } from "../models/product.model.js";
 import { applyCouponUsage } from "./coupon.controller.js";
 import { generateInvoicePdf } from "../utils/generateInvoicePdf.js";
 import { cleanupTempInvoice } from "../utils/invoiceHelpers.js";
+import { autoFulfillOrder } from "../utils/shiprocket.js";
 
 /**
  * Helper to process post-payment order fulfillment
@@ -78,8 +79,11 @@ async function fulfillOrder(order, paymentId, signature, paymentResponse) {
             if (invoiceResult?.localPath) {
                 cleanupTempInvoice(invoiceResult.localPath);
             }
+
+            // 🚚 Automatically dispatch order via Shiprocket
+            await autoFulfillOrder(order);
         } catch (err) {
-            console.error("Invoice generation error for Razorpay order:", err);
+            console.error("Invoice/fulfillment error for Razorpay order:", err);
         }
     });
 }

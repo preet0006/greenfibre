@@ -94,6 +94,17 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
     if (editAddress) {
       setForm(editAddress);
     } else {
@@ -146,32 +157,48 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto overflow-x-hidden bg-black/60 backdrop-blur-sm p-3 sm:p-6">
+        {/* Backdrop click to close */}
+        <div
+          className="fixed inset-0"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+
+        {/* Modal Dialog */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl"
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.2 }}
+          className="relative z-10 flex flex-col w-full max-w-lg sm:max-w-xl max-h-[85vh] sm:max-h-[88vh] rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-100 my-auto"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {editAddress ? "Edit Address" : "Add New Address"}
-            </h2>
+          <div className="shrink-0 flex items-center justify-between border-b border-gray-100 bg-white px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                {editAddress ? "Edit Address" : "Add New Address"}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Please provide accurate shipping details for delivery
+              </p>
+            </div>
             <button
+              type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6">
-            <div className="space-y-5">
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 sm:space-y-5 overscroll-contain">
               {/* Address Type */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
+                <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                   Address Type
                 </label>
                 <div className="flex gap-3">
@@ -180,7 +207,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       key={type}
                       type="button"
                       onClick={() => setForm({ ...form, addressType: type })}
-                      className={`flex-1 rounded-xl border-2 py-2.5 text-sm font-semibold capitalize transition-all ${
+                      className={`flex-1 rounded-xl border-2 py-2 text-xs sm:text-sm font-semibold capitalize transition-all ${
                         form.addressType === type
                           ? "border-green-600 bg-green-50 text-green-700"
                           : "border-gray-200 text-gray-600 hover:border-gray-300"
@@ -193,9 +220,9 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
               </div>
 
               {/* Full Name & Company */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -204,7 +231,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, fullName: e.target.value })
                     }
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.fullName
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -212,13 +239,13 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     placeholder="Enter full name"
                   />
                   {errors.fullName && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">
+                    <p className="mt-1 text-xs font-medium text-red-500">
                       {errors.fullName}
                     </p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     Company Name (Optional)
                   </label>
                   <input
@@ -227,7 +254,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, companyName: e.target.value })
                     }
-                    className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-4 py-3 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
+                    className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
                     placeholder="Company name"
                   />
                 </div>
@@ -235,7 +262,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
 
               {/* Street Address (Flat / House / Road / Street) */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
+                <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                   Flat, House No., Building, Street Address <span className="text-red-500">*</span>
                 </label>
                 <textarea
@@ -243,8 +270,8 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   onChange={(e) =>
                     setForm({ ...form, streetAddress: e.target.value })
                   }
-                  rows={3}
-                  className={`w-full min-h-[105px] rounded-xl border px-4 py-3.5 text-sm leading-relaxed transition-all focus:outline-none focus:ring-4 resize-y ${
+                  rows={2}
+                  className={`w-full min-h-[85px] sm:min-h-[95px] rounded-xl border px-3.5 sm:px-4 py-2.5 sm:py-3 text-sm leading-relaxed transition-all focus:outline-none focus:ring-4 resize-none ${
                     errors.streetAddress
                       ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                       : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -252,7 +279,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   placeholder="Flat / House / Apartment No., Building Name, Street / Road, Area"
                 />
                 {errors.streetAddress && (
-                  <p className="mt-1.5 text-xs font-medium text-red-500">
+                  <p className="mt-1 text-xs font-medium text-red-500">
                     {errors.streetAddress}
                   </p>
                 )}
@@ -260,7 +287,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
 
               {/* Landmark */}
               <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
+                <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                   Nearby Landmark (Optional)
                 </label>
                 <input
@@ -269,22 +296,22 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   onChange={(e) =>
                     setForm({ ...form, landmark: e.target.value })
                   }
-                  className="h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-4 py-3 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
-                  placeholder="E.g., Near City Mall, Opp. Metro Pillar 42, Behind Primary School"
+                  className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
+                  placeholder="E.g., Near City Mall, Opp. Metro Pillar 42"
                 />
               </div>
 
               {/* City, State, Pincode */}
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     City <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.city
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -292,11 +319,11 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     placeholder="City"
                   />
                   {errors.city && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.city}</p>
+                    <p className="mt-1 text-xs font-medium text-red-500">{errors.city}</p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     State <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -304,7 +331,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, state: e.target.value })
                     }
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.state
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -318,11 +345,11 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     ))}
                   </select>
                   {errors.state && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.state}</p>
+                    <p className="mt-1 text-xs font-medium text-red-500">{errors.state}</p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     Pincode <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -332,7 +359,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, pincode: e.target.value })
                     }
                     maxLength={6}
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.pincode
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -340,7 +367,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     placeholder="123456"
                   />
                   {errors.pincode && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">
+                    <p className="mt-1 text-xs font-medium text-red-500">
                       {errors.pincode}
                     </p>
                   )}
@@ -348,9 +375,9 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
               </div>
 
               {/* Phone & Email */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     Phone Number <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -360,7 +387,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, phone: e.target.value })
                     }
                     maxLength={10}
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.phone
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -368,11 +395,11 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     placeholder="10-digit number"
                   />
                   {errors.phone && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.phone}</p>
+                    <p className="mt-1 text-xs font-medium text-red-500">{errors.phone}</p>
                   )}
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-semibold text-gray-700">
+                  <label className="mb-1.5 block text-xs sm:text-sm font-semibold text-gray-700">
                     Email (Optional)
                   </label>
                   <input
@@ -381,7 +408,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className={`h-12 w-full rounded-xl border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.email
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -389,13 +416,13 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     placeholder="email@example.com"
                   />
                   {errors.email && (
-                    <p className="mt-1.5 text-xs font-medium text-red-500">{errors.email}</p>
+                    <p className="mt-1 text-xs font-medium text-red-500">{errors.email}</p>
                   )}
                 </div>
               </div>
 
               {/* Default checkbox */}
-              <label className="flex cursor-pointer items-center gap-3">
+              <label className="flex cursor-pointer items-center gap-3 pt-1">
                 <input
                   type="checkbox"
                   checked={form.isDefault}
@@ -404,25 +431,25 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   }
                   className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
                 />
-                <span className="text-sm font-medium text-gray-700">
+                <span className="text-xs sm:text-sm font-medium text-gray-700">
                   Set as default {form.addressType} address
                 </span>
               </label>
             </div>
 
-            {/* Actions */}
-            <div className="mt-6 flex gap-3">
+            {/* Sticky Actions Footer */}
+            <div className="shrink-0 border-t border-gray-100 bg-gray-50/90 backdrop-blur-sm px-5 py-3.5 sm:px-6 flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50"
+                className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 hover:border-gray-300"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition-all hover:bg-green-700 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow disabled:opacity-50"
               >
                 {saving ? (
                   <span className="flex items-center justify-center gap-2">
@@ -432,7 +459,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                 ) : editAddress ? (
                   "Update Address"
                 ) : (
-                  "Add Address"
+                  "Save Address"
                 )}
               </button>
             </div>
