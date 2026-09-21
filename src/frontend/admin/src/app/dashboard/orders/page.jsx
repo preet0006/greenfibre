@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   User,
   MapPin,
   CreditCard,
@@ -48,6 +49,12 @@ const ORDER_STATUS = {
     color: "#f59e0b",
     bg: "#fef3c7",
     icon: Clock,
+  },
+  awaiting_release: {
+    label: "Awaiting Release",
+    color: "#2563eb",
+    bg: "#dbeafe",
+    icon: Truck,
   },
   shipped: {
     label: "Shipped",
@@ -114,17 +121,30 @@ function OrderDetailModal({ order, onClose }) {
 
   const [status, setStatus] = useState(order.orderStatus || "placed");
   const [updating, setUpdating] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+  const [showConfirmRelease, setShowConfirmRelease] = useState(false);
   const updateOrderStatus = useOrderStore((s) => s.updateOrderStatus);
+  const releaseShipment = useOrderStore((s) => s.releaseShipment);
 
   useEffect(() => {
     setStatus(order.orderStatus || "placed");
-  }, [order.orderStatus]);
+    setShowConfirmRelease(false);
+  }, [order.orderStatus, order._id]);
 
   const handleUpdateStatus = async () => {
     if (!status || status === order.orderStatus) return;
     setUpdating(true);
     await updateOrderStatus(order._id, { status });
     setUpdating(false);
+  };
+
+  const handleReleaseShipment = async () => {
+    setReleasing(true);
+    const success = await releaseShipment(order._id);
+    setReleasing(false);
+    if (success) {
+      setShowConfirmRelease(false);
+    }
   };
 
   const user = order.user || {};
@@ -163,6 +183,28 @@ function OrderDetailModal({ order, onClose }) {
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Stock Conflict Alert Banner */}
+          {order.hasStockConflict && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold text-amber-900 text-sm">
+                  ⚠️ Stock Conflict Flagged (Requires Ops Review)
+                </p>
+                <p className="text-amber-800">
+                  One or more items in this order became out-of-stock before payment confirmation. Automated Shiprocket courier booking is paused for manual review.
+                </p>
+                {order.stockConflictNotes?.length > 0 && (
+                  <ul className="list-disc pl-4 mt-1 space-y-0.5 text-amber-700">
+                    {order.stockConflictNotes.map((note, i) => (
+                      <li key={i}>{note}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Status & Payment Row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-50 rounded-2xl p-4">
@@ -257,6 +299,76 @@ function OrderDetailModal({ order, onClose }) {
               </button>
             </div>
           </div>
+
+          {/* 🚀 Stage 2: Courier Release Action Box */}
+          {shipping.shiprocketOrderId && !shipping.trackingNumber && order.orderStatus !== "cancelled" && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+              {!showConfirmRelease ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-blue-700" />
+                      Shiprocket Order Reserved (#{shipping.shiprocketOrderId})
+                    </p>
+                    <p className="text-xs text-blue-700 mt-0.5">
+                      Stage 1 auto-creation complete. Click to assign courier AWB and schedule pickup.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={releasing}
+                    onClick={() => setShowConfirmRelease(true)}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    🚀 Release & Book Courier
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-blue-900">
+                        Confirm Live Courier Booking & AWB Generation
+                      </p>
+                      <p className="text-xs text-blue-800 mt-0.5">
+                        Are you sure you want to release this shipment? This will assign an AWB tracking number and schedule a live courier pickup with Shiprocket.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-blue-200/70">
+                    <button
+                      type="button"
+                      disabled={releasing}
+                      onClick={() => setShowConfirmRelease(false)}
+                      className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={releasing}
+                      onClick={handleReleaseShipment}
+                      className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      {releasing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Booking Courier...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Yes, Release & Book Pickup
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 🚚 Shipping & Tracking Info */}
           {(shipping.trackingNumber || shipping.courierName || shipping.shiprocketOrderId) && (
@@ -657,6 +769,26 @@ function OrderRow({ order, index, onViewDetails }) {
           </div>
         </div>
 
+        {/* Stock Conflict Flag */}
+        {order.hasStockConflict && (
+          <div className="hidden sm:block shrink-0">
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-600" />
+              Stock Issue
+            </span>
+          </div>
+        )}
+
+        {/* Stage 1 Awaiting Courier Release Flag */}
+        {order.shippingDetails?.shiprocketOrderId && !order.shippingDetails?.trackingNumber && order.orderStatus !== "cancelled" && (
+          <div className="hidden sm:block shrink-0">
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 border border-blue-300 flex items-center gap-1">
+              <Truck className="w-3 h-3 text-blue-600" />
+              Awaiting Release
+            </span>
+          </div>
+        )}
+
         {/* Status */}
         <div className="hidden md:block shrink-0">
           <span
@@ -718,7 +850,14 @@ export default function OrdersPage() {
   const filtered = useMemo(() => {
     let list = [...orders];
 
-    if (filterStatus !== "All") {
+    if (filterStatus === "awaiting_release") {
+      list = list.filter(
+        (o) =>
+          o.shippingDetails?.shiprocketOrderId &&
+          !o.shippingDetails?.trackingNumber &&
+          o.orderStatus !== "cancelled",
+      );
+    } else if (filterStatus !== "All") {
       list = list.filter((o) => o.orderStatus === filterStatus);
     }
 
@@ -766,13 +905,6 @@ export default function OrdersPage() {
 
   return (
     <>
-      {selectedOrder && (
-        <OrderDetailModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-        />
-      )}
-
       <div className="space-y-6">
         {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -788,8 +920,8 @@ export default function OrdersPage() {
             </p>
           </div>
           <button
-            onClick={() => fetchOrders()}
-            className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 text-gray-400 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-all self-start sm:self-auto"
+            onClick={() => fetchAllOrders()}
+            className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 text-gray-400 hover:bg-green-50 hover:text-green-600 hover:border-green-200 transition-all self-start sm:self-auto cursor-pointer"
             title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -890,6 +1022,7 @@ export default function OrdersPage() {
                   "All",
                   "placed",
                   "processing",
+                  "awaiting_release",
                   "shipped",
                   "delivered",
                   "cancelled",

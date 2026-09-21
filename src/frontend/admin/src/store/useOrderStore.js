@@ -204,6 +204,45 @@ const useOrderStore = create((set, get) => ({
   },
 
   // =========================
+  // RELEASE SHIPMENT (Admin Stage 2)
+  // POST /api/order/admin/:orderId/release-shipment
+  // =========================
+  releaseShipment: async (orderId) => {
+    try {
+      set({ actionLoading: true });
+
+      const res = await api.post(`/order/admin/${orderId}/release-shipment`);
+
+      const updated = res.data.order;
+
+      // Update in orders list
+      set({
+        orders: get().orders.map((o) => (o._id === orderId ? updated : o)),
+        myOrders: get().myOrders.map((o) => (o._id === orderId ? updated : o)),
+        singleOrder:
+          get().singleOrder?._id === orderId ? updated : get().singleOrder,
+        actionLoading: false,
+      });
+
+      toast.success(res.data.message || "Shipment released for pickup!");
+      return true;
+    } catch (error) {
+      const updated = error?.response?.data?.order;
+      if (updated) {
+        set({
+          orders: get().orders.map((o) => (o._id === orderId ? updated : o)),
+          myOrders: get().myOrders.map((o) => (o._id === orderId ? updated : o)),
+          singleOrder:
+            get().singleOrder?._id === orderId ? updated : get().singleOrder,
+        });
+      }
+      toast.error(error?.response?.data?.message || "Failed to release shipment");
+      set({ actionLoading: false });
+      return false;
+    }
+  },
+
+  // =========================
   // VALIDATE COUPON
   // POST /api/coupon/validate
   // =========================
