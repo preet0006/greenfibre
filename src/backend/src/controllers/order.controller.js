@@ -41,15 +41,15 @@ const generateEasebuzzHash = (data) => {
         data.productinfo,
         data.firstname,
         data.email,
-        data.udf1  || "",
-        data.udf2  || "",
-        data.udf3  || "",
-        data.udf4  || "",
-        data.udf5  || "",
-        data.udf6  || "",
-        data.udf7  || "",
-        data.udf8  || "",
-        data.udf9  || "",
+        data.udf1 || "",
+        data.udf2 || "",
+        data.udf3 || "",
+        data.udf4 || "",
+        data.udf5 || "",
+        data.udf6 || "",
+        data.udf7 || "",
+        data.udf8 || "",
+        data.udf9 || "",
         data.udf10 || "",
         getEasebuzzSalt(),
     ].join("|");
@@ -327,17 +327,17 @@ export const createOrder = async (req, res) => {
         const cleanProductInfo = "GreenFibre";
 
         const paymentParams = {
-            key:         getEasebuzzKey(),
-            txnid:       easebuzzOrderId,
-            amount:      finalAmount.toFixed(2),
+            key: getEasebuzzKey(),
+            txnid: easebuzzOrderId,
+            amount: finalAmount.toFixed(2),
             productinfo: cleanProductInfo,
-            firstname:   cleanFirstName,
-            phone:       cleanPhone,
-            email:       cleanEmail,
-            surl:        `${backendUrl}/api/order/verify`,
-            furl:        `${backendUrl}/api/order/verify`,
-            udf1:        order._id.toString(),
-            udf2:        userId.toString(),
+            firstname: cleanFirstName,
+            phone: cleanPhone,
+            email: cleanEmail,
+            surl: `${backendUrl}/api/order/verify`,
+            furl: `${backendUrl}/api/order/verify`,
+            udf1: order._id.toString(),
+            udf2: userId.toString(),
             udf3: "", udf4: "", udf5: "",
             udf6: "", udf7: "", udf8: "", udf9: "", udf10: "",
         };
@@ -634,10 +634,9 @@ export const verifyPaymentGateway = async (req, res) => {
     } catch (error) {
         console.error("verifyPaymentGateway error:", error);
         return res.redirect(
-            `${
-                process.env.FRONTEND_URL ||
-                process.env.CLIENT_ORIGIN ||
-                "http://localhost:3000"
+            `${process.env.FRONTEND_URL ||
+            process.env.CLIENT_ORIGIN ||
+            "http://localhost:3000"
             }/orders/failed?reason=server_error`
         );
     }
@@ -1043,10 +1042,10 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                         <td style="padding:8px 0; color:#6b7280; font-size:13px;">Order Date:</td>
                         <td style="padding:8px 0; text-align:right; font-weight:600; color:#374151;">
                             ${new Date(order.createdAt).toLocaleDateString("en-IN", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                            })}
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+        })}
                         </td>
                     </tr>
                     <tr>
@@ -1320,9 +1319,9 @@ export const getAllOrders = async (req, res) => {
             ...order,
             user: order.user
                 ? {
-                      ...order.user,
-                      profile_image: order.user.profile_image || null,
-                  }
+                    ...order.user,
+                    profile_image: order.user.profile_image || null,
+                }
                 : null,
             items: (order.items || []).map((item) => ({
                 ...item,
@@ -1569,9 +1568,9 @@ export const getSingleOrder = async (req, res) => {
             ...order,
             user: order.user
                 ? {
-                      ...order.user,
-                      profile_image: order.user.profile_image || null,
-                  }
+                    ...order.user,
+                    profile_image: order.user.profile_image || null,
+                }
                 : null,
             items: order.items.map((item) => ({
                 ...item,
