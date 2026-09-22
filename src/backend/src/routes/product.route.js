@@ -2,6 +2,7 @@ import express from "express";
 import {
     createProduct,
     updateProduct,
+    bulkUpdateProducts,
     deleteProduct,
     toggleProductStatus,
     getProducts,
@@ -23,6 +24,8 @@ router.get("/related/:slug", getRelatedProducts);
 router.get("/:slug", getSingleProduct);
 
 router.post("/create", adminAuthMiddleware, upload.any(), createProduct);
+router.put("/bulk-update", adminAuthMiddleware, bulkUpdateProducts);
+router.patch("/bulk-update", adminAuthMiddleware, bulkUpdateProducts);
 router.put("/update/:productId", adminAuthMiddleware, upload.any(), updateProduct);
 router.patch("/update-stock/:productId", adminAuthMiddleware, updateStock);
 router.post(

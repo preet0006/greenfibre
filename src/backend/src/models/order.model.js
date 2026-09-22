@@ -120,14 +120,17 @@ const orderSchema = new mongoose.Schema(
         shippingDetails: {
             type: {
                 courierName: String,
-                trackingNumber: String,      // AWB number
+                trackingNumber: String,       // AWB number (kept for backwards compat)
+                awbCode: String,              // Explicit AWB code from Shiprocket
                 trackingUrl: String,
-                nimbusOrderId: String,       // Legacy: NimbusPost order ID (kept for backwards compat)
-                shiprocketOrderId: String,   // Shiprocket sr_order_id
+                nimbusOrderId: String,        // Legacy: NimbusPost order ID (kept for backwards compat)
+                shiprocketOrderId: String,    // Shiprocket sr_order_id
                 shiprocketShipmentId: String, // Shiprocket shipment_id
                 estimatedDelivery: Date,
                 shippedAt: Date,
                 deliveredAt: Date,
+                labelUrl: String,             // Shiprocket label PDF URL
+                manifestUrl: String,          // Shiprocket manifest PDF URL
             },
             default: () => ({}),
         },

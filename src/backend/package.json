@@ -11,7 +11,8 @@
     "import:products": "node src/scripts/importUserProducts.js",
     "update:stock": "node src/scripts/updateStock.js",
     "check:shipping": "node src/scripts/checkShiprocket.js",
-    "test:webhook": "node src/scripts/simulateWebhook.js"
+    "test:webhook": "node src/scripts/simulateWebhook.js",
+    "test:shiprocket": "node src/scripts/testShiprocket.js"
   },
   "keywords": [],
   "author": "Prashant",

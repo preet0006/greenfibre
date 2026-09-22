@@ -3,32 +3,56 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Shiprocket API client for Green Fibre.
  *
- * Safety & Reliability Rules:
- *  - Shiprocket has NO SANDBOX environment — all calls with valid credentials
- *    affect real-time data.
+ * Environment flags (set in .env):
+ *  SHIPROCKET_USE_SANDBOX=true   → All API calls go to the Shiprocket Sandbox:
+ *                                    General API : https://api-sandbox.shiprocket.in
+ *                                    Serviceability: https://serviceability-sandbox.shiprocket.in
+ *  SHIPROCKET_USE_SANDBOX=false  → All API calls go to Live:
+ *                                    https://apiv2.shiprocket.in/v1/external
+ *  SHIPROCKET_TEST_MODE=true     → Prefixes order_id with "TEST-" and uses
+ *                                    SHIPROCKET_TEST_PICKUP_LOCATION in order payload
+ *  SHIPROCKET_ENABLED=true       → Gate for autoFulfillOrder() — won't fire unless true
+ *
+ * Safety & Reliability:
  *  - 9-day auth token caching (official token validity is 240h / 10 days).
  *  - Automatic retry with exponential backoff on HTTP 429 (rate-limit) and 5xx server errors.
  *  - Automatic token invalidation & re-auth on HTTP 401.
- *  - SHIPROCKET_TEST_MODE conventions: prefixes order_id with "TEST-" and uses
- *    pickup_location = process.env.SHIPROCKET_TEST_PICKUP_LOCATION || "TEST-WAREHOUSE".
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import axios from "axios";
 import { Order } from "../models/order.model.js";
 
-const SR_BASE_LIVE = "https://apiv2.shiprocket.in/v1/external";
+// ── API Base URLs ────────────────────────────────────────────────────────────
+// Shiprocket Sandbox uses a DIFFERENT domain from live production.
+// Source: sandbox.shiprocket.in → Dashboard → Environment panel
+const SR_LIVE_BASE   = "https://apiv2.shiprocket.in/v1/external";
+const SR_SBX_BASE    = "https://api-sandbox.shiprocket.in/v1/external";
+const SR_SBX_SVC_BASE = "https://serviceability-sandbox.shiprocket.in/v1/external";
 
-// Shiprocket operates exclusively on apiv2.shiprocket.in (no separate sandbox endpoint exists)
-const getSrBase = () => SR_BASE_LIVE;
+/**
+ * Returns the correct Shiprocket API base URL for the current environment.
+ *  - Sandbox (SHIPROCKET_USE_SANDBOX=true)  → https://api-sandbox.shiprocket.in/v1/external
+ *  - Live    (SHIPROCKET_USE_SANDBOX=false) → https://apiv2.shiprocket.in/v1/external
+ * Exported so test scripts can log which environment they're targeting.
+ */
+export const getSrBase = () =>
+    process.env.SHIPROCKET_USE_SANDBOX === "true" ? SR_SBX_BASE : SR_LIVE_BASE;
+
+/**
+ * Returns the serviceability base URL.
+ * Sandbox uses a dedicated serviceability subdomain.
+ */
+export const getSrServiceabilityBase = () =>
+    process.env.SHIPROCKET_USE_SANDBOX === "true" ? SR_SBX_SVC_BASE : SR_LIVE_BASE;
 
 // ── Token cache ────────────────────────────────────────────────────────────
-// Token is valid for 10 days (240 hours). We cache for 9 days to maintain safety margin.
+// Token is valid for 10 days (240 hours). We cache for 9 days as a safety margin.
 const TOKEN_CACHE_MS = 9 * 24 * 60 * 60 * 1000;
 let _srToken = null;
 let _srTokenExpiry = null;
 
-/** Invalidate cached token on 401 auth failure */
+/** Invalidate cached token (called on 401 auth failure) */
 export const invalidateShiprocketToken = () => {
     _srToken = null;
     _srTokenExpiry = null;
@@ -36,6 +60,7 @@ export const invalidateShiprocketToken = () => {
 
 /**
  * Authenticate with Shiprocket and return a cached bearer token.
+ * Automatically uses sandbox or live URL based on SHIPROCKET_USE_SANDBOX.
  */
 export const getShiprocketToken = async (forceRefresh = false) => {
     if (!forceRefresh && _srToken && _srTokenExpiry && Date.now() < _srTokenExpiry) {
@@ -43,8 +68,15 @@ export const getShiprocketToken = async (forceRefresh = false) => {
     }
 
     const srBase = getSrBase();
-    const email = process.env.SHIPROCKET_EMAIL;
-    const password = process.env.SHIPROCKET_PASSWORD;
+    const isSandbox = process.env.SHIPROCKET_USE_SANDBOX === "true";
+    // When sandbox mode is active, use sandbox-specific credentials if provided,
+    // otherwise fall back to the main credentials
+    const email = (isSandbox && process.env.SHIPROCKET_SANDBOX_EMAIL)
+        ? process.env.SHIPROCKET_SANDBOX_EMAIL
+        : process.env.SHIPROCKET_EMAIL;
+    const password = (isSandbox && process.env.SHIPROCKET_SANDBOX_PASSWORD)
+        ? process.env.SHIPROCKET_SANDBOX_PASSWORD
+        : process.env.SHIPROCKET_PASSWORD;
 
     if (!email || !password) {
         throw new Error(
@@ -67,7 +99,7 @@ export const getShiprocketToken = async (forceRefresh = false) => {
     _srToken = res.data.token;
     _srTokenExpiry = Date.now() + TOKEN_CACHE_MS;
 
-    console.log("✅ Shiprocket token refreshed (cached for 9 days).");
+    console.log(`✅ Shiprocket token refreshed [${isSandbox ? "SANDBOX" : "LIVE"}] (cached for 9 days).`);
     return _srToken;
 };
 
@@ -103,7 +135,7 @@ const makeSrRequest = async (config, maxRetries = 2) => {
             attempts++;
             const status = error?.response?.status;
 
-            // 401 Unauthorized -> force refresh token and retry immediately once
+            // 401 Unauthorized → force refresh token and retry immediately once
             if (status === 401 && attempts <= maxRetries) {
                 console.warn("⚠️ Shiprocket returned 401 — refreshing token and retrying...");
                 invalidateShiprocketToken();
@@ -111,7 +143,7 @@ const makeSrRequest = async (config, maxRetries = 2) => {
                 continue;
             }
 
-            // 429 Rate Limited -> exponential backoff
+            // 429 Rate Limited → exponential backoff
             if (status === 429 && attempts <= maxRetries) {
                 const retryAfter = Number(error?.response?.headers?.["retry-after"]) || attempts * 2;
                 console.warn(`⏳ Shiprocket 429 Rate Limited. Waiting ${retryAfter}s before retry ${attempts}/${maxRetries}...`);
@@ -119,7 +151,7 @@ const makeSrRequest = async (config, maxRetries = 2) => {
                 continue;
             }
 
-            // 5xx Transient Server Error -> retry with short backoff
+            // 5xx Transient Server Error → retry with short backoff
             if (status && status >= 500 && status < 600 && attempts <= maxRetries) {
                 const backoffMs = attempts * 1500;
                 console.warn(`⚠️ Shiprocket ${status} Server Error. Retrying in ${backoffMs}ms (${attempts}/${maxRetries})...`);
@@ -127,13 +159,13 @@ const makeSrRequest = async (config, maxRetries = 2) => {
                 continue;
             }
 
-            // If not retryable or retries exhausted, throw
+            // Not retryable or retries exhausted
             throw error;
         }
     }
 };
 
-// ── 1. Serviceability ───────────────────────────────────────────────────────
+// ── 1. Serviceability ────────────────────────────────────────────────────────
 
 /**
  * Check courier serviceability between pickup and delivery pincodes.
@@ -184,7 +216,7 @@ export const createShiprocketOrder = async (order) => {
 
     const shippingAddr = order.shippingAddress || {};
 
-    // Customer name formatting: split into first & last name (max 50 chars each)
+    // Customer name: split into first & last name (max 50 chars each)
     const rawFullName = (shippingAddr.fullName || "Customer").trim();
     const nameParts = rawFullName.split(/\s+/);
     const firstName = (nameParts[0] || "Customer").slice(0, 50);
@@ -243,7 +275,7 @@ export const createShiprocketOrder = async (order) => {
         });
     }
 
-    // Use easebuzzOrderId / razorpayOrderId / _id as our base reference
+    // Use easebuzzOrderId / razorpayOrderId / _id as base reference
     const rawRef =
         order.easebuzzOrderId ||
         order.razorpayOrderId ||
@@ -316,9 +348,9 @@ export const createShiprocketOrder = async (order) => {
  * Assign an AWB (Air Waybill) to a Shiprocket shipment.
  * If no courierId is provided, Shiprocket auto-assigns the best courier.
  *
- * @param {number|string} shipmentId - Shiprocket shipment_id
+ * @param {number|string} shipmentId  - Shiprocket shipment_id
  * @param {number|string|null} courierId - Optional specific courier ID
- * @returns {Object} AWB assignment response data containing awb_code, courier_name, etc.
+ * @returns {Object} AWB assignment response with awb_code, courier_name, etc.
  */
 export const generateAWB = async (shipmentId, courierId = null) => {
     const payload = {
@@ -354,7 +386,7 @@ export const generateAWB = async (shipmentId, courierId = null) => {
     };
 };
 
-// ── 4. Pickup scheduling ─────────────────────────────────────────────────────
+// ── 4. Pickup scheduling ──────────────────────────────────────────────────────
 
 /**
  * Request a pickup for a Shiprocket shipment.
@@ -373,7 +405,47 @@ export const requestPickup = async (shipmentId) => {
     return res.data;
 };
 
-// ── 5. Tracking ───────────────────────────────────────────────────────────────
+// ── 5. Label generation ───────────────────────────────────────────────────────
+
+/**
+ * Generate a shipping label PDF URL for a Shiprocket shipment.
+ *
+ * @param {number|string} shipmentId - Shiprocket shipment_id
+ * @returns {Object} Label generation response with label_url
+ */
+export const generateLabel = async (shipmentId) => {
+    const res = await makeSrRequest({
+        method: "POST",
+        url: "/courier/generate/label",
+        data: {
+            shipment_id: [String(shipmentId)],
+        },
+    });
+    return res.data;
+};
+
+// ── 6. Manifest generation ────────────────────────────────────────────────────
+
+/**
+ * Generate a manifest for one or more Shiprocket shipments.
+ *
+ * @param {number[]|string[]} shipmentIds - Array of Shiprocket shipment IDs
+ * @returns {Object} Manifest generation response with manifest_url
+ */
+export const generateManifest = async (shipmentIds) => {
+    const ids = Array.isArray(shipmentIds)
+        ? shipmentIds.map(String)
+        : [String(shipmentIds)];
+
+    const res = await makeSrRequest({
+        method: "POST",
+        url: "/manifests/generate",
+        data: { shipment_id: ids },
+    });
+    return res.data;
+};
+
+// ── 7. Tracking ───────────────────────────────────────────────────────────────
 
 /**
  * Get tracking info for a shipment by AWB code.
@@ -389,7 +461,7 @@ export const trackByAWB = async (awb) => {
     return res.data;
 };
 
-// ── 6. Order cancellation ────────────────────────────────────────────────────
+// ── 8. Order cancellation ─────────────────────────────────────────────────────
 
 /**
  * Cancel one or more Shiprocket orders.
@@ -410,7 +482,7 @@ export const cancelShiprocketOrder = async (srOrderIds) => {
     return res.data;
 };
 
-// ── 7. Shipment details ──────────────────────────────────────────────────────
+// ── 9. Shipment details ───────────────────────────────────────────────────────
 
 /**
  * Get full details for a Shiprocket shipment.
@@ -426,10 +498,16 @@ export const getShipmentDetails = async (shipmentId) => {
     return res.data;
 };
 
-// ── 8. Auto-Fulfill Order ───────────────────────────────────────────────────
+// ── 10. Auto-Fulfill Order ────────────────────────────────────────────────────
 
 /**
- * Automatically pushes a confirmed/paid order to Shiprocket, generates AWB, and schedules pickup.
+ * Automatically pushes a confirmed/paid order to Shiprocket and saves the
+ * Shiprocket order ID + shipment ID to the database.
+ *
+ * Design: This only creates the order on Shiprocket side. AWB generation and
+ * pickup scheduling are done separately via admin action (dispatch endpoint),
+ * giving ops a chance to review before committing courier resources.
+ *
  * Safe to call asynchronously — handles errors gracefully without throwing.
  *
  * @param {Object} order - Mongoose Order document or plain order object

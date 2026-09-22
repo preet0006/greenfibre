@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import slugify from "slugify";
 import { Product } from "../models/product.model.js";
 import { Category } from "../models/category.model.js";
 import {
@@ -669,6 +670,180 @@ export const updateStock = async (req, res) => {
         console.error("Update stock error:", error);
         return res.status(500).json({
             message: "Error updating stock",
+        });
+    }
+};
+
+// =============================
+// BULK UPDATE PRODUCTS (Admin)
+// High-performance batch update using Product.bulkWrite()
+// Production-ready for 100-500+ items per request
+// =============================
+export const bulkUpdateProducts = async (req, res) => {
+    try {
+        const items = Array.isArray(req.body)
+            ? req.body
+            : req.body.products || req.body.items;
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "An array of products/items to update is required (e.g. { products: [...] } or [...])",
+            });
+        }
+
+        if (items.length > 500) {
+            return res.status(400).json({
+                success: false,
+                message: "Batch size limit exceeded. Maximum 500 products per request.",
+            });
+        }
+
+        const bulkOperations = [];
+        const validationErrors = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const id = item.productId || item._id || item.id;
+
+            if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+                validationErrors.push({
+                    index: i,
+                    id: id || null,
+                    error: "Invalid or missing productId / _id",
+                });
+                continue;
+            }
+
+            const setFields = {};
+
+            // Pricing updates
+            if (item.originalPrice !== undefined) {
+                const orig = Number(item.originalPrice);
+                if (isNaN(orig) || orig < 0) {
+                    validationErrors.push({ index: i, id, error: "originalPrice must be a positive number" });
+                    continue;
+                }
+                setFields.originalPrice = orig;
+            }
+
+            if (item.discountedPrice !== undefined) {
+                const disc = Number(item.discountedPrice);
+                if (isNaN(disc) || disc < 0) {
+                    validationErrors.push({ index: i, id, error: "discountedPrice must be a positive number" });
+                    continue;
+                }
+                setFields.discountedPrice = disc;
+            }
+
+            // Status / Featured flags
+            if (item.isActive !== undefined) {
+                setFields.isActive = Boolean(item.isActive);
+            }
+            if (item.isFeatured !== undefined) {
+                setFields.isFeatured = Boolean(item.isFeatured);
+            }
+
+            // Name & Slug
+            if (item.name && typeof item.name === "string" && item.name.trim()) {
+                setFields.name = item.name.trim();
+                if (item.updateSlug !== false) {
+                    setFields.slug = slugify(item.name.trim(), { lower: true, strict: true });
+                }
+            }
+
+            // Description
+            if (item.description && typeof item.description === "string") {
+                setFields.description = item.description;
+            }
+
+            // Category & SubCategory
+            if (item.category && mongoose.Types.ObjectId.isValid(item.category)) {
+                setFields.category = item.category;
+            }
+            if (item.subCategory !== undefined) {
+                if (item.subCategory === null || item.subCategory === "") {
+                    setFields.subCategory = null;
+                } else if (mongoose.Types.ObjectId.isValid(item.subCategory)) {
+                    setFields.subCategory = item.subCategory;
+                }
+            }
+
+            // SEO Metadata
+            if (item.metaTitle !== undefined) setFields.metaTitle = item.metaTitle;
+            if (item.metaDescription !== undefined) setFields.metaDescription = item.metaDescription;
+            if (Array.isArray(item.metaKeywords)) setFields.metaKeywords = item.metaKeywords;
+
+            // Full color array replacement
+            if (Array.isArray(item.colors)) {
+                setFields.colors = item.colors;
+            }
+
+            // Specific Color Stock updates:
+            // 1) item.stockUpdates: [{ colorIndex: 0, stock: 50 }, ...]
+            // 2) item.colorIndex + item.stock
+            // 3) item.stock (if total/first color)
+            if (Array.isArray(item.stockUpdates)) {
+                item.stockUpdates.forEach((su) => {
+                    if (su.colorIndex !== undefined && su.stock !== undefined) {
+                        setFields[`colors.${su.colorIndex}.stock`] = parseInt(su.stock, 10) || 0;
+                    }
+                });
+            } else if (item.colorIndex !== undefined && item.stock !== undefined) {
+                setFields[`colors.${item.colorIndex}.stock`] = parseInt(item.stock, 10) || 0;
+            } else if (item.stock !== undefined && !Array.isArray(item.colors)) {
+                // If single stock provided without color index, update primary color (index 0)
+                setFields["colors.0.stock"] = parseInt(item.stock, 10) || 0;
+            }
+
+            // Features & Material Info
+            if (item.features && typeof item.features === "object") setFields.features = item.features;
+            if (item.materialInfo && typeof item.materialInfo === "object") setFields.materialInfo = item.materialInfo;
+
+            // Check if there are any fields to update
+            if (Object.keys(setFields).length === 0) {
+                validationErrors.push({
+                    index: i,
+                    id,
+                    error: "No valid fields provided to update",
+                });
+                continue;
+            }
+
+            bulkOperations.push({
+                updateOne: {
+                    filter: { _id: new mongoose.Types.ObjectId(id) },
+                    update: { $set: setFields },
+                },
+            });
+        }
+
+        if (bulkOperations.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: "No valid update operations to perform",
+                errors: validationErrors,
+            });
+        }
+
+        // Execute bulkWrite with ordered: false for parallel, resilient execution
+        const result = await Product.bulkWrite(bulkOperations, { ordered: false });
+
+        return res.status(200).json({
+            success: true,
+            message: `Bulk update completed. Matched: ${result.matchedCount}, Modified: ${result.modifiedCount}`,
+            matchedCount: result.matchedCount,
+            modifiedCount: result.modifiedCount,
+            totalSubmitted: items.length,
+            processedCount: bulkOperations.length,
+            errors: validationErrors.length > 0 ? validationErrors : undefined,
+        });
+    } catch (error) {
+        console.error("Bulk update products error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error processing bulk product update",
+            error: error.message,
         });
     }
 };
