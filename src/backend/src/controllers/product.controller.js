@@ -387,6 +387,11 @@ export const createProduct = async (req, res) => {
             name,
             originalPrice,
             discountedPrice,
+            b2cPrice,
+            b2bPrice,
+            b2cMargin,
+            b2bMargin,
+            competitors,
             description,
             category,
             subCategory,
@@ -469,16 +474,21 @@ export const createProduct = async (req, res) => {
             name,
             originalPrice,
             discountedPrice,
+            b2cPrice: b2cPrice !== undefined && b2cPrice !== null && b2cPrice !== "" ? Number(b2cPrice) : null,
+            b2bPrice: b2bPrice !== undefined && b2bPrice !== null && b2bPrice !== "" ? Number(b2bPrice) : null,
+            b2cMargin: b2cMargin !== undefined ? Number(b2cMargin) : 0,
+            b2bMargin: b2bMargin !== undefined ? Number(b2bMargin) : 0,
+            competitors: competitors ? (typeof competitors === "string" ? JSON.parse(competitors) : competitors) : [],
             colors: processedColors,
             description,
             category,
             subCategory: subCategory || null,
-            features: features ? JSON.parse(features) : {},
-            materialInfo: materialInfo ? JSON.parse(materialInfo) : {},
-            isFeatured: isFeatured === "true",
+            features: features ? (typeof features === "string" ? JSON.parse(features) : features) : {},
+            materialInfo: materialInfo ? (typeof materialInfo === "string" ? JSON.parse(materialInfo) : materialInfo) : {},
+            isFeatured: isFeatured === "true" || isFeatured === true,
             metaTitle,
             metaDescription,
-            metaKeywords: metaKeywords ? metaKeywords.split(",") : [],
+            metaKeywords: metaKeywords ? (typeof metaKeywords === "string" ? metaKeywords.split(",") : metaKeywords) : [],
         });
 
         // Transform images for response
@@ -519,6 +529,11 @@ export const updateProduct = async (req, res) => {
             name,
             originalPrice,
             discountedPrice,
+            b2cPrice,
+            b2bPrice,
+            b2cMargin,
+            b2bMargin,
+            competitors,
             description,
             category,
             subCategory,
@@ -536,14 +551,21 @@ export const updateProduct = async (req, res) => {
         if (name) product.name = name;
         if (originalPrice) product.originalPrice = originalPrice;
         if (discountedPrice) product.discountedPrice = discountedPrice;
+        if (b2cPrice !== undefined) product.b2cPrice = b2cPrice === "" || b2cPrice === null ? null : Number(b2cPrice);
+        if (b2bPrice !== undefined) product.b2bPrice = b2bPrice === "" || b2bPrice === null ? null : Number(b2bPrice);
+        if (b2cMargin !== undefined) product.b2cMargin = Number(b2cMargin) || 0;
+        if (b2bMargin !== undefined) product.b2bMargin = Number(b2bMargin) || 0;
+        if (competitors !== undefined) {
+            product.competitors = typeof competitors === "string" ? JSON.parse(competitors) : competitors;
+        }
         if (description) product.description = description;
         if (category) product.category = category;
         if (subCategory !== undefined)
             product.subCategory = subCategory || null;
-        if (features) product.features = JSON.parse(features);
-        if (materialInfo) product.materialInfo = JSON.parse(materialInfo);
+        if (features) product.features = typeof features === "string" ? JSON.parse(features) : features;
+        if (materialInfo) product.materialInfo = typeof materialInfo === "string" ? JSON.parse(materialInfo) : materialInfo;
         if (isFeatured !== undefined)
-            product.isFeatured = isFeatured === "true";
+            product.isFeatured = isFeatured === "true" || isFeatured === true;
 
         // SEO fields
         if (metaTitle) product.metaTitle = metaTitle;

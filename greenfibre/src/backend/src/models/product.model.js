@@ -33,6 +33,30 @@ const productSchema = new mongoose.Schema(
             },
         },
 
+        // Channel-specific pricing
+        b2cPrice: { type: Number, default: null },
+        b2bPrice: { type: Number, default: null },
+
+        // Margins
+        b2cMargin: { type: Number, default: 0 },
+        b2bMargin: { type: Number, default: 0 },
+
+        // Competitor benchmarks
+        competitors: [
+            {
+                id: { type: String },
+                competitorName: { type: String },
+                competitorProductName: { type: String },
+                competitorProductUrl: { type: String },
+                competitorPrice: { type: Number },
+                competitorOriginalPrice: { type: Number },
+                competitorNotes: { type: String },
+                isPrimary: { type: Boolean, default: false },
+                createdAt: { type: Date, default: Date.now },
+                updatedAt: { type: Date, default: Date.now },
+            },
+        ],
+
         colors: [
             {
                 name: {

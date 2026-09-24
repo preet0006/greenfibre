@@ -4,6 +4,10 @@ import { Product } from "../models/product.model.js";
 
 dotenv.config();
 
+import { Cart } from "../models/cart.model.js";
+import { Wishlist } from "../models/wishlist.model.js";
+import { Review } from "../models/review.model.js";
+
 const deleteAllProducts = async () => {
     try {
         await mongoose.connect(process.env.MONGO_URL, {
@@ -16,6 +20,16 @@ const deleteAllProducts = async () => {
 
         const result = await Product.deleteMany({});
         console.log(`🗑️ Successfully deleted ${result.deletedCount} products from database.`);
+
+        // Clean up stale product references in carts, wishlists, and reviews
+        const cartResult = await Cart.updateMany({}, { items: [], totalAmount: 0 });
+        console.log(`🛒 Reset ${cartResult.modifiedCount} user carts.`);
+
+        const wishlistResult = await Wishlist.deleteMany({});
+        console.log(`❤️ Cleared ${wishlistResult.deletedCount} wishlists.`);
+
+        const reviewResult = await Review.deleteMany({});
+        console.log(`⭐ Cleared ${reviewResult.deletedCount} reviews.`);
 
         const countAfter = await Product.countDocuments();
         console.log(`📊 Products remaining in database: ${countAfter}`);
