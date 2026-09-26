@@ -674,8 +674,8 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                       }`}
                     >
                       <div
-                        className="h-5 w-5 rounded-full border border-gray-300 shadow-2xs"
-                        style={{ backgroundColor: color.hex }}
+                        className="h-5 w-5 rounded-full border border-gray-300 shadow-2xs flex-shrink-0"
+                        style={{ background: color.hex || "#e5e7eb" }}
                       />
                       <span
                         className={`text-xs font-bold ${

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import {useCategoryStore} from "@/store/useCategoryStore";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { OFFICIAL_CATEGORIES } from "@/data/officialProducts";
 import { ArrowRight, Loader2, Leaf, ChevronRight } from "lucide-react";
 

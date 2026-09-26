@@ -85,11 +85,10 @@ function ProductCard({ product, index }) {
             className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white transition-all hover:bg-gray-50"
           >
             <Heart
-              className={`h-5 w-5 transition-colors ${
-                isWishlisted
+              className={`h-5 w-5 transition-colors ${isWishlisted
                   ? "fill-red-500 text-red-500"
                   : "text-gray-600"
-              }`}
+                }`}
             />
           </button>
 
@@ -152,7 +151,7 @@ function ProductCard({ product, index }) {
                   <div
                     key={idx}
                     className="h-5 w-5 rounded-full border-2 border-gray-300"
-                    style={{ backgroundColor: color.hex }}
+                    style={{ background: color.hex || "#e5e7eb" }}
                     title={color.name}
                   />
                 ))}
