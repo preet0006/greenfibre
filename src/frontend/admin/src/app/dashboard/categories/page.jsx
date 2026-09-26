@@ -73,13 +73,12 @@ function ImageDrop({ preview, onPick, label = "Drop or click to upload" }) {
           setDrag(false);
           pick(e.dataTransfer.files?.[0]);
         }}
-        className={`relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed transition-all ${
-          drag
+        className={`relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed transition-all ${drag
             ? "border-green-500/60 bg-green-50"
             : preview
               ? "border-green-200"
               : "border-gray-200 hover:border-green-300 hover:bg-gray-50"
-        }`}
+          }`}
       >
         {preview ? (
           <div className="relative h-36 w-full">
@@ -120,11 +119,10 @@ function Toggle({ checked, onChange, label, sub }) {
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all ${
-          checked
+        className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition-all ${checked
             ? "bg-green-100 text-green-700 hover:bg-green-200"
             : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-        }`}
+          }`}
       >
         {checked ? (
           <>
@@ -558,11 +556,10 @@ function CategoryCard({ category, allCategories, onEdit, onDelete, onToggle }) {
 
   return (
     <div
-      className={`group overflow-hidden rounded-2xl border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${
-        category.isActive
+      className={`group overflow-hidden rounded-2xl border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${category.isActive
           ? "border-gray-100 bg-white"
           : "border-gray-100 bg-gray-50 opacity-70"
-      }`}
+        }`}
     >
       {/* Image */}
       <div className="relative aspect-video w-full overflow-hidden bg-gray-100">
@@ -581,11 +578,10 @@ function CategoryCard({ category, allCategories, onEdit, onDelete, onToggle }) {
         {/* Badges */}
         <div className="absolute right-2.5 top-2.5 flex flex-col gap-1 items-end">
           <span
-            className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${
-              category.isActive
+            className={`rounded-lg px-2 py-0.5 text-[10px] font-bold ${category.isActive
                 ? "bg-green-100 text-green-700"
                 : "bg-gray-200 text-gray-500"
-            }`}
+              }`}
           >
             {category.isActive ? "Active" : "Inactive"}
           </span>
@@ -638,11 +634,10 @@ function CategoryCard({ category, allCategories, onEdit, onDelete, onToggle }) {
           </button>
           <button
             onClick={() => onToggle(category._id)}
-            className={`flex flex-1 items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-bold transition-all ${
-              category.isActive
+            className={`flex flex-1 items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-bold transition-all ${category.isActive
                 ? "bg-green-100 text-green-700 hover:bg-green-200"
                 : "bg-gray-100 text-gray-600 hover:bg-green-50 hover:text-green-600"
-            }`}
+              }`}
           >
             {category.isActive ? (
               <>
@@ -878,16 +873,15 @@ export default function CategoriesPage() {
               <button
                 key={s}
                 onClick={() => setFilterStatus(s)}
-                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
-                  filterStatus === s
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${filterStatus === s
                     ? "text-white shadow-sm"
                     : "text-gray-500 bg-white border border-gray-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200"
-                }`}
+                  }`}
                 style={
                   filterStatus === s
                     ? {
-                        background: "linear-gradient(135deg, #15803d, #22c55e)",
-                      }
+                      background: "linear-gradient(135deg, #15803d, #22c55e)",
+                    }
                     : {}
                 }
               >

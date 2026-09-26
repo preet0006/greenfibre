@@ -25,6 +25,7 @@ import dashboardRoutes from "./routes/dashboard.route.js";
 import categoryRoutes from "./routes/category.route.js";
 import razorpayRoutes from "./routes/razorpay.route.js";
 import shiprocketRoutes from "./routes/shiprocket.route.js";
+import mobileRoutes from "./routes/mobile.route.js";
 import { handleShiprocketWebhook } from "./controllers/shiprocket.controller.js";
 
 dotenv.config({
@@ -150,6 +151,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api", razorpayRoutes);
 app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/shipping", shiprocketRoutes);
+app.use("/api/mobile", mobileRoutes);   // ← mobile-only aggregated API
 app.post("/delivery-update", handleShiprocketWebhook);
 
 app.all("/", (req, res) => {

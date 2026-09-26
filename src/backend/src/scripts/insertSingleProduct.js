@@ -5,75 +5,105 @@ import { Category } from "../models/category.model.js";
 
 dotenv.config();
 
-const addContainerBox = async () => {
+const insertProduct = async () => {
     try {
         await mongoose.connect(process.env.MONGO_URL, {
             dbName: process.env.MONGO_DB_NAME || undefined,
         });
         console.log(`✅ Connected to MongoDB Atlas (${mongoose.connection.name})`);
 
-        // Find Storage & Baskets category
-        const categoryDoc = await Category.findOne({ slug: "storage-and-baskets" });
-        if (!categoryDoc) {
-            console.error("❌ Category 'storage-and-baskets' not found!");
-            process.exit(1);
-        }
-
         const productData = {
-            name: "Container Box",
-            slug: "container-box",
-            originalPrice: 0,
-            discountedPrice: 0,
-            description: "A sustainable multi-purpose container designed for everyday home, kitchen and storage use.",
-            category: categoryDoc._id,
+            name: "Drip-Guard",
+            slug: "drip-guard",
+            originalPrice: 1200,
+            discountedPrice: 700,
+            description:
+                "Heat-resistant round coasters with a matching upright holder — a small, everyday item that carries the brand well on any desk or dining table. Each set includes 6 coasters and 1 matching holder stand.",
+            category: new mongoose.Types.ObjectId("6a9bf3e39d345de922350846"),
             subCategory: null,
             colors: [
                 {
-                    name: "Green & Terracotta",
-                    stock: 20,
+                    name: "Off White",
+                    hex: "#F5F0E8",
+                    stock: 0,
                     images: [
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543085/06_last_pic_lrjyw6.png",
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543084/1_hero_happy_pets_iooc2e.png",
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543083/2_sustainable_every_bite_hl6lpu.png",
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543084/3_healthy_pets_happier_lives_puwxqg.png",
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543084/4_easy_to_carry_dmzwke.png",
-                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789543084/5_dishwasher_safe_mdl3sr.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726018/06_Green_Coaster_c01eje.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726013/01_Green_Coaster_qxdvi4.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726013/02_Green_Coaster_t30vtq.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726013/03_Green_Coaster_fe0ec1.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726014/04_Green_Coaster_khbbdb.png",
+                        "https://res.cloudinary.com/dsebrpcyz/image/upload/v1789726013/02_Green_Coaster_t30vtq.png",
                     ],
                 },
             ],
-            features: {},
+            features: {
+                "Set Contents": "6 Coasters + 1 Holder Stand",
+                "Overall Dimensions": "10.5 cm × 10.5 cm × 7 cm",
+                "Surface": "Heat and moisture resistant",
+                "Holder": "Upright holder keeps the set tidy",
+                "Usage": "Desk & Dining Table",
+                "Gifting": "Suitable for corporate and family gifting",
+                "Brand Display": "Perfect for brand display",
+                "Customization": "Customization available",
+                "Eco Friendly": "Yes",
+                "Made In": "India",
+            },
             materialInfo: {
                 "Material": "Rice husk fibre composite",
+                "Packaging": "Window box",
+                "Packaging Options": "Premium packaging options available",
             },
             isFeatured: false,
             isActive: true,
-            metaTitle: "Eco Container Box | Green Fibre",
-            metaDescription: "Sustainable rice husk fibre container for everyday home and kitchen use.",
+            metaTitle: "Drip-Guard Coaster Set | 6 Coasters with Holder | Greenfibre",
+            metaDescription:
+                "Shop Greenfibre's Drip-Guard coaster set with 6 heat and moisture resistant coasters and a matching upright holder, made from rice husk fibre composite.",
             metaKeywords: [
-                "container box",
-                "eco container",
-                "rice husk container",
-                "green fibre",
+                "Drip-Guard",
+                "coaster set",
+                "coasters with holder",
+                "6 coaster set",
+                "eco friendly coasters",
+                "rice husk fibre coasters",
+                "heat resistant coasters",
+                "moisture resistant coasters",
+                "corporate gifting",
+                "Greenfibre",
             ],
         };
 
         const existing = await Product.findOne({ slug: productData.slug });
+        let product;
         if (existing) {
-            await Product.findByIdAndUpdate(existing._id, productData, {
+            product = await Product.findByIdAndUpdate(existing._id, productData, {
                 new: true,
                 runValidators: true,
             });
-            console.log(`🔄 Updated existing product: ${productData.name} (${productData.slug})`);
+            console.log(`🔄 Updated existing product: ${product.name} (ID: ${product._id})`);
         } else {
-            await Product.create(productData);
-            console.log(`✅ Created product: ${productData.name} (${productData.slug})`);
+            product = await Product.create(productData);
+            console.log(`✅ Created new product: ${product.name} (ID: ${product._id})`);
         }
 
-        const currentProduct = await Product.findOne({ slug: productData.slug }).populate("category", "name slug");
+        const currentProduct = await Product.findById(product._id).populate(
+            "category",
+            "name slug"
+        );
         console.log("\n📦 Product Details in DB:");
         console.log("   - Name:", currentProduct.name);
         console.log("   - Slug:", currentProduct.slug);
-        console.log("   - Category:", currentProduct.category?.name, `(${currentProduct.category?.slug})`);
+        console.log(
+            "   - Category:",
+            currentProduct.category?.name,
+            `(${currentProduct.category?.slug})`
+        );
+        console.log(
+            "   - Price: ₹" +
+                currentProduct.discountedPrice +
+                " (MRP: ₹" +
+                currentProduct.originalPrice +
+                ")"
+        );
         console.log("   - Stock:", currentProduct.colors[0]?.stock);
         console.log("   - Images count:", currentProduct.colors[0]?.images?.length);
         console.log("   - Active:", currentProduct.isActive);
@@ -85,4 +115,4 @@ const addContainerBox = async () => {
     }
 };
 
-addContainerBox();
+insertProduct();

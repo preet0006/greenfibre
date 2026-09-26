@@ -125,6 +125,16 @@ const productSchema = new mongoose.Schema(
             default: false,
         },
 
+        // ================= TAGS (for mobile sections) =================
+        // Use these to bucket products into homepage sections
+        // e.g. ["gift", "bestSeller"]  or  ["newArrival"]
+        tags: {
+            type: [String],
+            enum: ["gift", "bestSeller", "newArrival", "featured", "trending"],
+            default: [],
+            index: true,
+        },
+
         // ================= REVIEWS =================
         averageRating: {
             type: Number,
@@ -147,6 +157,14 @@ const productSchema = new mongoose.Schema(
 );
 
 // =============================
+// VIRTUAL: totalStock (sum across all color variants)
+// =============================
+productSchema.virtual("totalStock").get(function () {
+    if (!this.colors || this.colors.length === 0) return 0;
+    return this.colors.reduce((sum, c) => sum + (c.stock || 0), 0);
+});
+
+// =============================
 // AUTO SLUG GENERATION
 // =============================
 productSchema.pre("save", function () {
@@ -157,5 +175,8 @@ productSchema.pre("save", function () {
         });
     }
 });
+
+productSchema.set("toObject", { virtuals: true });
+productSchema.set("toJSON", { virtuals: true });
 
 export const Product = mongoose.model("Product", productSchema);

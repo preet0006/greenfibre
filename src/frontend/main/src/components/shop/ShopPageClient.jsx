@@ -168,7 +168,7 @@ function ProductCard({ product, compact = false }) {
                 <div
                   key={idx}
                   className="h-5 w-5 rounded-full border-2 border-gray-200 shadow-sm"
-                  style={{ backgroundColor: color.hex }}
+                  style={{ background: color.hex || "#e5e7eb" }}
                   title={color.name}
                 />
               ))}
