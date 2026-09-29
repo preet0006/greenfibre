@@ -11,6 +11,7 @@ import {
     forgotPassword,
     resetPassword,
     updatePassword,
+    refreshToken,
 } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
@@ -24,10 +25,13 @@ router.post("/login", loginUser);
 router.post("/resend-otp", resendOtp);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.post("/refresh-token", refreshToken);
+router.post("/auth/refresh", refreshToken);
 
 // Protected routes (logged-in users)
 router.post("/logout", authMiddleware, logoutUser);
 router.get("/me", authMiddleware, getUserProfile);
+router.get("/profile", authMiddleware, getUserProfile);
 router.put(
     "/update-profile",
     authMiddleware,
@@ -38,3 +42,4 @@ router.put("/update-password", authMiddleware, updatePassword);
 router.delete("/delete-account", authMiddleware, deleteUserProfile);
 
 export default router;
+

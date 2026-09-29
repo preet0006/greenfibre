@@ -1,4 +1,12 @@
 import mongoose from "mongoose";
+import dns from "dns";
+
+// Fix for Node.js DNS SRV record resolution failure (querySrv ECONNREFUSED) on Windows / ISP DNS
+try {
+    dns.setServers(["8.8.8.8", "1.1.1.1", "8.8.4.4"]);
+} catch (dnsErr) {
+    console.warn("Could not set custom DNS servers:", dnsErr.message);
+}
 
 let isConnecting = false;
 

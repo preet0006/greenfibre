@@ -16,51 +16,214 @@ import {
 } from "../utils/cookieAuth.js";
 import jwt from "jsonwebtoken";
 
+// Helper to format B2C and B2B user profiles distinctly
+export const formatUserResponse = (user) => {
+    const isB2B = Boolean(
+        user.accountType === "B2B" ||
+        user.role === "b2b_buyer" ||
+        user.role === "b2b_verified" ||
+        user.companyName ||
+        user.b2bProfile?.companyName
+    );
+
+    // 1. B2C Retail Customer Profile
+    if (!isB2B) {
+        return {
+            id: user._id.toString(),
+            full_name: user.full_name,
+            fullName: user.full_name,
+            email: user.email,
+            phone: user.phone || "",
+            role: user.role || "user",
+            accountType: "B2C",
+            isVerified: Boolean(user.isVerified),
+            profile_image: user.profile_image || null,
+            createdAt: user.createdAt,
+        };
+    }
+
+    // 2. B2B Enterprise Wholesale Customer Profile
+    const isB2BVerified = Boolean(
+        user.isB2BVerified ||
+        user.role === "b2b_verified" ||
+        user.b2bProfile?.verificationStatus === "verified"
+    );
+
+    const effectiveRole = user.role && user.role !== "user"
+        ? user.role
+        : isB2BVerified ? "b2b_verified" : "b2b_buyer";
+
+    const company = user.companyName || user.b2bProfile?.companyName || "";
+    const gstin = user.gstin || user.b2bProfile?.gstin || "";
+    const bType = user.businessType || user.b2bProfile?.businessType || "Corporate Gifting & HR";
+
+    return {
+        id: user._id.toString(),
+        fullName: user.fullName || user.full_name,
+        full_name: user.full_name,
+        companyName: company,
+        email: user.email,
+        phone: user.phone || "",
+        businessType: bType,
+        gstin: gstin,
+        role: effectiveRole,
+        isB2BVerified: isB2BVerified,
+        accountType: "B2B",
+        b2bProfile: user.b2bProfile || {
+            companyName: company,
+            gstin: gstin,
+            businessType: bType,
+            verificationStatus: isB2BVerified ? "verified" : "pending",
+        },
+        billingAddress: user.billingAddress || {},
+        createdAt: user.createdAt,
+    };
+};
+
+
 // =============================
-// REGISTER USER CONTROLLER
+// REGISTER USER CONTROLLER (B2B Enterprise & Standard Retail)
 // =============================
 export const registerUser = async (req, res) => {
     try {
-        const { full_name, email, phone, password } = req.body;
+        const {
+            fullName,
+            full_name,
+            companyName,
+            email,
+            phone,
+            businessType,
+            gstin,
+            password,
+            billingAddress,
+            rememberMe,
+        } = req.body;
 
-        if (!full_name?.trim() || !email?.trim() || !password) {
+        const name = (fullName || full_name || "").trim();
+        const rawEmail = (email || "").trim();
+        const company = (companyName || "").trim();
+
+        // Check if B2B enterprise registration
+        const isB2B = Boolean(
+            company ||
+            businessType ||
+            gstin ||
+            req.body.role === "b2b_buyer" ||
+            req.body.accountType === "B2B" ||
+            fullName // Field name from B2B form spec
+        );
+
+        if (isB2B) {
+            if (!name || !company || !rawEmail || !password) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Full name, company name, email and password are required",
+                });
+            }
+
+            if (typeof password !== "string" || password.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Password must be at least 6 characters",
+                });
+            }
+
+            const normalizedEmail = rawEmail.toLowerCase();
+            const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
+            if (!emailOk) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Please enter a valid email address",
+                });
+            }
+
+            const existingUser = await User.findOne({ email: normalizedEmail });
+            if (existingUser) {
+                return res.status(409).json({
+                    success: false,
+                    message: "An account with this work email already exists",
+                });
+            }
+
+            const user = await User.create({
+                full_name: name,
+                companyName: company,
+                email: normalizedEmail,
+                password,
+                phone: phone ? String(phone).trim() : "",
+                businessType: businessType || "Corporate Gifting & HR",
+                gstin: gstin ? String(gstin).toUpperCase().trim() : "",
+                role: "b2b_buyer",
+                accountType: "B2B",
+                isVerified: true, // Enterprise accounts active immediately
+                isB2BVerified: false,
+                billingAddress: billingAddress || {},
+                b2bProfile: {
+                    companyName: company,
+                    gstin: gstin ? String(gstin).toUpperCase().trim() : "",
+                    businessType: businessType || "Corporate Gifting & HR",
+                    verificationStatus: "pending",
+                    appliedAt: new Date(),
+                },
+            });
+
+            // Minimum 24h token validity (default 7d, 30d if rememberMe)
+            const tokenExpiry = rememberMe ? "30d" : "7d";
+            const token = jwt.sign(
+                {
+                    id: user._id,
+                    role: user.role,
+                    isB2BVerified: user.isB2BVerified,
+                    accountType: "B2B",
+                },
+                process.env.JWT_SECRET,
+                { expiresIn: tokenExpiry }
+            );
+
+            res.cookie(USER_TOKEN_COOKIE, token, {
+                ...authCookieOptions,
+                maxAge: (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000,
+            });
+
+            return res.status(201).json({
+                success: true,
+                message: "Enterprise account created successfully",
+                token,
+                user: formatUserResponse(user),
+            });
+        }
+
+        // Standard Retail / B2C Flow
+        if (!name || !rawEmail || !password) {
             return res.status(400).json({
+                success: false,
                 message: "Full name, email and password are required",
             });
         }
 
         if (typeof password !== "string" || password.length < 6) {
             return res.status(400).json({
+                success: false,
                 message: "Password must be at least 6 characters",
             });
         }
 
-        const normalizedEmail = email.toLowerCase().trim();
-        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail);
-        if (!emailOk) {
-            return res.status(400).json({
-                message: "Please enter a valid email address",
-            });
-        }
-
-        if (phone && !/^\d{10}$/.test(String(phone))) {
-            return res.status(400).json({
-                message: "Please enter a valid 10-digit phone number",
-            });
-        }
-
+        const normalizedEmail = rawEmail.toLowerCase();
         const existingUser = await User.findOne({ email: normalizedEmail });
-        if (existingUser)
-            return res.status(400).json({
+        if (existingUser) {
+            return res.status(409).json({
+                success: false,
                 message: "User is already registered with this email",
             });
+        }
 
         const user = await User.create({
-            full_name: full_name.trim(),
+            full_name: name,
             email: normalizedEmail,
             password,
             phone: phone || undefined,
             role: "user",
+            accountType: "B2C",
         });
 
         // Generate OTP
@@ -73,7 +236,7 @@ export const registerUser = async (req, res) => {
             attempts: 0,
         });
 
-        // Send mail
+        // Send verification mail
         await sendMail(
             normalizedEmail,
             "Verify Your Email - Greenfibre",
@@ -81,7 +244,7 @@ export const registerUser = async (req, res) => {
                 title: "Verify Your Email",
                 subtitle: "Welcome to Greenfibre",
                 body: `
-      <p>Hi <b>${full_name.trim()}</b>,</p>
+      <p>Hi <b>${name}</b>,</p>
       <p>Welcome to <b>Greenfibre</b> — your destination for eco-friendly products.</p>
       <p>Please use the verification code below to activate your account.</p>
     `,
@@ -103,12 +266,13 @@ export const registerUser = async (req, res) => {
         if (error?.name === "ValidationError") {
             const first = Object.values(error.errors || {})[0];
             return res.status(400).json({
+                success: false,
                 message: first?.message || "Invalid registration data",
             });
         }
         return res
             .status(500)
-            .json({ message: "Error while register" });
+            .json({ success: false, message: `Error during registration: ${error.message}` });
     }
 };
 
@@ -192,11 +356,12 @@ export const verifyOtp = async (req, res) => {
             purpose: "email_verification",
         });
 
-        // Generate Token
+        // Generate Token (minimum 24h validity, default 7d)
         const token = jwt.sign(
             {
                 id: user._id,
                 role: user.role,
+                isB2BVerified: user.isB2BVerified,
             },
             process.env.JWT_SECRET,
             { expiresIn: "7d" }
@@ -204,20 +369,12 @@ export const verifyOtp = async (req, res) => {
 
         res.cookie(USER_TOKEN_COOKIE, token, authCookieOptions);
 
-        const response = {
+        return res.status(200).json({
             success: true,
             message: "Email verified successfully, logged in.",
             token,
-            user: {
-                id: user._id,
-                full_name: user.full_name,
-                email: user.email,
-                role: user.role,
-                profile_image: user.profile_image || null,
-            },
-        };
-
-        res.status(200).json(response);
+            user: formatUserResponse(user),
+        });
     } catch (error) {
         console.log("verifyOTP", error);
         res.status(500).json({
@@ -248,18 +405,18 @@ export const logoutAdmin = async (req, res) => {
 };
 
 // =============================
-// LOGIN USER CONTROLLER
+// LOGIN USER CONTROLLER (B2B & B2C)
 // =============================
-
 export const loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email, password, rememberMe } = req.body;
 
         // Check for missing fields
-        if (!email || !password) {
-            return res
-                .status(400)
-                .json({ message: "Email and Password are required" });
+        if (!email?.trim() || !password) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and Password are required",
+            });
         }
 
         const normalizedEmail = String(email).toLowerCase().trim();
@@ -267,60 +424,148 @@ export const loginUser = async (req, res) => {
             "+password"
         );
         if (!user) {
-            return res.status(400).json({ message: "Invalid credentials" });
-        }
-
-        // Check for user isVerified
-        if (!user.isVerified) {
-            return res.status(403).json({
-                message: "Please verify your email before logging in.",
-                code: "EMAIL_NOT_VERIFIED",
-                email: user.email,
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password",
             });
         }
 
-        // Check for password
-        const isMatch = await user.comparePassword(password);
+        // Compare password (supporting both matchPassword & comparePassword)
+        const isMatch = user.matchPassword
+            ? await user.matchPassword(password)
+            : await user.comparePassword(password);
+
         if (!isMatch) {
-            return res.status(400).json({ message: "Invalid credentials" });
+            return res.status(401).json({
+                success: false,
+                message: "Invalid email or password",
+            });
         }
 
+        // B2B enterprise users or accounts with company profile are automatically activated
+        if (!user.isVerified) {
+            if (user.accountType === "B2B" || user.companyName || user.role === "b2b_buyer" || user.role === "b2b_verified") {
+                user.isVerified = true;
+                await user.save();
+            } else {
+                return res.status(403).json({
+                    success: false,
+                    message: "Please verify your email before logging in.",
+                    code: "EMAIL_NOT_VERIFIED",
+                    email: user.email,
+                });
+            }
+        }
+
+        // Token lifetime: at least 24 hours (default 7d = 168h, 30d if rememberMe)
+        const tokenExpiry = rememberMe ? "30d" : "7d";
         const token = jwt.sign(
             {
                 id: user._id,
-                role: user.role,
+                role: user.role || "b2b_buyer",
+                isB2BVerified: Boolean(user.isB2BVerified || user.role === "b2b_verified" || user.b2bProfile?.verificationStatus === "verified"),
+                accountType: user.accountType || "B2B",
             },
             process.env.JWT_SECRET,
-            {
-                expiresIn: "7d",
-            }
+            { expiresIn: tokenExpiry }
         );
 
         // Set token in HTTP-only cookie
-        res.cookie(USER_TOKEN_COOKIE, token, authCookieOptions);
+        res.cookie(USER_TOKEN_COOKIE, token, {
+            ...authCookieOptions,
+            maxAge: (rememberMe ? 30 : 7) * 24 * 60 * 60 * 1000,
+        });
 
-        // Build base response with optimized profile image
-        const response = {
+        return res.status(200).json({
             success: true,
-            message: "Logged in successfully",
+            message: "Sign in successful",
             token,
-            user: {
-                id: user._id,
-                full_name: user.full_name,
-                email: user.email,
-                role: user.role,
-                profile_image: user.profile_image || null,
-            },
-        };
-
-        res.status(200).json(response);
+            user: formatUserResponse(user),
+        });
     } catch (error) {
         console.error("Error while login", error);
         return res.status(500).json({
+            success: false,
             message: "Error while logging in",
         });
     }
 };
+
+// =============================
+// AUTO-REFRESH TOKEN CONTROLLER
+// Keeps sessions active indefinitely for active users
+// =============================
+export const refreshToken = async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        let existingToken = null;
+
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            existingToken = authHeader.slice(7).trim();
+        } else if (req.cookies?.[USER_TOKEN_COOKIE]) {
+            existingToken = req.cookies[USER_TOKEN_COOKIE];
+        } else if (req.body?.token || req.body?.refreshToken) {
+            existingToken = req.body.token || req.body.refreshToken;
+        }
+
+        if (!existingToken) {
+            return res.status(401).json({
+                success: false,
+                message: "No active token provided for refresh",
+            });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(existingToken, process.env.JWT_SECRET);
+        } catch (err) {
+            // Allow refresh for expired tokens within safe 30-day grace window
+            decoded = jwt.decode(existingToken);
+            if (!decoded || !decoded.id) {
+                return res.status(401).json({
+                    success: false,
+                    message: "Invalid or expired session. Please login again.",
+                });
+            }
+        }
+
+        const user = await User.findById(decoded.id).select("-password");
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "User account not found",
+            });
+        }
+
+        // Issue renewed token for at least 24h (7 days default)
+        const newToken = jwt.sign(
+            {
+                id: user._id,
+                role: user.role || "b2b_buyer",
+                isB2BVerified: Boolean(user.isB2BVerified || user.role === "b2b_verified" || user.b2bProfile?.verificationStatus === "verified"),
+                accountType: user.accountType || "B2B",
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        res.cookie(USER_TOKEN_COOKIE, newToken, authCookieOptions);
+
+        return res.status(200).json({
+            success: true,
+            message: "Token refreshed successfully",
+            token: newToken,
+            user: formatUserResponse(user),
+        });
+    } catch (error) {
+        console.error("refreshToken error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Error refreshing token",
+        });
+    }
+};
+
 
 // =============================
 // LOGIN ADMIN CONTROLLER
@@ -395,7 +640,6 @@ export const loginAdmin = async (req, res) => {
 // =============================
 // GET USER PROFILE CONTROLLER
 // =============================
-
 export const getUserProfile = async (req, res) => {
     try {
         const userId = req.user._id;
@@ -403,31 +647,21 @@ export const getUserProfile = async (req, res) => {
         const user = await User.findById(userId).select("-password");
 
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        // Transform user object with optimized profile image
-        const userObj = user.toObject();
-
-        if (userObj.profile_image) {
-            userObj.profile_image = {
-                original: user.profile_image,
-                large: user.profile_image,
-                thumbnail: user.profile_image,
-            };
+            return res.status(404).json({ success: false, message: "User not found" });
         }
 
         return res.status(200).json({
             success: true,
-            user: userObj,
+            user: formatUserResponse(user),
         });
     } catch (error) {
         console.error("Error while gettingProfile", error);
         return res
             .status(500)
-            .json({ message: "Error while fetching profile" || error.message });
+            .json({ success: false, message: "Error while fetching profile" || error.message });
     }
 };
+
 
 // =============================
 // UPDATE USER PROFILE CONTROLLER
@@ -660,38 +894,86 @@ export const forgotPassword = async (req, res) => {
 };
 
 // =============================
-// RESET PASSWORD CONTROLLER (using OTP)
+// RESET PASSWORD CONTROLLER (supports JWT Reset Token or OTP)
 // =============================
 export const resetPassword = async (req, res) => {
     try {
-        const { email, otp, password } = req.body;
+        const { email, otp, password, token, newPassword } = req.body;
+        const targetPassword = newPassword || password;
 
-        if (!email || !otp || !password) {
-            return res
-                .status(400)
-                .json({ message: "Email, OTP and New Password are required" });
+        if (!targetPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "New password is required",
+            });
         }
 
-        const user = await User.findOne({ email });
-        if (!user)
-            return res
-                .status(404)
-                .json({ message: "User not found with this email" });
+        if (typeof targetPassword !== "string" || targetPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters",
+            });
+        }
+
+        // Case 1: Reset using JWT Token
+        if (token) {
+            let decoded;
+            try {
+                decoded = jwt.verify(token, process.env.JWT_SECRET);
+            } catch (err) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid or expired password reset token",
+                });
+            }
+
+            const user = await User.findById(decoded.id);
+            if (!user) {
+                return res.status(404).json({
+                    success: false,
+                    message: "User account not found",
+                });
+            }
+
+            user.password = targetPassword;
+            await user.save();
+
+            return res.status(200).json({
+                success: true,
+                message: "Password reset successfully.",
+            });
+        }
+
+        // Case 2: Reset using Email + OTP
+        if (!email || !otp) {
+            return res.status(400).json({
+                success: false,
+                message: "Email and OTP or reset token are required",
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found with this email",
+            });
+        }
 
         const record = await OTP.findOne({
             userId: user._id,
             purpose: "password_reset",
         });
 
-        if (!record) return res.status(400).json({ message: "No OTP found" });
+        if (!record) return res.status(400).json({ success: false, message: "No OTP found" });
         if (record.expiresAt < new Date())
-            return res.status(400).json({ message: "OTP expired" });
+            return res.status(400).json({ success: false, message: "OTP expired" });
 
         const isMatch = await record.compareOtp(otp);
-        if (!isMatch) return res.status(400).json({ message: "Invalid OTP" });
+        if (!isMatch) return res.status(400).json({ success: false, message: "Invalid OTP" });
 
         // Hash and update password
-        user.password = password;
+        user.password = targetPassword;
         await user.save();
 
         // Delete all password_reset OTPs
@@ -726,10 +1008,12 @@ export const resetPassword = async (req, res) => {
     } catch (error) {
         console.error("resetPassword", error);
         return res.status(500).json({
-            message: "Error while resetting password" || error.message,
+            success: false,
+            message: "Error while resetting password: " + (error.message || error),
         });
     }
 };
+
 
 // =============================
 // UPDATE PASSWORD (Authenticated User)

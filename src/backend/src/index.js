@@ -26,6 +26,7 @@ import categoryRoutes from "./routes/category.route.js";
 import razorpayRoutes from "./routes/razorpay.route.js";
 import shiprocketRoutes from "./routes/shiprocket.route.js";
 import mobileRoutes from "./routes/mobile.route.js";
+import b2bRoutes from "./routes/b2b.route.js";
 import { handleShiprocketWebhook } from "./controllers/shiprocket.controller.js";
 
 dotenv.config({
@@ -125,6 +126,8 @@ app.use("/api/users/verify-otp", authLimiter);
 app.use("/api/users/resend-otp", authLimiter);
 app.use("/api/users/forgot-password", authLimiter);
 app.use("/api/users/reset-password", authLimiter);
+app.use("/api/b2b/login", authLimiter);
+app.use("/api/b2b/register", authLimiter);
 app.use("/api/admin/login", authLimiter);
 app.use("/api/admin/forgot-password", authLimiter);
 app.use("/api/admin/reset-password", authLimiter);
@@ -152,6 +155,7 @@ app.use("/api", razorpayRoutes);
 app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/shipping", shiprocketRoutes);
 app.use("/api/mobile", mobileRoutes);   // ← mobile-only aggregated API
+app.use("/api/b2b", b2bRoutes);         // ← dedicated B2B wholesale platform API
 app.post("/delivery-update", handleShiprocketWebhook);
 
 app.all("/", (req, res) => {

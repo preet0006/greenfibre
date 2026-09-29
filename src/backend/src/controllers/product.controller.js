@@ -9,53 +9,81 @@ import {
 import { getImgproxyUrl } from "../utils/imgproxy.js";
 
 // =============================
-// HELPER: Transform product images
+// HELPER: Transform product images & format B2C retail presentation
 // =============================
-const transformProductImages = (product, sizes = "full") => {
-    const productObj = product.toObject ? product.toObject() : product;
+const formatImageVariant = (img) => {
+    if (!img) return null;
+    if (typeof img === "object" && (img.card || img.original || img.url)) {
+        const directUrl = img.card || img.original || img.url || img.thumbnail || "";
+        return {
+            original: img.original || directUrl,
+            card: img.card || directUrl,
+            thumbnail: img.thumbnail || directUrl,
+            medium: img.medium || directUrl,
+            large: img.large || directUrl,
+            url: directUrl,
+        };
+    }
+    const url = typeof img === "string" ? img : String(img);
+    return {
+        original: url,
+        card: url,
+        thumbnail: url,
+        medium: url,
+        large: url,
+        url: url,
+    };
+};
 
-    // Transform color variant images
+const transformProductImages = (product, sizes = "full") => {
+    const productObj = product.toObject ? product.toObject() : { ...product };
+
+    // Primary & gallery images (plain strings)
+    const rawImages = Array.isArray(productObj.images) ? productObj.images : [];
+    const colorImages = Array.isArray(productObj.colors)
+        ? productObj.colors.flatMap((c) => (Array.isArray(c.images) ? c.images : []))
+        : [];
+
+    if (rawImages.length > 0) {
+        productObj.images = rawImages.map((img) => (typeof img === "object" ? (img.original || img.card || img.url || "") : String(img))).filter(Boolean);
+    } else if (colorImages.length > 0) {
+        productObj.images = colorImages.map((img) => (typeof img === "object" ? (img.original || img.card || img.url || "") : String(img))).filter(Boolean);
+    } else {
+        productObj.images = [];
+    }
+
+    // Optional Gift Box Images (0, 1, 2, 3+ photos)
+    productObj.giftBoxImages = Array.isArray(productObj.giftBoxImages)
+        ? productObj.giftBoxImages
+        : (productObj.giftPackaging?.images || productObj.package?.giftBoxImages || []);
+
+    if (productObj.giftPackaging) {
+        if (!Array.isArray(productObj.giftPackaging.images) || productObj.giftPackaging.images.length === 0) {
+            productObj.giftPackaging.images = productObj.giftBoxImages;
+        }
+    }
+
+    // Transform color variant images so frontend can access .card, .original, or direct URL
     if (productObj.colors && productObj.colors.length > 0) {
         productObj.colors = productObj.colors.map((color) => {
-            if (!color.images || color.images.length === 0) {
-                return {
-                    ...color,
-                    images: [],
-                };
-            }
+            const cImgs = Array.isArray(color.images) && color.images.length > 0
+                ? color.images
+                : (productObj.images.length > 0 ? productObj.images : []);
 
-            if (sizes === "full") {
-                return {
-                    ...color,
-                    images: color.images.map((img) => ({
-                        original: img,
-                        large: img,
-                        medium: img,
-                        thumbnail: img,
-                    })),
-                };
-            } else if (sizes === "card") {
-                return {
-                    ...color,
-                    images: color.images.map((img) => ({
-                        original: img,
-                        card: img,
-                        thumbnail: img,
-                    })),
-                };
-            } else if (sizes === "thumbnail") {
-                return {
-                    ...color,
-                    images: color.images.map((img) => img),
-                };
-            }
-
-            return color;
+            return {
+                ...color,
+                images: cImgs.map(formatImageVariant).filter(Boolean),
+            };
         });
     }
 
+    // Clean B2C Data Isolation: Remove internal B2B wholesale margins & competitor data
+    delete productObj.b2bMargin;
+    delete productObj.competitors;
+
     return productObj;
 };
+
 // =============================
 // HELPER: Calculate total stock
 // =============================

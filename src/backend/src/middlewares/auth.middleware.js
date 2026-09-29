@@ -2,7 +2,9 @@ import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 
 const loadUserFromCookieToken = async (token) => {
+    if (!token || token === "undefined" || token === "null") return null;
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded || !decoded.id) return null;
     const user = await User.findById(decoded.id).select("-password");
     return user;
 };
@@ -10,9 +12,14 @@ const loadUserFromCookieToken = async (token) => {
 const extractToken = (req, cookieName = "token") => {
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
-        return authHeader.slice(7).trim();
+        const t = authHeader.slice(7).trim();
+        if (t && t !== "undefined" && t !== "null") return t;
     }
-    return req.cookies?.[cookieName] || req.cookies?.token;
+    const cookieVal = req.cookies?.[cookieName] || req.cookies?.token;
+    if (cookieVal && cookieVal !== "undefined" && cookieVal !== "null") {
+        return cookieVal;
+    }
+    return null;
 };
 
 // Storefront / customer auth — uses `token` cookie or Bearer header
@@ -22,6 +29,7 @@ export const authMiddleware = async (req, res, next) => {
 
         if (!token) {
             return res.status(401).json({
+                success: false,
                 message: "Unauthorized. Please login.",
             });
         }
@@ -29,6 +37,7 @@ export const authMiddleware = async (req, res, next) => {
         const user = await loadUserFromCookieToken(token);
         if (!user) {
             return res.status(401).json({
+                success: false,
                 message: "User not found. Unauthorized.",
             });
         }
@@ -36,12 +45,13 @@ export const authMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
-        console.error("Auth middleware error:", error);
         return res.status(401).json({
-            message: "Invalid or expired token",
+            success: false,
+            message: "Invalid or expired token. Please login again.",
         });
     }
 };
+
 
 // Optional customer auth for public endpoints that can be enhanced when logged in.
 export const optionalAuthMiddleware = async (req, _res, next) => {
@@ -103,9 +113,10 @@ export const adminAuthMiddleware = async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
-        console.error("Admin auth middleware error:", error);
         return res.status(401).json({
-            message: "Invalid or expired token",
+            success: false,
+            message: "Invalid or expired token. Please login again.",
         });
     }
 };
+
