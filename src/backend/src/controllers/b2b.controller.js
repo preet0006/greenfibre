@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 import { Product } from "../models/product.model.js";
+import { B2BProductConfig } from "../models/b2bProductConfig.model.js";
 import { Category } from "../models/category.model.js";
 import { Cart } from "../models/cart.model.js";
 import { Order } from "../models/order.model.js";
@@ -411,16 +412,21 @@ export const generateDefaultTierBenefits = (index, minQty, unitPrice, retailPric
 /**
  * Helper to format product document to the exact B2B specification
  */
-export const formatB2BProduct = (product, isB2BVerified = false) => {
-    const b2bConfig = product.b2bPricing || {};
-    const moq = Math.max(1, Number(b2bConfig.moq) || Number(product.moq) || 1);
+/**
+ * @param {object} product   - Lean Product document
+ * @param {boolean} isB2BVerified
+ * @param {object|null} b2bConfig - B2BProductConfig document (or null)
+ */
+export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = null) => {
+    const cfg = b2bConfig || {};
+    const moq = Math.max(1, Number(cfg.moq) || Number(product.moq) || 1);
     const pricingAtMoq = calculateProductPricing(product, moq, { isB2BVerified });
     const retailPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
 
-    // Format tiers into [ { min, price, benefits, customizationOptions, ... } ]
-    const rawTiers = Array.isArray(b2bConfig.tiers) && b2bConfig.tiers.length > 0
-        ? b2bConfig.tiers
-        : Array.isArray(product.tiers) ? product.tiers : [];
+    // Format tiers — source is now B2BProductConfig.tiers
+    const rawTiers = Array.isArray(cfg.tiers) && cfg.tiers.length > 0
+        ? cfg.tiers
+        : [];
 
     const formattedTiers = rawTiers
         .map((t, idx) => {
@@ -434,8 +440,11 @@ export const formatB2BProduct = (product, isB2BVerified = false) => {
             const benefits = Array.isArray(t.benefits) && t.benefits.length > 0
                 ? t.benefits
                 : generateDefaultTierBenefits(idx, min, price, retailPrice);
-            const customizationOptions = Array.isArray(t.customizationOptions) && t.customizationOptions.length > 0
-                ? t.customizationOptions
+            // Resolve enabled customization labels for this tier from B2BProductConfig
+            const enabledKeys = Array.isArray(t.enabledCustomizationKeys) ? t.enabledCustomizationKeys : [];
+            const allOptions = Array.isArray(cfg.customizationOptions) ? cfg.customizationOptions : [];
+            const customizationOptions = enabledKeys.length > 0
+                ? allOptions.filter((o) => enabledKeys.includes(o.key) && o.isActive).map((o) => o.label)
                 : (product.brandingTypes && product.brandingTypes.length > 0 ? product.brandingTypes : ["Laser Engraving", "Custom Packaging"]);
 
             return {
@@ -474,9 +483,9 @@ export const formatB2BProduct = (product, isB2BVerified = false) => {
     // Colours array
     const colours = (product.colors || []).map((c) => c.name).filter(Boolean);
 
-    // Active B2B base price
+    // Active B2B base price — sourced from B2BProductConfig
     const basePrice =
-        Number(b2bConfig.basePrice) ||
+        Number(cfg.basePrice) ||
         Number(product.b2bPrice) ||
         (formattedTiers.length > 0 ? formattedTiers[0].price : null) ||
         Number(product.discountedPrice) ||
@@ -556,7 +565,17 @@ export const formatB2BProduct = (product, isB2BVerified = false) => {
         totalStock: (product.colors || []).reduce((sum, c) => sum + (c.stock || 0), 0),
         retailPrice: product.discountedPrice || product.originalPrice,
         originalPrice: product.originalPrice,
-        b2bEnabled: Boolean(b2bConfig.isEnabled || product.b2bPrice),
+        b2bEnabled: Boolean(cfg.isEnabled || product.b2bPrice),
+        // Full B2B config for frontend if needed (customization menu, notes, etc.)
+        b2bConfig: cfg._id ? {
+            configId: cfg._id,
+            moq: cfg.moq,
+            stepQuantity: cfg.stepQuantity,
+            sampleAvailable: cfg.sampleAvailable,
+            samplePrice: cfg.samplePrice,
+            customizationOptions: cfg.customizationOptions || [],
+            customizationNotes: cfg.customizationNotes || "",
+        } : null,
         tax: product.tax || { hsnCode: "", gstRate: 18, isTaxInclusive: true },
         pricingAtMoq,
         isB2BVerifiedUser: isB2BVerified,
@@ -588,11 +607,12 @@ export const getB2BProducts = async (req, res) => {
             filter.$or = [{ name: searchRegex }, { description: searchRegex }, { tagline: searchRegex }, { sku: searchRegex }];
         }
 
+        // b2bOnly filter: only products that have an enabled B2BProductConfig
+        let b2bEnabledProductIds = null;
         if (req.query.b2bOnly === "true") {
-            filter.$or = [
-                { "b2bPricing.isEnabled": true },
-                { b2bPrice: { $ne: null, $gt: 0 } },
-            ];
+            const enabledConfigs = await B2BProductConfig.find({ isEnabled: true }, "product").lean();
+            b2bEnabledProductIds = enabledConfigs.map((c) => c.product);
+            filter._id = { $in: b2bEnabledProductIds };
         }
 
         const [products, total] = await Promise.all([
@@ -606,7 +626,14 @@ export const getB2BProducts = async (req, res) => {
             Product.countDocuments(filter),
         ]);
 
-        const formattedProducts = products.map((product) => formatB2BProduct(product, isB2BVerified));
+        // Batch-fetch all B2BProductConfigs for this page in ONE query (no N+1)
+        const productIds = products.map((p) => p._id);
+        const configs = await B2BProductConfig.find({ product: { $in: productIds }, isEnabled: true }).lean();
+        const configMap = Object.fromEntries(configs.map((c) => [c.product.toString(), c]));
+
+        const formattedProducts = products.map((product) =>
+            formatB2BProduct(product, isB2BVerified, configMap[product._id.toString()] || null)
+        );
 
         return res.status(200).json({
             success: true,
@@ -636,6 +663,7 @@ export const getB2BProductDetails = async (req, res) => {
             ? { _id: identifier, isActive: true }
             : { slug: identifier, isActive: true };
 
+        // Fetch product + its B2BProductConfig in parallel
         const product = await Product.findOne(filter)
             .populate("category", "name slug title")
             .populate("subCategory", "name slug title")
@@ -645,11 +673,15 @@ export const getB2BProductDetails = async (req, res) => {
             return res.status(404).json({ success: false, message: "Product not found." });
         }
 
-        const isB2BVerified =
-            req.user?.accountType === "B2B" &&
-            req.user?.b2bProfile?.verificationStatus === "verified";
+        const [b2bConfig, isB2BVerified] = await Promise.all([
+            B2BProductConfig.findOne({ product: product._id, isEnabled: true }).lean(),
+            Promise.resolve(
+                req.user?.accountType === "B2B" &&
+                req.user?.b2bProfile?.verificationStatus === "verified"
+            ),
+        ]);
 
-        const formattedProduct = formatB2BProduct(product, isB2BVerified);
+        const formattedProduct = formatB2BProduct(product, isB2BVerified, b2bConfig);
 
         return res.status(200).json({
             success: true,
@@ -672,7 +704,11 @@ export const calculateB2BQuote = async (req, res) => {
             return res.status(400).json({ success: false, message: "productId is required." });
         }
 
-        const product = await Product.findById(productId).lean();
+        const [product, b2bConfig] = await Promise.all([
+            Product.findById(productId).lean(),
+            B2BProductConfig.findOne({ product: productId, isEnabled: true }).lean(),
+        ]);
+
         if (!product) {
             return res.status(404).json({ success: false, message: "Product not found." });
         }
@@ -681,7 +717,8 @@ export const calculateB2BQuote = async (req, res) => {
             req.user?.accountType === "B2B" &&
             req.user?.b2bProfile?.verificationStatus === "verified";
 
-        const calculation = calculateProductPricing(product, quantity, { isB2BVerified });
+        // Pass b2bConfig into pricing engine so it can use the correct tiers/moq
+        const calculation = calculateProductPricing(product, quantity, { isB2BVerified, b2bConfig });
 
         return res.status(200).json({
             success: true,
