@@ -5,6 +5,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import { connectDB } from "../db/connectDB.js";
 import { Product } from "../models/product.model.js";
+import { B2BProductConfig } from "../models/b2bProductConfig.model.js";
 import { Category } from "../models/category.model.js";
 import productRoutes from "../routes/product.route.js";
 import b2bRoutes from "../routes/b2b.route.js";
@@ -73,21 +74,24 @@ async function testProductSchemaAndIsolation() {
             b2cPrice: 999,
             // B2B Wholesale Pricing
             b2bPrice: 450,
-            b2bPricing: {
-                isEnabled: true,
-                basePrice: 450,
-                moq: 50,
-                stepQuantity: 10,
-                sampleAvailable: true,
-                samplePrice: 750,
-                tiers: [
-                    { minQty: 50, maxQty: 200, unitPrice: 450, discountPercentage: 55, tierLabel: "Starter Bulk" },
-                    { minQty: 201, maxQty: 500, unitPrice: 390, discountPercentage: 61, tierLabel: "Corporate Recommended", popular: true },
-                    { minQty: 501, maxQty: null, unitPrice: 330, discountPercentage: 67, tierLabel: "Enterprise Direct" },
-                ],
-            },
             tax: { hsnCode: "482010", gstRate: 18, isTaxInclusive: true },
             stockQuantity: 500,
+        });
+
+        // B2B Wholesale Configuration in separate collection
+        const b2bConfig = await B2BProductConfig.create({
+            product: product._id,
+            isEnabled: true,
+            basePrice: 450,
+            moq: 50,
+            stepQuantity: 10,
+            sampleAvailable: true,
+            samplePrice: 750,
+            tiers: [
+                { minQty: 50, maxQty: 200, unitPrice: 450, discountPercentage: 55, tierLabel: "Starter Bulk" },
+                { minQty: 201, maxQty: 500, unitPrice: 390, discountPercentage: 61, tierLabel: "Corporate Recommended", popular: true },
+                { minQty: 501, maxQty: null, unitPrice: 330, discountPercentage: 67, tierLabel: "Enterprise Direct" },
+            ],
         });
 
         console.log("Product created with ID:", product._id.toString());
@@ -123,9 +127,10 @@ async function testProductSchemaAndIsolation() {
             throw new Error("B2B product missing wholesale tiers or giftBoxImages!");
         }
 
-        // Clean up test product
+        // Clean up test product and b2b config
         await Product.deleteOne({ _id: product._id });
-        console.log("\nCleaned up test product. Database is clean.");
+        await B2BProductConfig.deleteOne({ product: product._id });
+        console.log("\nCleaned up test product and B2B config. Database is clean.");
 
         server.close();
         console.log("\n🎉 ALL PRODUCT SCHEMA & B2C/B2B ISOLATION TESTS PASSED!");

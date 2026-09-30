@@ -467,15 +467,18 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         .filter((t) => t.min && t.price)
         .sort((a, b) => a.min - b.min);
 
-    // Primary image
+    // Primary image & gallery (B2B override takes priority if defined)
+    const b2bCustomImages = Array.isArray(cfg.images) && cfg.images.length > 0 ? cfg.images : null;
+
     const mainImage =
+        (b2bCustomImages && b2bCustomImages[0]) ||
         product.image ||
         product.colors?.[0]?.images?.[0] ||
         product.ogImage ||
         (Array.isArray(product.images) && product.images[0]) ||
         "";
 
-    const allImages = (product.colors || [])
+    const allImages = b2bCustomImages || (product.colors || [])
         .flatMap((c) => c.images || [])
         .concat(product.images || [])
         .filter(Boolean);
@@ -504,6 +507,12 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         product.category?.name ||
         product.category?.title ||
         (typeof product.category === "string" ? product.category : "Eco Goods");
+
+    const giftBoxPhotos = (Array.isArray(cfg.giftBoxImages) && cfg.giftBoxImages.length > 0)
+        ? cfg.giftBoxImages
+        : (Array.isArray(product.giftBoxImages) && product.giftBoxImages.length > 0
+            ? product.giftBoxImages
+            : (product.giftPackaging?.images || product.package?.giftBoxImages || []));
 
     return {
         _id: product._id,
@@ -548,12 +557,10 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         dimensions: product.dimensions || { length: 0, width: 0, height: 0, unit: "cm" },
         package: product.package || {},
         giftSetContents: product.giftSetContents || { totalProductTypes: 0, products: [] },
-        giftBoxImages: Array.isArray(product.giftBoxImages) && product.giftBoxImages.length > 0
-            ? product.giftBoxImages
-            : (product.giftPackaging?.images || product.package?.giftBoxImages || []),
+        giftBoxImages: giftBoxPhotos,
         giftPackaging: product.giftPackaging || {
-            available: Boolean(product.giftBoxImages?.length > 0),
-            images: product.giftBoxImages || [],
+            available: Boolean(giftBoxPhotos.length > 0),
+            images: giftBoxPhotos,
             title: "Premium Gift Box",
             description: "",
             pricePerBox: 0,
@@ -566,7 +573,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         retailPrice: product.discountedPrice || product.originalPrice,
         originalPrice: product.originalPrice,
         b2bEnabled: Boolean(cfg.isEnabled || product.b2bPrice),
-        // Full B2B config for frontend if needed (customization menu, notes, etc.)
+        // Full B2B config for frontend if needed (customization menu, notes, showcase photos, etc.)
         b2bConfig: cfg._id ? {
             configId: cfg._id,
             moq: cfg.moq,
@@ -575,6 +582,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
             samplePrice: cfg.samplePrice,
             customizationOptions: cfg.customizationOptions || [],
             customizationNotes: cfg.customizationNotes || "",
+            customizationShowcaseImages: cfg.customizationShowcaseImages || [],
         } : null,
         tax: product.tax || { hsnCode: "", gstRate: 18, isTaxInclusive: true },
         pricingAtMoq,

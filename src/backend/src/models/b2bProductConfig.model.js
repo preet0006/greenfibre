@@ -241,6 +241,26 @@ const b2bProductConfigSchema = new mongoose.Schema(
             min: 0,
         },
 
+        // ── B2B Media Overrides (Optional) ──────────────────────────────────
+        // If provided, B2B storefront displays these corporate/branding photos
+        // instead of retail B2C photos. If empty, falls back to Product.images.
+        images: {
+            type: [String],
+            default: [],
+        },
+
+        // Dedicated corporate gift box & packaging photos
+        giftBoxImages: {
+            type: [String],
+            default: [],
+        },
+
+        // Customization mockup & logo placement showcase images
+        customizationShowcaseImages: {
+            type: [String],
+            default: [],
+        },
+
         // ── Pricing tiers ────────────────────────────────────────────────────
         // Ordered array — lower index = smaller qty bracket.
         // System picks the applicable tier at order time using minQty / maxQty.
