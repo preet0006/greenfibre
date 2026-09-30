@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { User } from "../models/user.model.js";
 import { Product } from "../models/product.model.js";
-import { B2BProductConfig } from "../models/b2bProductConfig.model.js";
+import { B2BProductConfig, resolveConfigForContext } from "../models/b2bProductConfig.model.js";
 import { Category } from "../models/category.model.js";
 import { Cart } from "../models/cart.model.js";
 import { Order } from "../models/order.model.js";
@@ -413,20 +413,52 @@ export const generateDefaultTierBenefits = (index, minQty, unitPrice, retailPric
  * Helper to format product document to the exact B2B specification
  */
 /**
+ * Helper to extract context / occasion key from request (query, body, or headers)
+ * e.g. "anniversary", "corporate", "wedding", "festive"
+ */
+export const extractB2BContext = (req) => {
+    if (!req) return "";
+    return (
+        req.query?.context ||
+        req.query?.occasion ||
+        req.query?.segment ||
+        req.query?.categoryContext ||
+        req.body?.context ||
+        req.body?.occasion ||
+        req.body?.segment ||
+        req.headers?.["x-b2b-context"] ||
+        req.headers?.["x-occasion"] ||
+        ""
+    ).toString().trim().toLowerCase();
+};
+
+/**
+ * Helper to format product document to the exact B2B specification,
+ * dynamically resolved for a given context / occasion (e.g. "anniversary", "corporate").
+ *
  * @param {object} product   - Lean Product document
  * @param {boolean} isB2BVerified
  * @param {object|null} b2bConfig - B2BProductConfig document (or null)
+ * @param {string} [contextKey=""] - Optional context/occasion key
  */
-export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = null) => {
-    const cfg = b2bConfig || {};
+export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = null, contextKey = "") => {
+    // Resolve context-specific configuration (falls back to global B2B config)
+    const cfg = resolveConfigForContext(b2bConfig, contextKey);
     const moq = Math.max(1, Number(cfg.moq) || Number(product.moq) || 1);
-    const pricingAtMoq = calculateProductPricing(product, moq, { isB2BVerified });
+    const pricingAtMoq = calculateProductPricing(product, moq, {
+        isB2BVerified,
+        b2bConfig: cfg,
+        context: contextKey,
+    });
     const retailPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
 
-    // Format tiers — source is now B2BProductConfig.tiers
+    // Format tiers — source is cfg.tiers (context-resolved)
     const rawTiers = Array.isArray(cfg.tiers) && cfg.tiers.length > 0
         ? cfg.tiers
         : [];
+
+    const allOptions = Array.isArray(cfg.customizationOptions) ? cfg.customizationOptions : [];
+    const totalOptsCount = allOptions.length || 5;
 
     const formattedTiers = rawTiers
         .map((t, idx) => {
@@ -434,20 +466,50 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
             const price = Number(t.unitPrice ?? t.price);
             const max = t.maxQty !== undefined && t.maxQty !== null && t.maxQty !== "" ? Number(t.maxQty) : null;
             const discount = t.discountPercentage || (retailPrice > 0 ? Math.round(((retailPrice - price) / retailPrice) * 100) : 0);
-            const tierLabel = t.tierLabel?.trim() || (idx === 1 ? "Corporate Recommended" : idx >= 2 ? "Enterprise Direct" : "Starter Bulk");
+            const tierLabel = t.tierLabel?.trim() || `TIER ${idx + 1}`;
             const popular = Boolean(t.popular !== undefined ? t.popular : idx === 1);
-            const leadTime = t.leadTime?.trim() || (product.leadTime || "5 - 7 business days");
+            const badge = t.badge?.trim() || (popular ? "★ POPULAR" : (discount > 0 ? `-${discount}%` : ""));
+            const leadTime = t.leadTime?.trim() || (cfg.leadTime || product.leadTime || "5 - 7 business days");
             const benefits = Array.isArray(t.benefits) && t.benefits.length > 0
                 ? t.benefits
                 : generateDefaultTierBenefits(idx, min, price, retailPrice);
+
+            const includedCustomizationsCount = typeof t.includedCustomizationsCount === "number"
+                ? t.includedCustomizationsCount
+                : (idx === 0 ? 2 : idx === 1 ? 3 : totalOptsCount);
+
+            const allowanceText = t.customizationAllowanceText?.trim() ||
+                (includedCustomizationsCount >= totalOptsCount
+                    ? `All ${totalOptsCount} complimentary customizations included.`
+                    : `Choose any ${includedCustomizationsCount} of ${totalOptsCount} complimentary customizations below.`);
+
+            let nextTierUnlockText = t.nextTierUnlockText?.trim() || "";
+            if (!nextTierUnlockText && idx + 1 < rawTiers.length) {
+                const nextTierObj = rawTiers[idx + 1];
+                const nextAllowance = typeof nextTierObj.includedCustomizationsCount === "number"
+                    ? nextTierObj.includedCustomizationsCount
+                    : (idx + 1 === 1 ? 3 : totalOptsCount);
+                nextTierUnlockText = nextAllowance >= totalOptsCount
+                    ? `Tier ${idx + 2} unlocks all ${totalOptsCount} →`
+                    : `Tier ${idx + 2} unlocks ${nextAllowance} →`;
+            }
+
             // Resolve enabled customization labels for this tier from B2BProductConfig
             const enabledKeys = Array.isArray(t.enabledCustomizationKeys) ? t.enabledCustomizationKeys : [];
-            const allOptions = Array.isArray(cfg.customizationOptions) ? cfg.customizationOptions : [];
             const customizationOptions = enabledKeys.length > 0
-                ? allOptions.filter((o) => enabledKeys.includes(o.key) && o.isActive).map((o) => o.label)
-                : (product.brandingTypes && product.brandingTypes.length > 0 ? product.brandingTypes : ["Laser Engraving", "Custom Packaging"]);
+                ? allOptions.filter((o) => enabledKeys.includes(o.key) && o.isActive !== false).map((o) => o.label)
+                : (allOptions.length > 0
+                    ? allOptions.filter((o) => o.isActive !== false).map((o) => o.label)
+                    : (product.brandingTypes && product.brandingTypes.length > 0
+                        ? product.brandingTypes
+                        : ["Laser Engraving", "Custom Packaging"]));
+
+            const unitName = product.unit ? (product.unit.toLowerCase().endsWith("s") ? product.unit : product.unit + "s") : "Sets";
+            const subLabel = max ? `${min}–${max} ${unitName}` : `${min}+ ${unitName}`;
 
             return {
+                _id: t._id,
+                tierIndex: idx + 1,
                 min,
                 max,
                 price,
@@ -457,10 +519,17 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
                 discountPercentage: discount,
                 tierLabel,
                 popular,
+                badge,
+                includedCustomizationsCount,
+                customizationAllowanceText: allowanceText,
+                nextTierUnlockText,
                 leadTime,
                 benefits,
                 customizationOptions,
+                enabledCustomizationKeys: enabledKeys,
+                customizationPriceOverrides: t.customizationPriceOverrides || [],
                 label: max ? `${min} - ${max} ${product.unit || "pcs"}` : `${min}+ ${product.unit || "pcs"}`,
+                subLabel,
                 savingsPerUnit: Math.max(0, retailPrice - price),
             };
         })
@@ -486,7 +555,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
     // Colours array
     const colours = (product.colors || []).map((c) => c.name).filter(Boolean);
 
-    // Active B2B base price — sourced from B2BProductConfig
+    // Active B2B base price — sourced from context-resolved config
     const basePrice =
         Number(cfg.basePrice) ||
         Number(product.b2bPrice) ||
@@ -514,6 +583,23 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
             ? product.giftBoxImages
             : (product.giftPackaging?.images || product.package?.giftBoxImages || []));
 
+    const formattedCustomizations = (cfg.customizationOptions || []).map((o) => ({
+        _id: o._id,
+        key: o.key,
+        label: o.label,
+        tag: o.tag || (o.type === "engraving" ? "Laser Etched" : o.type === "color" ? "Brand Tone" : o.type === "packaging" ? "Custom Box" : o.type === "card" ? "Insert Card" : o.type === "monogram" ? "Per-Piece" : "Custom Add-on"),
+        badge: o.badge || o.tag || "",
+        icon: o.icon || (o.type === "engraving" ? "laser" : o.type === "color" ? "palette" : o.type === "packaging" ? "box" : o.type === "card" ? "card" : o.type === "monogram" ? "user-check" : "sparkles"),
+        description: o.description || "",
+        type: o.type || "other",
+        isPriced: Boolean(o.isPriced),
+        pricePerUnit: Number(o.pricePerUnit) || 0,
+        moq: Number(o.moq) || 1,
+        additionalLeadTime: o.additionalLeadTime || "",
+        notes: o.notes || "",
+        isActive: o.isActive !== false,
+    }));
+
     return {
         _id: product._id,
         id: product._id,
@@ -532,7 +618,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         moq,
         price: basePrice,
         tiers: formattedTiers,
-        leadTime: product.leadTime || "7 - 10 business days",
+        leadTime: cfg.leadTime || product.leadTime || "7 - 10 business days",
         branding: product.branding !== undefined ? product.branding : true,
         brandingTypes:
             Array.isArray(product.brandingTypes) && product.brandingTypes.length > 0
@@ -573,6 +659,12 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         retailPrice: product.discountedPrice || product.originalPrice,
         originalPrice: product.originalPrice,
         b2bEnabled: Boolean(cfg.isEnabled || product.b2bPrice),
+
+        // Context / Occasion Information
+        activeContext: cfg.activeContext || { key: "default", label: "Standard B2B", isCustomContext: false },
+        availableContexts: cfg.availableContexts || [],
+        customizationOptions: formattedCustomizations,
+
         // Full B2B config for frontend if needed (customization menu, notes, showcase photos, etc.)
         b2bConfig: cfg._id ? {
             configId: cfg._id,
@@ -580,9 +672,11 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
             stepQuantity: cfg.stepQuantity,
             sampleAvailable: cfg.sampleAvailable,
             samplePrice: cfg.samplePrice,
-            customizationOptions: cfg.customizationOptions || [],
+            customizationOptions: formattedCustomizations,
             customizationNotes: cfg.customizationNotes || "",
             customizationShowcaseImages: cfg.customizationShowcaseImages || [],
+            activeContext: cfg.activeContext,
+            availableContexts: cfg.availableContexts,
         } : null,
         tax: product.tax || { hsnCode: "", gstRate: 18, isTaxInclusive: true },
         pricingAtMoq,
@@ -592,13 +686,15 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
 
 
 /**
- * Get products for B2B platform with tier pricing, MOQ, and volume discounts
+ * Get products for B2B platform with tier pricing, MOQ, volume discounts,
+ * and context/occasion-specific customizations & slabs.
  */
 export const getB2BProducts = async (req, res) => {
     try {
         const page = Math.max(1, parseInt(req.query.page, 10) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
         const skip = (page - 1) * limit;
+        const contextKey = extractB2BContext(req);
 
         const isB2BVerified =
             req.user?.accountType === "B2B" &&
@@ -606,7 +702,7 @@ export const getB2BProducts = async (req, res) => {
 
         const filter = { isActive: true };
 
-        if (req.query.category) {
+        if (req.query.category && mongoose.Types.ObjectId.isValid(req.query.category)) {
             filter.category = req.query.category;
         }
 
@@ -640,11 +736,12 @@ export const getB2BProducts = async (req, res) => {
         const configMap = Object.fromEntries(configs.map((c) => [c.product.toString(), c]));
 
         const formattedProducts = products.map((product) =>
-            formatB2BProduct(product, isB2BVerified, configMap[product._id.toString()] || null)
+            formatB2BProduct(product, isB2BVerified, configMap[product._id.toString()] || null, contextKey)
         );
 
         return res.status(200).json({
             success: true,
+            context: contextKey || "default",
             products: formattedProducts,
             pagination: {
                 total,
@@ -661,10 +758,12 @@ export const getB2BProducts = async (req, res) => {
 
 /**
  * Get single product by slug or ID with full wholesale tier matrix
+ * resolved for the requested context/occasion (e.g. ?context=anniversary).
  */
 export const getB2BProductDetails = async (req, res) => {
     try {
         const { identifier } = req.params;
+        const contextKey = extractB2BContext(req);
         const isObjectId = mongoose.Types.ObjectId.isValid(identifier);
 
         const filter = isObjectId
@@ -689,7 +788,7 @@ export const getB2BProductDetails = async (req, res) => {
             ),
         ]);
 
-        const formattedProduct = formatB2BProduct(product, isB2BVerified, b2bConfig);
+        const formattedProduct = formatB2BProduct(product, isB2BVerified, b2bConfig, contextKey);
 
         return res.status(200).json({
             success: true,
@@ -702,17 +801,19 @@ export const getB2BProductDetails = async (req, res) => {
 };
 
 /**
- * Dynamic Pricing Calculator (for real-time quantity input changes in frontend UI)
+ * Dynamic Pricing Calculator (for real-time quantity & customization changes in frontend UI)
+ * Supports context/occasion-specific tiers and customizations.
  */
 export const calculateB2BQuote = async (req, res) => {
     try {
-        const { productId, quantity } = req.body;
+        const { productId, quantity, selectedCustomizations = [] } = req.body;
+        const contextKey = extractB2BContext(req);
 
         if (!productId) {
             return res.status(400).json({ success: false, message: "productId is required." });
         }
 
-        const [product, b2bConfig] = await Promise.all([
+        const [product, rawB2bConfig] = await Promise.all([
             Product.findById(productId).lean(),
             B2BProductConfig.findOne({ product: productId, isEnabled: true }).lean(),
         ]);
@@ -721,16 +822,90 @@ export const calculateB2BQuote = async (req, res) => {
             return res.status(404).json({ success: false, message: "Product not found." });
         }
 
-        const isB2BVerified =
-            req.user?.accountType === "B2B" &&
-            req.user?.b2bProfile?.verificationStatus === "verified";
+        const resolvedConfig = resolveConfigForContext(rawB2bConfig, contextKey);
 
-        // Pass b2bConfig into pricing engine so it can use the correct tiers/moq
-        const calculation = calculateProductPricing(product, quantity, { isB2BVerified, b2bConfig });
+        // Pass resolved b2bConfig into pricing engine so it uses the correct context-specific tiers/moq
+        const calculation = calculateProductPricing(product, quantity, {
+            isB2BVerified: true,
+            b2bConfig: resolvedConfig,
+            context: contextKey,
+        });
+
+        // Calculate customization add-ons with complimentary tier allowance logic
+        let customizationTotal = 0;
+        const resolvedCustomizationItems = [];
+
+        if (Array.isArray(selectedCustomizations) && selectedCustomizations.length > 0) {
+            const availableOptions = resolvedConfig.customizationOptions || [];
+            const reqQty = Math.max(1, parseInt(quantity, 10) || 1);
+            const allowance = calculation.appliedTier?.includedCustomizationsCount ?? 2;
+            let complimentaryCountUsed = 0;
+
+            for (const item of selectedCustomizations) {
+                const optKey = typeof item === "string" ? item : item.key;
+                const optDoc = availableOptions.find((o) => o.key === optKey && o.isActive !== false);
+                if (optDoc) {
+                    let baseItemPrice = Number(optDoc.pricePerUnit) || 0;
+                    let isFreeOverride = !optDoc.isPriced;
+
+                    // Check if tier has a price override for this option
+                    if (calculation.appliedTier && Array.isArray(resolvedConfig.tiers)) {
+                        const matchingTier = resolvedConfig.tiers.find(
+                            (t) => t.minQty === calculation.appliedTier.minQty
+                        );
+                        const override = matchingTier?.customizationPriceOverrides?.find(
+                            (o) => o.optionKey === optKey
+                        );
+                        if (override) {
+                            if (override.isFree) isFreeOverride = true;
+                            baseItemPrice = Number(override.pricePerUnit) || 0;
+                        }
+                    }
+
+                    // Check if covered under tier complimentary allowance
+                    let isIncludedInTier = false;
+                    let effectivePricePerUnit = baseItemPrice;
+
+                    if (isFreeOverride) {
+                        isIncludedInTier = true;
+                        effectivePricePerUnit = 0;
+                    } else if (complimentaryCountUsed < allowance) {
+                        complimentaryCountUsed++;
+                        isIncludedInTier = true;
+                        effectivePricePerUnit = 0;
+                    } else {
+                        isIncludedInTier = false;
+                        effectivePricePerUnit = baseItemPrice;
+                    }
+
+                    const itemTotal = effectivePricePerUnit * reqQty;
+                    customizationTotal += itemTotal;
+                    resolvedCustomizationItems.push({
+                        key: optDoc.key,
+                        label: optDoc.label,
+                        tag: optDoc.tag || (optDoc.type === "engraving" ? "Laser Etched" : optDoc.type === "color" ? "Brand Tone" : optDoc.type === "packaging" ? "Custom Box" : optDoc.type === "card" ? "Insert Card" : optDoc.type === "monogram" ? "Per-Piece" : "Custom Add-on"),
+                        badge: optDoc.badge || optDoc.tag || "",
+                        icon: optDoc.icon || "sparkles",
+                        isIncludedInTier,
+                        pricePerUnit: effectivePricePerUnit,
+                        totalPrice: itemTotal,
+                    });
+                }
+            }
+        }
+
+        const grandTotal = Math.round((calculation.subtotal + customizationTotal) * 100) / 100;
 
         return res.status(200).json({
             success: true,
-            calculation,
+            calculation: {
+                ...calculation,
+                customizations: resolvedCustomizationItems,
+                customizationTotal,
+                grandTotal,
+                activeContext: resolvedConfig.activeContext,
+                availableContexts: resolvedConfig.availableContexts,
+            },
         });
     } catch (error) {
         console.error("calculateB2BQuote error:", error);
@@ -768,6 +943,10 @@ export const getB2BCart = async (req, res) => {
             });
         }
 
+        const productIds = cart.items.map((i) => i.product?._id).filter(Boolean);
+        const configs = await B2BProductConfig.find({ product: { $in: productIds } }).lean();
+        const configMap = Object.fromEntries(configs.map((c) => [c.product.toString(), c]));
+
         let subtotal = 0;
         let totalSavings = 0;
         let totalTax = 0;
@@ -777,7 +956,13 @@ export const getB2BCart = async (req, res) => {
             .filter((item) => item.product && item.product.isActive)
             .map((item) => {
                 const product = item.product;
-                const calculation = calculateProductPricing(product, item.quantity, { isB2BVerified });
+                const b2bConfig = configMap[product._id.toString()] || null;
+                const contextKey = item.context || "";
+                const calculation = calculateProductPricing(product, item.quantity, {
+                    isB2BVerified,
+                    b2bConfig,
+                    context: contextKey,
+                });
 
                 if (!calculation.isValidMoq || !calculation.isValidStep) {
                     hasValidationErrors = true;
@@ -798,6 +983,8 @@ export const getB2BCart = async (req, res) => {
                     colorHex: item.colorHex || colorVariant.hex,
                     image: colorVariant.images?.[0] || "",
                     quantity: item.quantity,
+                    context: item.context || "",
+                    customizations: item.customizations || [],
                     unitPrice: calculation.unitPrice,
                     subtotal: calculation.subtotal,
                     appliedTier: calculation.appliedTier,
@@ -808,6 +995,7 @@ export const getB2BCart = async (req, res) => {
                     isValidStep: calculation.isValidStep,
                     validationError: calculation.validationError,
                     tax: calculation.tax,
+                    activeContext: calculation.activeContext,
                 };
             });
 
@@ -833,7 +1021,7 @@ export const getB2BCart = async (req, res) => {
  */
 export const addToB2BCart = async (req, res) => {
     try {
-        const { productId, colorIndex = 0, quantity } = req.body;
+        const { productId, colorIndex = 0, quantity, context = "", customizations = [] } = req.body;
         const userId = req.user._id;
 
         const product = await Product.findById(productId);
@@ -845,10 +1033,17 @@ export const addToB2BCart = async (req, res) => {
             req.user?.accountType === "B2B" &&
             req.user?.b2bProfile?.verificationStatus === "verified";
 
-        const moq = Math.max(1, Number(product.b2bPricing?.moq) || 1);
+        const b2bConfig = await B2BProductConfig.findOne({ product: productId, isEnabled: true }).lean();
+        const resolvedConfig = resolveConfigForContext(b2bConfig, context);
+
+        const moq = Math.max(1, Number(resolvedConfig.moq) || Number(product.b2bPricing?.moq) || 1);
         const reqQty = Math.max(moq, parseInt(quantity, 10) || moq);
 
-        const calculation = calculateProductPricing(product, reqQty, { isB2BVerified });
+        const calculation = calculateProductPricing(product, reqQty, {
+            isB2BVerified,
+            b2bConfig: resolvedConfig,
+            context,
+        });
 
         const colorVariant = product.colors?.[colorIndex] || { name: "Standard", hex: "" };
 
@@ -857,13 +1052,20 @@ export const addToB2BCart = async (req, res) => {
             cart = new Cart({ user: userId, items: [] });
         }
 
+        const normContext = (context || "").trim().toLowerCase();
         const existingIndex = cart.items.findIndex(
-            (i) => i.product.toString() === productId && i.colorIndex === Number(colorIndex)
+            (i) =>
+                i.product.toString() === productId &&
+                i.colorIndex === Number(colorIndex) &&
+                (i.context || "").trim().toLowerCase() === normContext
         );
 
         if (existingIndex > -1) {
             cart.items[existingIndex].quantity = reqQty;
             cart.items[existingIndex].price = calculation.unitPrice;
+            if (customizations && customizations.length > 0) {
+                cart.items[existingIndex].customizations = customizations;
+            }
         } else {
             cart.items.push({
                 product: productId,
@@ -872,6 +1074,8 @@ export const addToB2BCart = async (req, res) => {
                 colorHex: colorVariant.hex || "",
                 quantity: reqQty,
                 price: calculation.unitPrice,
+                context: normContext,
+                customizations: Array.isArray(customizations) ? customizations : [],
             });
         }
 
@@ -893,7 +1097,7 @@ export const addToB2BCart = async (req, res) => {
  */
 export const updateB2BCartItem = async (req, res) => {
     try {
-        const { productId, colorIndex, quantity } = req.body;
+        const { productId, colorIndex, quantity, context = "" } = req.body;
         const userId = req.user._id;
 
         const product = await Product.findById(productId);
@@ -906,8 +1110,12 @@ export const updateB2BCartItem = async (req, res) => {
             return res.status(404).json({ success: false, message: "Cart not found." });
         }
 
+        const normContext = (context || "").trim().toLowerCase();
         const itemIndex = cart.items.findIndex(
-            (i) => i.product.toString() === productId && i.colorIndex === Number(colorIndex)
+            (i) =>
+                i.product.toString() === productId &&
+                i.colorIndex === Number(colorIndex) &&
+                (normContext ? (i.context || "").trim().toLowerCase() === normContext : true)
         );
 
         if (itemIndex === -1) {
@@ -918,7 +1126,13 @@ export const updateB2BCartItem = async (req, res) => {
             req.user?.accountType === "B2B" &&
             req.user?.b2bProfile?.verificationStatus === "verified";
 
-        const calculation = calculateProductPricing(product, quantity, { isB2BVerified });
+        const b2bConfig = await B2BProductConfig.findOne({ product: productId, isEnabled: true }).lean();
+        const itemContext = cart.items[itemIndex].context || context;
+        const calculation = calculateProductPricing(product, quantity, {
+            isB2BVerified,
+            b2bConfig,
+            context: itemContext,
+        });
 
         cart.items[itemIndex].quantity = Math.max(1, parseInt(quantity, 10));
         cart.items[itemIndex].price = calculation.unitPrice;
@@ -931,6 +1145,7 @@ export const updateB2BCartItem = async (req, res) => {
             item: {
                 productId,
                 quantity: cart.items[itemIndex].quantity,
+                context: cart.items[itemIndex].context,
                 unitPrice: calculation.unitPrice,
                 subtotal: calculation.subtotal,
                 appliedTier: calculation.appliedTier,
@@ -1632,12 +1847,36 @@ export const adminUpdateDashboardProduct = async (req, res) => {
 
         await product.save();
 
+        // Sync to B2BProductConfig collection
+        const b2bConfigDoc = await B2BProductConfig.findOne({ product: product._id });
+        const contextsPayload = b.contexts || b.b2bPricing?.contexts || (b2bConfigDoc ? b2bConfigDoc.contexts : []);
+        const customizationOptionsPayload = b.customizationOptions || b.b2bPricing?.customizationOptions || (b2bConfigDoc ? b2bConfigDoc.customizationOptions : []);
+
+        const syncedB2bConfig = await B2BProductConfig.findOneAndUpdate(
+            { product: product._id },
+            {
+                product: product._id,
+                isEnabled: Boolean(product.b2bPricing?.isEnabled || product.b2bPrice),
+                basePrice: product.b2bPricing?.basePrice || product.b2bPrice || null,
+                moq: product.b2bPricing?.moq || 1,
+                stepQuantity: product.b2bPricing?.stepQuantity || 1,
+                sampleAvailable: Boolean(product.b2bPricing?.sampleAvailable),
+                samplePrice: product.b2bPricing?.samplePrice || null,
+                tiers: product.b2bPricing?.tiers || [],
+                customizationOptions: customizationOptionsPayload,
+                contexts: contextsPayload,
+                giftBoxImages: product.giftBoxImages || [],
+                images: product.images || [],
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+
         const updatedPopulated = await Product.findById(product._id)
             .populate("category", "name slug description")
             .populate("subCategory", "name slug description")
             .lean();
 
-        const b2bFormatted = formatB2BProduct(updatedPopulated, true);
+        const b2bFormatted = formatB2BProduct(updatedPopulated, true, syncedB2bConfig);
 
         return res.status(200).json({
             success: true,
@@ -1774,11 +2013,29 @@ export const adminCreateDashboardProduct = async (req, res) => {
             metaKeywords: b.metaKeywords,
         });
 
+        const contextsPayload = b.contexts || b.b2bPricing?.contexts || [];
+        const customizationOptionsPayload = b.customizationOptions || b.b2bPricing?.customizationOptions || [];
+
+        const createdB2bConfig = await B2BProductConfig.create({
+            product: product._id,
+            isEnabled: Boolean(product.b2bPricing?.isEnabled || product.b2bPrice),
+            basePrice: b2bBasePrice,
+            moq: Math.max(1, Number(product.b2bPricing?.moq) || Number(b.moq) || 50),
+            stepQuantity: Math.max(1, Number(product.b2bPricing?.stepQuantity) || Number(b.stepQuantity) || 10),
+            sampleAvailable: Boolean(product.b2bPricing?.sampleAvailable ?? true),
+            samplePrice: product.b2bPricing?.samplePrice ? Number(product.b2bPricing.samplePrice) : null,
+            tiers: normalizedTiers,
+            customizationOptions: customizationOptionsPayload,
+            contexts: contextsPayload,
+            giftBoxImages: product.giftBoxImages || [],
+            images: product.images || [],
+        });
+
         const createdPopulated = await Product.findById(product._id)
             .populate("category", "name slug description")
             .lean();
 
-        const createdB2bFormatted = formatB2BProduct(createdPopulated, true);
+        const createdB2bFormatted = formatB2BProduct(createdPopulated, true, createdB2bConfig);
 
         return res.status(201).json({
             success: true,

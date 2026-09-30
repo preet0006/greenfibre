@@ -35,6 +35,17 @@ const cartItemSchema = new mongoose.Schema(
             type: Number, // snapshot of discounted price at time of adding
             required: true,
         },
+
+        context: {
+            type: String, // e.g. "anniversary", "corporate", "wedding", "default"
+            default: "",
+            trim: true,
+        },
+
+        customizations: {
+            type: [mongoose.Schema.Types.Mixed], // array of chosen customization items / keys
+            default: [],
+        },
     },
     { _id: false }
 );
