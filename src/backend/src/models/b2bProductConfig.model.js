@@ -101,6 +101,69 @@ const CustomizationOptionSchema = new mongoose.Schema(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SUB-SCHEMA: Additional Product
+// A complementary / upsell product shown alongside the main B2B product.
+// e.g. matching lid for a bottle, gift bag, greeting card, straw, etc.
+// The admin attaches a reference to an existing Product document plus
+// optional display metadata.  The storefront fetches full product details
+// via the ref — no duplication needed.
+// ─────────────────────────────────────────────────────────────────────────────
+const AdditionalProductSchema = new mongoose.Schema(
+    {
+        // Reference to the companion Product document
+        product: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Product",
+            required: true,
+        },
+
+        // Short display label shown in the UI, e.g. "Matching Lid", "Gift Bag", "Straw Set"
+        // Falls back to the product's own name if left empty.
+        label: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        // Brief note for the buyer, e.g. "Pairs perfectly with this bottle"
+        note: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+
+        // When this add-on should become visible in the storefront:
+        //   "always"    – shown right away on the product page
+        //   "on_select" – shown only after the buyer picks/configures the main product
+        //   "on_quote"  – surfaced only on the quote request form
+        displayTrigger: {
+            type: String,
+            enum: ["always", "on_select", "on_quote"],
+            default: "on_select",
+        },
+
+        // Whether buyers can add this companion product to their order / quote
+        isSelectable: {
+            type: Boolean,
+            default: true,
+        },
+
+        // Sort order in the UI (lower = shown first)
+        sortOrder: {
+            type: Number,
+            default: 0,
+        },
+
+        // Admin toggle — hide without deleting
+        isActive: {
+            type: Boolean,
+            default: true,
+        },
+    },
+    { _id: true }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SUB-SCHEMA: Pricing Tier
 // One tier = one quantity bracket with its own unit price and perks.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,6 +494,15 @@ const b2bProductConfigSchema = new mongoose.Schema(
             trim: true,
         },
 
+        // ── Additional / Companion Products ──────────────────────────────────
+        // Products shown alongside this one on the B2B storefront (e.g. lids,
+        // straws, gift bags).  Each entry carries a ref to a Product document
+        // so the storefront can populate full details on demand.
+        additionalProducts: {
+            type: [AdditionalProductSchema],
+            default: [],
+        },
+
         // ── Internal config notes ────────────────────────────────────────────
         adminNotes: {
             type: String,
@@ -479,6 +551,7 @@ export const resolveConfigForContext = (b2bConfig, contextKey = "") => {
             customizationShowcaseImages: [],
             customizationNotes: "",
             adminNotes: "",
+            additionalProducts: [],
             activeContext: {
                 key: "default",
                 label: "Standard B2B",
@@ -564,6 +637,8 @@ export const resolveConfigForContext = (b2bConfig, contextKey = "") => {
             customizationShowcaseImages: resolvedShowcaseImages,
             customizationNotes: matchedContext.customizationNotes || b2bConfig.customizationNotes || "",
             adminNotes: matchedContext.adminNotes || b2bConfig.adminNotes || "",
+            // additionalProducts always comes from the root config (not context-specific)
+            additionalProducts: b2bConfig.additionalProducts || [],
             activeContext: {
                 key: matchedContext.contextKey,
                 label: matchedContext.contextLabel,
@@ -592,6 +667,7 @@ export const resolveConfigForContext = (b2bConfig, contextKey = "") => {
         customizationShowcaseImages: b2bConfig.customizationShowcaseImages || [],
         customizationNotes: b2bConfig.customizationNotes || "",
         adminNotes: b2bConfig.adminNotes || "",
+        additionalProducts: b2bConfig.additionalProducts || [],
         activeContext: {
             key: "default",
             label: "Standard B2B",

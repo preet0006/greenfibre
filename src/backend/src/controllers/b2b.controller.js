@@ -569,8 +569,8 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         product.specs && Object.keys(product.specs).length > 0
             ? product.specs
             : product.features && Object.keys(product.features).length > 0
-            ? product.features
-            : {};
+                ? product.features
+                : {};
 
     const categoryName =
         product.category?.name ||
@@ -658,12 +658,41 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         totalStock: (product.colors || []).reduce((sum, c) => sum + (c.stock || 0), 0),
         retailPrice: product.discountedPrice || product.originalPrice,
         originalPrice: product.originalPrice,
+        mrp: product.originalPrice || product.discountedPrice,
         b2bEnabled: Boolean(cfg.isEnabled || product.b2bPrice),
 
         // Context / Occasion Information
         activeContext: cfg.activeContext || { key: "default", label: "Standard B2B", isCustomContext: false },
         availableContexts: cfg.availableContexts || [],
         customizationOptions: formattedCustomizations,
+
+        // Companion / additional products (e.g. lids, straws, gift bags)
+        // Each entry has the full product doc populated + display metadata from the config.
+        additionalProducts: (cfg.additionalProducts || [])
+            .filter((ap) => ap.isActive !== false && ap.product)
+            .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+            .map((ap) => ({
+                _id: ap._id,
+                label: ap.label || ap.product?.name || "",
+                note: ap.note || "",
+                displayTrigger: ap.displayTrigger || "on_select",
+                isSelectable: ap.isSelectable !== false,
+                sortOrder: ap.sortOrder || 0,
+                product: ap.product
+                    ? {
+                        _id: ap.product._id,
+                        name: ap.product.name,
+                        slug: ap.product.slug,
+                        images: ap.product.images || [],
+                        image: (ap.product.images || [])[0] || "",
+                        discountedPrice: ap.product.discountedPrice || 0,
+                        originalPrice: ap.product.originalPrice || 0,
+                        unit: ap.product.unit || "piece",
+                        tagline: ap.product.tagline || "",
+                        shortDescription: ap.product.shortDescription || "",
+                    }
+                    : null,
+            })),
 
         // Full B2B config for frontend if needed (customization menu, notes, showcase photos, etc.)
         b2bConfig: cfg._id ? {
@@ -677,6 +706,9 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
             customizationShowcaseImages: cfg.customizationShowcaseImages || [],
             activeContext: cfg.activeContext,
             availableContexts: cfg.availableContexts,
+            additionalProducts: (cfg.additionalProducts || [])
+                .filter((ap) => ap.isActive !== false)
+                .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
         } : null,
         tax: product.tax || { hsnCode: "", gstRate: 18, isTaxInclusive: true },
         pricingAtMoq,
@@ -732,7 +764,9 @@ export const getB2BProducts = async (req, res) => {
 
         // Batch-fetch all B2BProductConfigs for this page in ONE query (no N+1)
         const productIds = products.map((p) => p._id);
-        const configs = await B2BProductConfig.find({ product: { $in: productIds }, isEnabled: true }).lean();
+        const configs = await B2BProductConfig.find({ product: { $in: productIds }, isEnabled: true })
+            .populate("additionalProducts.product", "name slug images discountedPrice originalPrice unit tagline isActive")
+            .lean();
         const configMap = Object.fromEntries(configs.map((c) => [c.product.toString(), c]));
 
         const formattedProducts = products.map((product) =>
@@ -781,7 +815,9 @@ export const getB2BProductDetails = async (req, res) => {
         }
 
         const [b2bConfig, isB2BVerified] = await Promise.all([
-            B2BProductConfig.findOne({ product: product._id, isEnabled: true }).lean(),
+            B2BProductConfig.findOne({ product: product._id, isEnabled: true })
+                .populate("additionalProducts.product", "name slug images discountedPrice originalPrice unit tagline shortDescription isActive")
+                .lean(),
             Promise.resolve(
                 req.user?.accountType === "B2B" &&
                 req.user?.b2bProfile?.verificationStatus === "verified"
@@ -815,7 +851,9 @@ export const calculateB2BQuote = async (req, res) => {
 
         const [product, rawB2bConfig] = await Promise.all([
             Product.findById(productId).lean(),
-            B2BProductConfig.findOne({ product: productId, isEnabled: true }).lean(),
+            B2BProductConfig.findOne({ product: productId, isEnabled: true })
+                .populate("additionalProducts.product", "name slug images discountedPrice originalPrice unit tagline isActive")
+                .lean(),
         ]);
 
         if (!product) {
