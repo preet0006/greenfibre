@@ -25,11 +25,12 @@ import {
   Camera,
   Send,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
 function formatPrice(n) {
-  return `₹${Number(n).toLocaleString("en-IN")}`;
+  return `₹${Number(n || 0).toLocaleString("en-IN")}`;
 }
 
 function discountPct(orig, disc) {
@@ -329,7 +330,8 @@ function ReviewForm({ productId, onSuccess }) {
 
 // ── Related Product Card ──────────────────────────────────────
 function RelatedProductCard({ product }) {
-  const pct = discountPct(product.originalPrice, product.discountedPrice);
+  const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
+  const offerPrice = Math.round(originalPrice * 0.80);
   const imgSrc =
     product.mainImage ||
     product.colors?.[0]?.images?.[0]?.card ||
@@ -354,24 +356,34 @@ function RelatedProductCard({ product }) {
             <Package className="h-10 w-10 text-gray-300" />
           </div>
         )}
-        {pct > 0 && (
-          <span className="absolute left-2 top-2 rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
-            {pct}% OFF
+        {/* Top Discount Badge */}
+        <div className="absolute left-2 top-2 z-10">
+          <span className="rounded-full bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+            20% OFF
           </span>
-        )}
+        </div>
       </div>
       <div className="p-4">
         <p className="mb-1 text-xs text-gray-500">{product.category?.name}</p>
         <h4 className="mb-2 text-sm font-semibold text-gray-900 line-clamp-2">
           {product.name}
         </h4>
+
+        {/* Navratri Special Offer Tag */}
+        <div className="mb-2">
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-semibold text-amber-900 shadow-2xs">
+            <span>🪔</span>
+            <span>Navratri Special</span>
+          </span>
+        </div>
+
         <div className="flex items-baseline gap-2">
           <span className="text-base font-bold text-green-600">
-            {formatPrice(product.discountedPrice)}
+            {formatPrice(offerPrice)}
           </span>
-          {pct > 0 && (
-            <span className="text-sm text-gray-400 line-through">
-              {formatPrice(product.originalPrice)}
+          {originalPrice > offerPrice && (
+            <span className="text-xs text-gray-400 line-through">
+              {formatPrice(originalPrice)}
             </span>
           )}
         </div>
@@ -465,7 +477,14 @@ export default function ProductDetailClient({ slug, initialProduct }) {
     );
   }
 
-  const pct = discountPct(product.originalPrice, product.discountedPrice);
+  const origPrice = Number(product.originalPrice) || 0;
+  const discPrice = Number(product.discountedPrice) || 0;
+  const hasDiscount = discPrice > 0 && origPrice > discPrice;
+  const currentPrice = hasDiscount
+    ? discPrice
+    : (discPrice > 0 ? discPrice : (origPrice || Number(product.b2cPrice) || Number(product.price) || 0));
+  const pct = hasDiscount ? discountPct(origPrice, discPrice) : 0;
+
   const currentColor = product.colors?.[selectedColor];
   const images = currentColor?.images || [];
   const inStock = currentColor?.stock > 0;
@@ -480,7 +499,12 @@ export default function ProductDetailClient({ slug, initialProduct }) {
       productId: product._id,
       colorIndex: selectedColor,
       quantity,
-      product,
+      product: {
+        ...product,
+        price: currentPrice,
+        discountedPrice: discPrice > 0 ? discPrice : currentPrice,
+        originalPrice: origPrice > 0 ? origPrice : currentPrice,
+      },
     });
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2500);
@@ -492,7 +516,12 @@ export default function ProductDetailClient({ slug, initialProduct }) {
       productId: product._id,
       colorIndex: selectedColor,
       quantity,
-      product,
+      product: {
+        ...product,
+        price: currentPrice,
+        discountedPrice: discPrice > 0 ? discPrice : currentPrice,
+        originalPrice: origPrice > 0 ? origPrice : currentPrice,
+      },
     });
     if (!user) {
       router.push("/login?redirect=/checkout");
@@ -619,15 +648,25 @@ export default function ProductDetailClient({ slug, initialProduct }) {
               </div>
             </div>
 
+            {/* Special Offer Tag */}
+            {pct > 0 && (
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-xs font-semibold text-amber-900 shadow-2xs">
+                  <span>🪔</span>
+                  <span>Special Offer: {pct}% OFF</span>
+                </span>
+              </div>
+            )}
+
             {/* Price Row */}
             <div className="flex items-baseline gap-3 rounded-2xl bg-gray-50/80 border border-gray-150 p-3.5">
               <span className="text-3xl font-extrabold text-green-700">
-                {formatPrice(product.discountedPrice)}
+                {formatPrice(currentPrice)}
               </span>
               {pct > 0 && (
                 <>
                   <span className="text-lg text-gray-400 line-through font-medium">
-                    {formatPrice(product.originalPrice)}
+                    {formatPrice(origPrice)}
                   </span>
                   <span className="rounded-full bg-green-100 text-green-800 px-2.5 py-0.5 text-xs font-bold">
                     Save {pct}%

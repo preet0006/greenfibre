@@ -71,7 +71,7 @@ export const addToCart = async (req, res) => {
 
             existingItem.quantity = newQuantity;
             // Sync price (important after bulk price update)
-            existingItem.price = product.discountedPrice;
+            existingItem.price = product.discountedPrice || product.originalPrice;
         } else {
             cart.items.push({
                 product: productId,
@@ -79,7 +79,7 @@ export const addToCart = async (req, res) => {
                 colorName: selectedColor.name,
                 colorHex: selectedColor.hex,
                 quantity,
-                price: product.discountedPrice,
+                price: product.discountedPrice || product.originalPrice,
             });
         }
 
@@ -157,8 +157,9 @@ export const getCart = async (req, res) => {
             }
 
             // Update price if changed
-            if (item.price !== item.product.discountedPrice) {
-                item.price = item.product.discountedPrice;
+            const effectivePrice = item.product.discountedPrice || item.product.originalPrice;
+            if (item.price !== effectivePrice) {
+                item.price = effectivePrice;
                 updated = true;
             }
 
@@ -401,7 +402,7 @@ export const getAllCarts = async (req, res) => {
     try {
         const carts = await Cart.find({ items: { $not: { $size: 0 } } })
             .populate("user", "full_name email profile_image")
-            .populate("items.product", "name colors discountedPrice")
+            .populate("items.product", "name colors discountedPrice originalPrice")
             .sort({ updatedAt: -1 });
 
         // Transform for response
@@ -491,7 +492,7 @@ export const mergeCart = async (req, res) => {
                     selectedColor.stock || existingItem.quantity + quantity
                 );
                 existingItem.quantity = newQty;
-                existingItem.price = product.discountedPrice;
+                existingItem.price = product.discountedPrice || product.originalPrice;
             } else {
                 const qty = Math.min(quantity, selectedColor.stock || quantity);
                 if (qty < 1) continue;
@@ -501,7 +502,7 @@ export const mergeCart = async (req, res) => {
                     colorName: selectedColor.name,
                     colorHex: selectedColor.hex,
                     quantity: qty,
-                    price: product.discountedPrice,
+                    price: product.discountedPrice || product.originalPrice,
                 });
             }
         }

@@ -6,11 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import useProductStore from "@/store/useProductStore";
 import { OFFICIAL_PRODUCTS } from "@/data/officialProducts";
-import { ArrowRight, Leaf, ShoppingCart, Heart, Star, Loader2 } from "lucide-react";
+import { ArrowRight, Leaf, ShoppingCart, Heart, Star, Loader2, Sparkles } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
 function formatPrice(n) {
-  return `₹${Number(n).toLocaleString("en-IN")}`;
+  return `₹${Number(n || 0).toLocaleString("en-IN")}`;
 }
 
 function calculateDiscount(originalPrice, discountedPrice) {
@@ -26,11 +26,9 @@ function ProductCard({ product, index }) {
   const firstColor = product.colors?.[0] || {};
   const displayImage = firstColor.images?.[0]?.card || firstColor.images?.[0]?.original || "/images/placeholder.jpg";
 
-  // Get price from product level (not color level)
-  const originalPrice = product.originalPrice || 0;
-  const discountedPrice = product.discountedPrice || null;
-  const finalPrice = discountedPrice || originalPrice;
-  const discountPercent = calculateDiscount(originalPrice, discountedPrice);
+  // Base price and Navratri 10% + 10% special offer (20% total discount)
+  const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
+  const offerPrice = Math.round(originalPrice * 0.80);
 
   // Check stock
   const hasStock = product.totalStock > 0;
@@ -58,19 +56,19 @@ function ProductCard({ product, index }) {
           />
 
           {/* Badges */}
-          <div className="absolute left-3 top-3 flex flex-col gap-2">
+          <div className="absolute left-3 top-3 flex flex-col gap-1.5 z-10">
             {!hasStock && (
-              <span className="rounded-full bg-gray-900 px-3 py-1 text-xs font-bold text-white">
+              <span className="rounded-full bg-gray-900 px-3 py-1 text-xs font-bold text-white shadow-sm">
                 Out of Stock
               </span>
             )}
-            {hasStock && discountPercent > 0 && (
-              <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-bold text-white">
-                {discountPercent}% OFF
+            {hasStock && (
+              <span className="rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                20% OFF
               </span>
             )}
             {product.isFeatured && (
-              <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white">
+              <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
                 Featured
               </span>
             )}
@@ -130,13 +128,21 @@ function ProductCard({ product, index }) {
             </div>
           )}
 
-          {/* Price */}
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-gray-900">
-              {formatPrice(finalPrice)}
+          {/* Navratri Special Offer Tag */}
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
+              <span>🪔</span>
+              <span>Navratri Special: 10% + 10% More</span>
             </span>
-            {discountedPrice && (
-              <span className="text-sm text-gray-500 line-through">
+          </div>
+
+          {/* Price */}
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold text-gray-900">
+              {formatPrice(offerPrice)}
+            </span>
+            {originalPrice > offerPrice && (
+              <span className="text-sm text-gray-400 line-through">
                 {formatPrice(originalPrice)}
               </span>
             )}

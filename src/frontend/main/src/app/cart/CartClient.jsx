@@ -512,7 +512,11 @@ function MiniProductCard({ product }) {
           {product.name}
         </p>
         <p className="mt-0.5 text-sm font-bold text-green-600">
-          {formatPrice(product.discountedPrice)}
+          {formatPrice(
+            (product.discountedPrice && Number(product.discountedPrice) > 0)
+              ? product.discountedPrice
+              : product.originalPrice
+          )}
         </p>
       </div>
       <button

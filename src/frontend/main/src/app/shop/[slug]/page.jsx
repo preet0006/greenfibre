@@ -1,6 +1,9 @@
 import ProductDetailClient from "@/components/home/ProductDetailsClient";
 // Set your real API base and domain here
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5500/api";
+const API_URL = rawApiUrl.replace(/\/+$/, "").endsWith("/api")
+  ? rawApiUrl.replace(/\/+$/, "")
+  : `${rawApiUrl.replace(/\/+$/, "")}/api`;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://yourdomain.com";
 const SITE_NAME = "YourStoreName";
 
@@ -85,7 +88,9 @@ export default async function ProductDetailPage({ params }) {
               offers: {
                 "@type": "Offer",
                 priceCurrency: "INR",
-                price: product.discountedPrice,
+                price: (Number(product.discountedPrice) > 0 && Number(product.originalPrice) > Number(product.discountedPrice))
+                  ? Number(product.discountedPrice)
+                  : (Number(product.discountedPrice) > 0 ? Number(product.discountedPrice) : (Number(product.originalPrice) || 0)),
                 availability: product.colors?.some((c) => c.stock > 0)
                   ? "https://schema.org/InStock"
                   : "https://schema.org/OutOfStock",

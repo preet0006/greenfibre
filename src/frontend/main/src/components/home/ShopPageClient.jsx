@@ -20,11 +20,12 @@ import {
   Search,
   ChevronRight,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
 function formatPrice(n) {
-  return `₹${Number(n).toLocaleString("en-IN")}`;
+  return `₹${Number(n || 0).toLocaleString("en-IN")}`;
 }
 
 function discountPct(orig, disc) {
@@ -73,7 +74,9 @@ function ProductCard({ product, compact = false }) {
 
   const [wishLoading, setWishLoading] = useState(false);
 
-  const pct = discountPct(product.originalPrice, product.discountedPrice);
+  // 10% regular discount + 10% more Navratri special offer (20% total discount)
+  const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
+  const offerPrice = Math.round(originalPrice * 0.80);
   const inStock = product.totalStock > 0;
   const isWishlisted = wishlist.some(
     (item) => item._id === product._id || item.productId === product._id,
@@ -117,12 +120,10 @@ function ProductCard({ product, compact = false }) {
             </div>
           )}
 
-          {/* Discount badge */}
-          {pct > 0 && (
-            <span className="absolute left-2.5 top-2.5 rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
-              {pct}% OFF
-            </span>
-          )}
+          {/* Top Discount Badge */}
+          <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+            20% OFF
+          </span>
 
           {/* Out of stock overlay */}
           {!inStock && (
@@ -180,14 +181,22 @@ function ProductCard({ product, compact = false }) {
             </div>
           )}
 
+          {/* Navratri Special Offer Tag */}
+          <div className="mb-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
+              <span>🪔</span>
+              <span>Navratri Special: 10% + 10% More</span>
+            </span>
+          </div>
+
           {/* Price */}
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold text-green-600">
-              {formatPrice(product.discountedPrice)}
+              {formatPrice(offerPrice)}
             </span>
-            {pct > 0 && (
+            {originalPrice > offerPrice && (
               <span className="text-sm text-gray-400 line-through">
-                {formatPrice(product.originalPrice)}
+                {formatPrice(originalPrice)}
               </span>
             )}
           </div>

@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import useProductStore from "@/store/useProductStore";
-import { Search, Loader2, ArrowRight, PackageSearch } from "lucide-react";
+import { Search, Loader2, ArrowRight, PackageSearch, Sparkles } from "lucide-react";
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -134,6 +134,8 @@ function SearchContent() {
                 const image =
                   product.colors?.[0]?.images?.[0]?.card ||
                   product.colors?.[0]?.images?.[0]?.original;
+                const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
+                const offerPrice = Math.round(originalPrice * 0.80);
 
                 return (
                   <motion.div
@@ -158,6 +160,13 @@ function SearchContent() {
                             className="object-cover transition-transform duration-500 group-hover:scale-105"
                           />
                         )}
+
+                        {/* Top Discount Badge */}
+                        <div className="absolute left-3 top-3 z-10">
+                          <span className="rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                            20% OFF
+                          </span>
+                        </div>
                       </div>
 
                       <div className="p-5">
@@ -177,14 +186,22 @@ function SearchContent() {
                           {product.name}
                         </h2>
 
-                        <div className="mt-4 flex items-center gap-3">
+                        {/* Navratri Special Offer Tag */}
+                        <div className="mt-3 mb-1">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
+                            <span>🪔</span>
+                            <span>Navratri Special: 10% + 10% More</span>
+                          </span>
+                        </div>
+
+                        <div className="mt-2 flex items-baseline gap-2">
                           <span className="text-lg font-bold text-green-600">
-                            ₹{product.discountedPrice}
+                            ₹{Number(offerPrice).toLocaleString("en-IN")}
                           </span>
 
-                          {product.originalPrice > product.discountedPrice && (
+                          {originalPrice > offerPrice && (
                             <span className="text-sm text-gray-400 line-through">
-                              ₹{product.originalPrice}
+                              ₹{Number(originalPrice).toLocaleString("en-IN")}
                             </span>
                           )}
                         </div>

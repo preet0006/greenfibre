@@ -573,13 +573,17 @@ export default function Navbar() {
 
                                 <div className="mt-2 flex items-center gap-2">
                                   <span className="text-sm font-bold text-green-600">
-                                    ₹{product.discountedPrice}
+                                    ₹{Number(
+                                      (product.discountedPrice && Number(product.discountedPrice) > 0)
+                                        ? product.discountedPrice
+                                        : (product.originalPrice || 0)
+                                    ).toLocaleString("en-IN")}
                                   </span>
 
-                                  {product.originalPrice >
-                                    product.discountedPrice && (
+                                  {Number(product.discountedPrice) > 0 &&
+                                    Number(product.originalPrice) > Number(product.discountedPrice) && (
                                       <span className="text-xs text-gray-400 line-through">
-                                        ₹{product.originalPrice}
+                                        ₹{Number(product.originalPrice).toLocaleString("en-IN")}
                                       </span>
                                     )}
                                 </div>

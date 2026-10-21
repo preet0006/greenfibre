@@ -48,13 +48,20 @@ export function buildGuestItem({ product, productId, colorIndex, quantity }) {
       ? firstImage
       : firstImage?.card || firstImage?.original || firstImage?.thumbnail || null;
 
+  const origPrice = Number(product?.originalPrice) || 0;
+  const discPrice = Number(product?.discountedPrice) || 0;
+  const hasDiscount = discPrice > 0 && origPrice > discPrice;
+  const effectivePrice = hasDiscount
+    ? discPrice
+    : (discPrice > 0 ? discPrice : (origPrice || Number(product?.price) || Number(product?.b2cPrice) || 0));
+
   return {
     product: {
       _id: id,
       name: product?.name || "Product",
       slug: product?.slug || "",
-      originalPrice: product?.originalPrice,
-      discountedPrice: product?.discountedPrice ?? product?.price,
+      originalPrice: origPrice || effectivePrice,
+      discountedPrice: discPrice > 0 ? discPrice : effectivePrice,
       colors: colors,
       category: product?.category,
       thumbnail,
@@ -66,6 +73,6 @@ export function buildGuestItem({ product, productId, colorIndex, quantity }) {
     colorName: color?.name || "",
     colorHex: color?.hex || "",
     quantity: Number(quantity) || 1,
-    price: product?.discountedPrice ?? product?.price ?? 0,
+    price: effectivePrice,
   };
 }
