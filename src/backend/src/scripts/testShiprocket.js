@@ -23,7 +23,7 @@
  *   node src/scripts/testShiprocket.js
  *
  * Prerequisites:
- *   .env must have SHIPROCKET_USE_SANDBOX=true and valid SHIPROCKET_EMAIL + SHIPROCKET_PASSWORD
+ *   .env must have SHIPROCKET_BASE_URL and valid SHIPROCKET_EMAIL + SHIPROCKET_PASSWORD
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -37,27 +37,20 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 import axios from "axios";
 
 // ── Config ──────────────────────────────────────────────────────────────────
-// Shiprocket Sandbox uses a DIFFERENT API domain from live:
-//   Sandbox general  : https://api-sandbox.shiprocket.in/v1/external
-//   Sandbox svc      : https://serviceability-sandbox.shiprocket.in/v1/external
-//   Live             : https://apiv2.shiprocket.in/v1/external
 const SR_LIVE_BASE = "https://apiv2.shiprocket.in/v1/external";
 const SR_SBX_BASE  = "https://api-sandbox.shiprocket.in/v1/external";
 const SR_SBX_SVC   = "https://serviceability-sandbox.shiprocket.in/v1/external";
 
-const useSandbox = process.env.SHIPROCKET_USE_SANDBOX === "true";
+const rawBase   = (process.env.SHIPROCKET_BASE_URL || SR_SBX_BASE).trim().replace(/\/+$/, "");
+const isSandbox = rawBase.includes("sandbox");
+const useSandbox = isSandbox;
 const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
 
-const srBase    = useSandbox ? SR_SBX_BASE  : SR_LIVE_BASE;
-const srSvcBase = useSandbox ? SR_SBX_SVC   : SR_LIVE_BASE;
+const srBase    = rawBase;
+const srSvcBase = isSandbox ? SR_SBX_SVC : SR_LIVE_BASE;
 
-// Use sandbox-specific credentials if available, otherwise fall back to main
-const EMAIL    = (useSandbox && process.env.SHIPROCKET_SANDBOX_EMAIL)
-    ? process.env.SHIPROCKET_SANDBOX_EMAIL
-    : process.env.SHIPROCKET_EMAIL;
-const PASSWORD = (useSandbox && process.env.SHIPROCKET_SANDBOX_PASSWORD)
-    ? process.env.SHIPROCKET_SANDBOX_PASSWORD
-    : process.env.SHIPROCKET_PASSWORD;
+const EMAIL    = process.env.SHIPROCKET_EMAIL;
+const PASSWORD = process.env.SHIPROCKET_PASSWORD;
 
 // ── Test order data (mock Green Fibre order) ─────────────────────────────────
 const TEST_ORDER_ID = `TEST-GF-${Date.now()}`;
@@ -124,6 +117,11 @@ function record(stepNum, title, passed, detail = "") {
     results.push({ step: stepNum, title, passed, detail });
 }
 
+const sandboxHeaders = isSandbox ? {
+    "Referer": "https://sandbox.shiprocket.in/",
+    "Origin": "https://sandbox.shiprocket.in",
+} : {};
+
 function makeClient(token) {
     return axios.create({
         baseURL: srBase,
@@ -131,6 +129,7 @@ function makeClient(token) {
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            ...sandboxHeaders,
         },
     });
 }
@@ -163,7 +162,7 @@ async function main() {
         const res = await axios.post(
             `${srBase}/auth/login`,
             { email: EMAIL, password: PASSWORD },
-            { headers: { "Content-Type": "application/json" }, timeout: 15000 }
+            { headers: { "Content-Type": "application/json", ...sandboxHeaders }, timeout: 15000 }
         );
         token = res.data?.token;
         if (!token) throw new Error("No token in response: " + JSON.stringify(res.data));
@@ -449,7 +448,7 @@ function printSummary() {
         console.log("  Common fixes:");
         console.log("   • Add a pickup address in sandbox.shiprocket.in → Settings → Pickup Address");
         console.log("   • Check your SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in .env");
-        console.log("   • Make sure SHIPROCKET_USE_SANDBOX=true in .env");
+        console.log("   • Make sure SHIPROCKET_BASE_URL is set correctly in .env");
     }
 
     console.log("");

@@ -2,6 +2,8 @@ import { create } from "zustand";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 
+let fetchMyOrdersSeq = 0;
+
 const useOrderStore = create((set, get) => ({
   // =========================
   // STATE
@@ -20,6 +22,8 @@ const useOrderStore = create((set, get) => ({
   easebuzzUrl: null,
   loading: false,
   actionLoading: false,
+  initialized: false,
+  fetchError: null,
 
   // =========================
   // CREATE ORDER (User)
@@ -51,7 +55,17 @@ const useOrderStore = create((set, get) => ({
   // RAZORPAY - CREATE ORDER
   // POST /api/create-order
   // =========================
-  createRazorpayOrder: async ({ amount, currency = "INR", receipt, orderId, notes }) => {
+  createRazorpayOrder: async ({
+    amount,
+    currency = "INR",
+    receipt,
+    orderId,
+    notes,
+    shippingAddress,
+    couponCode,
+    pointsToRedeem,
+    ...rest
+  }) => {
     try {
       set({ actionLoading: true });
       const res = await api.post("/create-order", {
@@ -60,6 +74,10 @@ const useOrderStore = create((set, get) => ({
         receipt,
         orderId,
         notes,
+        shippingAddress,
+        couponCode,
+        pointsToRedeem,
+        ...rest,
       });
       set({ actionLoading: false });
       return res.data;
@@ -80,19 +98,105 @@ const useOrderStore = create((set, get) => ({
       const res = await api.post("/verify-payment", paymentData);
       set({ actionLoading: false });
 
-      if (res.data?.success) {
-        toast.success("Payment verified successfully!");
-        return { success: true, orderId: res.data.orderId, data: res.data };
-      } else {
-        toast.error(res.data?.message || "Payment verification failed");
-        return { success: false, message: res.data?.message };
+      // 1. Pending confirmation (HTTP 202 or pending === true)
+      if (res.status === 202 || res.data?.pending === true) {
+        return {
+          outcome: "PENDING",
+          success: false,
+          pending: true,
+          message:
+            res.data?.message || "Payment received, confirmation in progress",
+          orderId: res.data?.orderId,
+          data: res.data,
+        };
       }
+
+      // 2. Verified success (HTTP 200)
+      if (res.data?.success) {
+        return {
+          outcome: "SUCCESS",
+          success: true,
+          orderId: res.data.orderId,
+          pointsEarned: res.data.pointsEarned,
+          newRewardBalance: res.data.newRewardBalance,
+          data: res.data,
+        };
+      }
+
+      // HTTP 200 with success: false (non-pending validation rejection)
+      return {
+        outcome: "HARD_FAILURE",
+        success: false,
+        hardFailure: true,
+        message: res.data?.message || "Payment verification failed",
+        data: res.data,
+      };
     } catch (error) {
-      toast.error(
-        error?.response?.data?.message || "Payment verification failed"
-      );
       set({ actionLoading: false });
-      return { success: false, error };
+
+      const isAxios = Boolean(error?.isAxiosError || error?.request);
+
+      // Plain JS error (not an Axios network or HTTP error)
+      if (!isAxios) {
+        console.error("verifyRazorpayPayment unexpected JS error:", error);
+        return {
+          outcome: "CLIENT_ERROR",
+          success: false,
+          clientError: true,
+          message: error?.message || "An unexpected error occurred",
+          error,
+        };
+      }
+
+      const status = error.response?.status;
+      const data = error.response?.data;
+
+      // Backend responded with 202 via an error interceptor/adapter
+      if (status === 202 || data?.pending === true) {
+        return {
+          outcome: "PENDING",
+          success: false,
+          pending: true,
+          message:
+            data?.message || "Payment received, confirmation in progress",
+          orderId: data?.orderId,
+          data,
+        };
+      }
+
+      // HARD FAILURE: only HTTP 400
+      if (status === 400) {
+        const msg = data?.message || "";
+        const code = data?.code || (
+          msg.includes("mismatch") ? "AMOUNT_MISMATCH" :
+          msg.includes("validation failed") ? "PAYMENT_VALIDATION_FAILED" : null
+        );
+        const isSignatureError = msg.toLowerCase().includes("signature") || (!code && msg.toLowerCase().includes("invalid"));
+
+        return {
+          outcome: isSignatureError ? "SIGNATURE_FAILED" : (code ? "VALIDATION_FAILED" : "HARD_FAILURE"),
+          success: false,
+          hardFailure: true,
+          isSignatureError,
+          isValidationMismatch: Boolean(code),
+          code,
+          message: msg || "Payment verification failed",
+          error,
+        };
+      }
+
+      // UNKNOWN OUTCOME:
+      // Network error (!error.response), timeout (ECONNABORTED, 408),
+      // HTTP 5xx (500, 502, 503, 504), 429, 404, 401, 403, etc.
+      return {
+        outcome: "UNKNOWN_OUTCOME",
+        success: false,
+        unknownOutcome: true,
+        status: status || null,
+        message:
+          "If money was deducted, do not pay again. Check My Orders or contact support.",
+        error,
+      };
     }
   },
 
@@ -112,7 +216,13 @@ const useOrderStore = create((set, get) => ({
 
       if (res.data.success) {
         toast.success("Payment verified successfully");
-        return { success: true, orderId: res.data.orderId };
+        return {
+          success: true,
+          orderId: res.data.orderId,
+          pointsEarned: res.data.pointsEarned,
+          newRewardBalance: res.data.newRewardBalance,
+          data: res.data,
+        };
       } else {
         toast.error("Payment verification failed");
         return { success: false, orderId: res.data.orderId };
@@ -130,9 +240,13 @@ const useOrderStore = create((set, get) => ({
   // FETCH MY ORDERS (User)
   // GET /api/order/my-orders
   // =========================
-  fetchMyOrders: async (params = {}) => {
+  fetchMyOrders: async (params = {}, options = {}) => {
+    const seq = ++fetchMyOrdersSeq;
+    const { silent = false } = options;
     try {
-      set({ loading: true });
+      if (!silent) {
+        set({ loading: true, fetchError: null });
+      }
 
       const { page = 1, limit = 10, status } = params;
       const queryParams = new URLSearchParams({
@@ -143,6 +257,11 @@ const useOrderStore = create((set, get) => ({
 
       const res = await api.get(`/order/my-orders?${queryParams}`);
 
+      // Stale-fetch guard: discard out-of-order response
+      if (seq !== fetchMyOrdersSeq) {
+        return false;
+      }
+
       set({
         myOrders: res.data.orders || [],
         pagination: res.data.pagination || {
@@ -152,12 +271,19 @@ const useOrderStore = create((set, get) => ({
           pages: 0,
         },
         loading: false,
+        initialized: true,
       });
 
       return true;
     } catch (error) {
-      toast.error("Failed to fetch orders");
-      set({ loading: false });
+      if (seq !== fetchMyOrdersSeq) {
+        return false;
+      }
+      const msg = error?.response?.data?.message || "Failed to fetch orders";
+      if (!silent) {
+        toast.error(msg);
+        set({ loading: false, initialized: true, fetchError: msg });
+      }
       return false;
     }
   },
@@ -281,6 +407,16 @@ const useOrderStore = create((set, get) => ({
   // =========================
   // HELPERS
   // =========================
+
+  // Reset orders cache (call on logout / user-switch to prevent data leaking between sessions)
+  resetOrders: () => {
+    set({
+      myOrders: [],
+      initialized: false,
+      fetchError: null,
+      pagination: { page: 1, limit: 10, total: 0, pages: 0 },
+    });
+  },
 
   // Clear payment state after successful payment
   clearPaymentState: () => {

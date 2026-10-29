@@ -17,6 +17,8 @@ import {
     USER_TOKEN_COOKIE,
 } from "../utils/cookieAuth.js";
 import { calculateProductPricing, calculateTaxBreakdown } from "../utils/pricingEngine.js";
+import { getChannelStock, getChannelTotalStock } from "../utils/channelStock.js";
+import logger from "../utils/logger.js";
 
 // ============================================================================
 // 1. AUTHENTICATION & B2B USER PROFILE
@@ -625,7 +627,12 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
                 ? product.brandingTypes
                 : ["Laser Engraving on Lid", "Custom Belly Band"],
         colours: colours.length > 0 ? colours : ["Default"],
-        colors: product.colors || [],
+        colors: (product.colors || []).map((c) => {
+            const copy = typeof c.toObject === "function" ? c.toObject() : { ...c };
+            copy.stock = getChannelStock(c, "b2b");
+            delete copy.b2cStock;
+            return copy;
+        }),
         size: product.size || product.features?.size || "",
         material: product.material || product.materialInfo?.material || product.features?.material || "",
         specs,
@@ -638,7 +645,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         productFeatures: product.productFeatures || [],
         collection: product.collection || product.collectionName || "",
         color: product.color || "",
-        stockQuantity: product.stockQuantity || (product.colors || []).reduce((sum, c) => sum + (c.stock || 0), 0),
+        stockQuantity: getChannelStock(product, "b2b") || getChannelTotalStock(product, "b2b"),
         productWeight: product.productWeight || { value: 0, unit: "gm" },
         dimensions: product.dimensions || { length: 0, width: 0, height: 0, unit: "cm" },
         package: product.package || {},
@@ -655,7 +662,7 @@ export const formatB2BProduct = (product, isB2BVerified = false, b2bConfig = nul
         careInstructions: product.careInstructions || "",
         sustainability: product.sustainability || { madeWith: "", highlights: [] },
         tags: product.tags || [],
-        totalStock: (product.colors || []).reduce((sum, c) => sum + (c.stock || 0), 0),
+        totalStock: getChannelTotalStock(product, "b2b"),
         retailPrice: product.discountedPrice || product.originalPrice,
         originalPrice: product.originalPrice,
         mrp: product.originalPrice || product.discountedPrice,

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import useCartStore from "@/store/useCartStore";
+import useOrderStore from "@/store/useOrderStore";
 
 const useUserStore = create((set, get) => ({
   user: null,
@@ -107,6 +108,7 @@ const useUserStore = create((set, get) => ({
       await api.post("/users/logout");
       set({ user: null });
       useCartStore.getState().resetLocalCart();
+      useOrderStore.getState().resetOrders();
       toast.success("Logged out successfully");
       router.push("/login");
     } catch (error) {

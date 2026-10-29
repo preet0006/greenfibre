@@ -1,5 +1,7 @@
 import { Cart } from "../models/cart.model.js";
 import { Product } from "../models/product.model.js";
+import { getChannelStock } from "../utils/channelStock.js";
+import logger from "../utils/logger.js";
 
 const calculateCartTotal = (items) => {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -35,11 +37,12 @@ export const addToCart = async (req, res) => {
         }
 
         const selectedColor = product.colors[colorIndex];
+        const colorB2CStock = getChannelStock(selectedColor, "b2c");
 
         // Check stock
-        if (selectedColor.stock < quantity) {
+        if (colorB2CStock < quantity) {
             return res.status(400).json({
-                message: `Only ${selectedColor.stock} items available in ${selectedColor.name}`,
+                message: `Only ${colorB2CStock} items available in ${selectedColor.name}`,
             });
         }
 
@@ -63,9 +66,9 @@ export const addToCart = async (req, res) => {
             const newQuantity = existingItem.quantity + quantity;
 
             // Check stock for updated quantity
-            if (selectedColor.stock < newQuantity) {
+            if (colorB2CStock < newQuantity) {
                 return res.status(400).json({
-                    message: `Only ${selectedColor.stock} items available in ${selectedColor.name}`,
+                    message: `Only ${colorB2CStock} items available in ${selectedColor.name}`,
                 });
             }
 
@@ -173,10 +176,12 @@ export const getCart = async (req, res) => {
                 updated = true;
             }
 
+            const availableB2C = getChannelStock(productColor, "b2c");
+
             // Adjust quantity if exceeds available stock
-            if (item.quantity > productColor.stock) {
-                if (productColor.stock > 0) {
-                    item.quantity = productColor.stock;
+            if (item.quantity > availableB2C) {
+                if (availableB2C > 0) {
+                    item.quantity = availableB2C;
                     updated = true;
                 } else {
                     // Out of stock - skip
@@ -221,7 +226,7 @@ export const getCart = async (req, res) => {
             // Add available stock for this color
             if (item.product?.colors?.[item.colorIndex]) {
                 itemObj.availableStock =
-                    item.product.colors[item.colorIndex].stock;
+                    getChannelStock(item.product.colors[item.colorIndex], "b2c");
             }
 
             return itemObj;
@@ -280,7 +285,7 @@ export const updateCartItem = async (req, res) => {
             // Check stock
             const product = await Product.findById(productId);
             if (product?.colors?.[colorIndex]) {
-                const availableStock = product.colors[colorIndex].stock;
+                const availableStock = getChannelStock(product.colors[colorIndex], "b2c");
                 if (quantity > availableStock) {
                     return res.status(400).json({
                         message: `Only ${availableStock} items available`,
@@ -430,7 +435,7 @@ export const getAllCarts = async (req, res) => {
                 // Add available stock
                 if (item.product?.colors?.[item.colorIndex]) {
                     item.availableStock =
-                        item.product.colors[item.colorIndex].stock;
+                        getChannelStock(item.product.colors[item.colorIndex], "b2c");
                 }
 
                 return item;
@@ -480,6 +485,7 @@ export const mergeCart = async (req, res) => {
             if (!product.colors?.[colorIndex]) continue;
 
             const selectedColor = product.colors[colorIndex];
+            const colorStock = getChannelStock(selectedColor, "b2c");
             const existingItem = cart.items.find(
                 (item) =>
                     item.product.toString() === String(productId) &&
@@ -489,12 +495,12 @@ export const mergeCart = async (req, res) => {
             if (existingItem) {
                 const newQty = Math.min(
                     existingItem.quantity + quantity,
-                    selectedColor.stock || existingItem.quantity + quantity
+                    colorStock || existingItem.quantity + quantity
                 );
                 existingItem.quantity = newQty;
                 existingItem.price = product.discountedPrice || product.originalPrice;
             } else {
-                const qty = Math.min(quantity, selectedColor.stock || quantity);
+                const qty = Math.min(quantity, colorStock || quantity);
                 if (qty < 1) continue;
                 cart.items.push({
                     product: productId,

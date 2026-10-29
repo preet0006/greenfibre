@@ -1,6 +1,8 @@
 import { Product } from "../models/product.model.js";
 import { Category } from "../models/category.model.js";
 import { Banner } from "../models/banner.model.js";
+import { getChannelStock, getChannelTotalStock } from "../utils/channelStock.js";
+import logger from "../utils/logger.js";
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS — tweak without touching logic
@@ -18,6 +20,7 @@ const CARD_FIELDS = {                   // lean projection for product cards
     reviewCount: 1,
     tags: 1,
     colors: 1,      // needed for first image / color options
+    b2cStock: 1,
     createdAt: 1,
 };
 
@@ -31,21 +34,21 @@ const toCard = (p) => {
     const firstColor = obj.colors?.[0];
     obj.thumbnail = firstColor?.images?.[0] ?? null;
 
-    // Per-color options with thumbnail for swatch display
+    // Per-color options with thumbnail for swatch display — using B2C stock
     obj.colorOptions = (obj.colors || []).map((c) => ({
         name: c.name,
         hex: c.hex ?? null,
         thumbnail: c.images?.[0] ?? null,
-        stock: c.stock ?? 0,
+        stock: getChannelStock(c, "b2c"),
     }));
 
-    // Total stock across variants
-    obj.totalStock =
-        obj.totalStock ??
-        (obj.colors || []).reduce((s, c) => s + (c.stock || 0), 0);
+    // Total stock across variants for B2C
+    obj.totalStock = getChannelTotalStock(obj, "b2c");
 
-    // Bandwidth saving — remove raw colors array
+    // Bandwidth saving — remove raw colors array and internal fields
     delete obj.colors;
+    delete obj.b2cStock;
+    delete obj.b2bStock;
 
     // Discount % for badge display
     if (obj.originalPrice && obj.discountedPrice) {
@@ -102,9 +105,15 @@ export const getMobileHomepage = async (_req, res) => {
                 Product.aggregate([
                     { $match: { isActive: true } },
                     {
-                        // Compute totalStock in the pipeline
+                        // Compute totalStock from B2C stock in the pipeline
                         $addFields: {
-                            totalStock: { $sum: "$colors.stock" },
+                            totalStock: {
+                                $cond: [
+                                    { $gt: [{ $size: { $ifNull: ["$colors", []] } }, 0] },
+                                    { $sum: "$colors.b2cStock" },
+                                    { $ifNull: ["$b2cStock", 0] },
+                                ],
+                            },
                         },
                     },
                     {
@@ -180,7 +189,7 @@ export const getMobileHomepage = async (_req, res) => {
             },
         });
     } catch (error) {
-        console.error("[mobile] getMobileHomepage:", error);
+        logger.error(`[mobile] getMobileHomepage: ${error.message}`);
         return res.status(500).json({
             success: false,
             message: "Failed to load homepage data",

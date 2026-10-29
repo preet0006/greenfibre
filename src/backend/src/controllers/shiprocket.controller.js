@@ -28,84 +28,14 @@ import {
     getSrBase,
 } from "../utils/shiprocket.js";
 
-// ── Shiprocket status → Green Fibre status mapping ────────────────────────
-const SR_STATUS_MAP = {
-    // 1. Placed / Booked
-    "new": "placed",
-    "booked": "placed",
-    "order confirmed": "placed",
-
-    // 2. Pickup / Processing
-    "pickup scheduled": "processing",
-    "pickup generated": "processing",
-    "pickup queued": "processing",
-    "pickup error": "processing",
-    "pickup rescheduled": "processing",
-    "out for pickup": "processing",
-    "manifest generated": "processing",
-    "processing": "processing",
-
-    // 3. Shipped / In Transit / Out for Delivery
-    "picked up": "shipped",
-    "in transit": "shipped",
-    "shipped": "shipped",
-    "reached at destination hub": "shipped",
-    "reached at origin hub": "shipped",
-    "out for delivery": "shipped",
-    "misrouted": "shipped",
-    "delayed": "shipped",
-
-    // 4. NDR (Non-delivery / Attempted delivery)
-    "delivery failed": "shipped",
-    "undelivered": "shipped",
-    "rto ndr": "shipped",
-    "ndr": "shipped",
-
-    // 5. Delivered
-    "delivered": "delivered",
-    "complete": "delivered",
-    "completed": "delivered",
-
-    // 6. Returns / RTO
-    "return initiated": "cancelled",
-    "return pickup scheduled": "cancelled",
-    "return picked up": "cancelled",
-    "return in transit": "cancelled",
-    "returned to origin": "cancelled",
-    "rto initiated": "cancelled",
-    "rto in transit": "cancelled",
-    "rto delivered": "cancelled",
-    "rto acknowledged": "cancelled",
-
-    // 7. Cancellation / Loss
-    "cancelled": "cancelled",
-    "canceled": "cancelled",
-    "lost": "cancelled",
-    "damaged": "cancelled",
-    "destroyed": "cancelled",
-};
-
-// ── Status hierarchy to prevent out-of-order webhook events from regressing order state ──
-const STATUS_RANK = {
-    pending: 0,
-    placed: 1,
-    processing: 2,
-    shipped: 3,
-    delivered: 4,
-    cancelled: 5,
-    failed: 5,
-};
-
-/**
- * Normalize a Shiprocket status string to a Green Fibre orderStatus value.
- * Supports spaces, underscores, and hyphens (e.g. IN_TRANSIT, IN-TRANSIT, IN TRANSIT).
- * Returns null if the status is unknown / unmapped.
- */
-function mapSrStatus(srStatus) {
-    if (!srStatus) return null;
-    const clean = srStatus.toLowerCase().trim().replace(/[_\-]+/g, " ");
-    return SR_STATUS_MAP[clean] || SR_STATUS_MAP[srStatus.toLowerCase().trim()] || null;
-}
+import {
+    canTransition,
+    mapShiprocketStatus,
+    getAllowedFromStatuses,
+    escapeRegex,
+    ORDER_STATUSES,
+    TERMINAL_STATUSES,
+} from "../utils/orderStatusMachine.js";
 
 // ── POST /api/shipping/delivery-update ─────────────────────────────────────
 /**
@@ -119,6 +49,7 @@ function mapSrStatus(srStatus) {
  *   "shipment_status": "IN TRANSIT",
  *   "order_id": "TEST-12345",
  *   "sr_order_id": 12345,
+ *   "current_timestamp": "09 09 2026 16:13:13",
  *   "scans": [ { "date": "...", "activity": "...", "location": "...", "sr-status-label": "..." } ]
  * }
  */
@@ -147,25 +78,25 @@ export const handleShiprocketWebhook = async (req, res) => {
         const awb = payload.awb || payload.awb_code || "";
         const srOrderId = payload.sr_order_id || payload.shiprocket_order_id || "";
 
+        // Extract courier timestamp for deduplication
+        const courierTimestamp = String(
+            payload.current_timestamp ||
+            payload.scans?.[payload.scans.length - 1]?.date ||
+            payload.updated_at ||
+            ""
+        ).trim();
+
         // Extract latest status string (from status fields or latest scan)
         const latestScanStatus = Array.isArray(payload.scans) && payload.scans.length > 0
             ? payload.scans[payload.scans.length - 1]["sr-status-label"] || payload.scans[payload.scans.length - 1].activity
             : "";
 
-        const srStatus = payload.current_status || payload.shipment_status || latestScanStatus || "";
+        const srStatus = String(payload.current_status || payload.shipment_status || latestScanStatus || "").trim();
 
         // Validate minimal required fields
         if (!awb && !srOrderId && !payload.order_id) {
             console.warn("⚠️ Shiprocket webhook: missing awb, sr_order_id, and order_id — acknowledging without action.");
             return res.status(200).json({ received: true, processed: false, reason: "missing_identifiers" });
-        }
-
-        // Map status
-        const newStatus = mapSrStatus(srStatus);
-
-        if (!newStatus) {
-            console.warn(`⚠️ Shiprocket webhook: unmapped status "${srStatus}" received for AWB="${awb}".`);
-            return res.status(200).json({ received: true, processed: false, reason: "unmapped_status", srStatus });
         }
 
         // ── 2. Locate order in database ───────────────────────────────────────
@@ -186,16 +117,21 @@ export const handleShiprocketWebhook = async (req, res) => {
             order = await Order.findOne({ "shippingDetails.shiprocketOrderId": String(srOrderId) });
         }
 
-        // Fallback 2: match by Green Fibre order ID (stripping TEST- prefix if present)
+        // Fallback 2: match by order ID (stripping prefix if present)
         if (!order && payload.order_id) {
-            const cleanOrderId = String(payload.order_id).replace(/^TEST-/, "");
+            const rawId = String(payload.order_id).trim();
+            const prefix = (process.env.SHIPROCKET_ORDER_ID_PREFIX || "TEST-").trim();
+            const escapedPrefix = escapeRegex(prefix);
+            const cleanOrderId = rawId.replace(new RegExp(`^(${escapedPrefix}|TEST-)`, "i"), "");
+
             order = await Order.findOne({
                 $or: [
                     { easebuzzOrderId: cleanOrderId },
                     { razorpayOrderId: cleanOrderId },
-                    { easebuzzOrderId: payload.order_id },
-                    { razorpayOrderId: payload.order_id },
+                    { easebuzzOrderId: rawId },
+                    { razorpayOrderId: rawId },
                     ...(cleanOrderId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: cleanOrderId }] : []),
+                    ...(rawId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: rawId }] : []),
                 ],
             });
         }
@@ -206,41 +142,96 @@ export const handleShiprocketWebhook = async (req, res) => {
             return res.status(200).json({ received: true, processed: false, reason: "order_not_found" });
         }
 
+        // ── 3. Payment Status Gate ────────────────────────────────────────────
+        // Courier webhook events only apply to orders that are paid.
+        // Otherwise return 200 { processed: false, reason: "order_not_paid" }, log it, no DB write.
+        if (order.paymentStatus !== "paid") {
+            console.warn(`⚠️ Shiprocket webhook: order ${order._id} has paymentStatus="${order.paymentStatus}" (not "paid"). Webhook ignored without DB write.`);
+            return res.status(200).json({ received: true, processed: false, reason: "order_not_paid" });
+        }
+
+        // ── 4. Map status ─────────────────────────────────────────────────────
+        const newStatus = mapShiprocketStatus(srStatus);
+
+        // Unknown status handling: log, return 200, and save raw courier scan without altering orderStatus
+        if (!newStatus) {
+            console.warn(`⚠️ Shiprocket webhook: unmapped status "${srStatus}" received for AWB="${awb}". Storing raw courier status without altering orderStatus.`);
+            await Order.findByIdAndUpdate(order._id, {
+                $set: {
+                    "shippingDetails.lastCourierStatus": srStatus,
+                    "shippingDetails.lastCourierTimestamp": courierTimestamp,
+                    "shippingDetails.lastCourierRaw": { status: srStatus, scans: payload.scans },
+                },
+            });
+            return res.status(200).json({ received: true, processed: false, reason: "unmapped_status", srStatus });
+        }
+
+        // ── 5. State Machine Transition Check ─────────────────────────────────
+        const transition = canTransition(order.orderStatus, newStatus);
+
+        if (!transition.allowed) {
+            console.warn(
+                `⚠️ Shiprocket webhook: transition from "${order.orderStatus}" to "${newStatus}" rejected (${transition.reason}). History note skipped.`
+            );
+            // Save latest courier tracking metadata without altering orderStatus or pushing history note
+            await Order.findByIdAndUpdate(order._id, {
+                $set: {
+                    "shippingDetails.lastCourierStatus": srStatus,
+                    "shippingDetails.lastCourierTimestamp": courierTimestamp,
+                },
+            });
+            return res.status(200).json({
+                received: true,
+                processed: false,
+                reason: "invalid_or_regressive_transition",
+                currentStatus: order.orderStatus,
+                attemptedStatus: newStatus,
+            });
+        }
+
+        // ── 6. Atomic findOneAndUpdate Update ─────────────────────────────────
+        const targetOrderStatus = transition.isDuplicate ? order.orderStatus : newStatus;
+        const allowedFrom = getAllowedFromStatuses(targetOrderStatus, false);
+
+        // Filter ensures atomic write:
+        //  1. Order must still be paid
+        //  2. Order's current status must be in the legal "from" states
+        //  3. lastCourierTimestamp / lastCourierStatus must NOT already be equal to incoming event
+        const atomicFilter = {
+            _id: order._id,
+            paymentStatus: "paid",
+            orderStatus: { $in: allowedFrom },
+        };
+
+        if (courierTimestamp) {
+            atomicFilter.$nor = [
+                {
+                    "shippingDetails.lastCourierStatus": srStatus,
+                    "shippingDetails.lastCourierTimestamp": courierTimestamp,
+                },
+            ];
+        } else {
+            atomicFilter.$nor = [
+                {
+                    "shippingDetails.lastCourierStatus": srStatus,
+                    orderStatus: targetOrderStatus,
+                },
+            ];
+        }
+
         const note = `Shiprocket webhook: ${srStatus}${payload.courier_name ? ` via ${payload.courier_name}` : ""}`;
 
-        // ── 3. Idempotency Check ──────────────────────────────────────────────
-        const lastHistory = order.statusHistory?.[order.statusHistory.length - 1];
-        const isDuplicate = lastHistory && lastHistory.status === newStatus && lastHistory.note === note;
-
-        if (isDuplicate) {
-            console.log(`ℹ️ Shiprocket webhook: duplicate status event for order ${order._id} — skipped.`);
-            return res.status(200).json({ received: true, processed: false, reason: "duplicate_event" });
-        }
-
-        // ── 4. Out-of-Order Regression Protection ─────────────────────────────
-        const currentRank = STATUS_RANK[order.orderStatus] ?? 0;
-        const incomingRank = STATUS_RANK[newStatus] ?? 0;
-
-        // If order is already in a higher status (e.g. delivered) and an out-of-order event arrives,
-        // do not regress the main orderStatus unless it's an explicit cancellation / return
-        const isRegression = incomingRank < currentRank && newStatus !== "cancelled";
-
-        const targetOrderStatus = isRegression ? order.orderStatus : newStatus;
-
-        if (isRegression) {
-            console.warn(`⚠️ Shiprocket webhook: out-of-order event "${newStatus}" received for order ${order._id} (already "${order.orderStatus}"). Note appended without status regression.`);
-        }
-
-        // ── 5. Apply Updates ──────────────────────────────────────────────────
         const updateSet = {
             orderStatus: targetOrderStatus,
+            "shippingDetails.lastCourierStatus": srStatus,
+            "shippingDetails.lastCourierTimestamp": courierTimestamp,
         };
 
         if (payload.courier_name && !order.shippingDetails?.courierName) {
             updateSet["shippingDetails.courierName"] = payload.courier_name;
         }
 
-        if (newStatus === "delivered" && !order.shippingDetails?.deliveredAt) {
+        if (["delivered", "rto_delivered", "return_delivered"].includes(targetOrderStatus) && !order.shippingDetails?.deliveredAt) {
             updateSet["shippingDetails.deliveredAt"] = new Date();
         }
 
@@ -254,18 +245,33 @@ export const handleShiprocketWebhook = async (req, res) => {
             updateSet["shippingDetails.shiprocketOrderId"] = String(srOrderId);
         }
 
-        await Order.findByIdAndUpdate(order._id, {
+        const updateDoc = {
             $set: updateSet,
-            $push: {
+        };
+
+        // Append to history only on actual state transition or initial entry
+        if (order.orderStatus !== targetOrderStatus || !order.statusHistory?.length) {
+            updateDoc.$push = {
                 statusHistory: {
-                    status: newStatus,
+                    status: targetOrderStatus,
                     timestamp: new Date(),
                     note,
                 },
-            },
-        });
+            };
+        }
 
-        console.log(`✅ Order ${order._id} updated (${isRegression ? `kept "${order.orderStatus}"` : `newStatus: "${newStatus}"`}) via Shiprocket webhook (${srStatus}).`);
+        const updatedOrder = await Order.findOneAndUpdate(atomicFilter, updateDoc, { new: true });
+
+        if (!updatedOrder) {
+            console.log(`ℹ️ Shiprocket webhook: atomic update matched 0 documents for order ${order._id} (already updated, terminal, or duplicate).`);
+            return res.status(200).json({
+                received: true,
+                processed: false,
+                reason: "duplicate_or_superseded_event",
+            });
+        }
+
+        console.log(`✅ Order ${order._id} atomically updated (${order.orderStatus} → ${targetOrderStatus}) via Shiprocket webhook (${srStatus}).`);
         return res.status(200).json({
             received: true,
             processed: true,
@@ -357,46 +363,123 @@ export const getTrackingByAWB = async (req, res) => {
  *  4. Request pickup
  *  5. Save shiprocketOrderId, shipmentId, awbCode, courierName to DB
  *
- * In SANDBOX mode: uses sandbox URL automatically via SHIPROCKET_USE_SANDBOX=true
- * In TEST_MODE:   prefixes order_id with "TEST-"
+ * In SANDBOX mode: base URL contains 'sandbox'
+ * In TEST_MODE:   prefixes order_id with configured prefix
  */
 export const dispatchOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { courierId = null, skipPickup = false } = req.body;
+        const {
+            courierId = null,
+            skipPickup = false,
+            items = [],
+            orderType = "B2C",
+            package: pkg = null,
+            b2bDetails = null,
+        } = req.body;
 
-        const order = await Order.findById(orderId).populate("user", "email");
+        let order = null;
+        try {
+            order = await Order.findById(orderId).populate("user", "email");
+        } catch {
+            // in case orderId is not a valid Mongo ObjectId
+        }
+        if (!order) {
+            order = await Order.findOne({
+                $or: [{ easebuzzOrderId: orderId }, { razorpayOrderId: orderId }, { _id: orderId }],
+            }).populate("user", "email");
+        }
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found" });
         }
 
-        const isSandbox = process.env.SHIPROCKET_USE_SANDBOX === "true";
-        const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
+        // Validate items and track shipped quantities per item to prevent double shipping
+        if (Array.isArray(items) && items.length > 0 && Array.isArray(order.items)) {
+            for (const itemReq of items) {
+                const requestedQty = Number(itemReq.qty || itemReq.quantity || 0);
+                if (requestedQty <= 0) continue;
 
-        console.log(`🚀 [DISPATCH] Starting dispatch for order ${orderId} [${isSandbox ? "SANDBOX" : "LIVE"} / ${isTestMode ? "TEST_MODE" : "PRODUCTION"}]`);
+                const matchIdx = order.items.findIndex((oi, idx) =>
+                    String(oi._id) === String(itemReq.itemId) ||
+                    String(oi.product) === String(itemReq.itemId) ||
+                    String(oi.sku) === String(itemReq.itemId) ||
+                    String(oi.name).toLowerCase() === String(itemReq.name || '').toLowerCase() ||
+                    idx === Number(itemReq.itemId)
+                );
 
-        // ── Stage 1: Create SR order if not already created ──────────────────
+                if (matchIdx !== -1) {
+                    const oi = order.items[matchIdx];
+                    const currentShipped = Number(oi.shippedQuantity || 0);
+                    const remaining = Math.max(0, oi.quantity - currentShipped);
+                    if (requestedQty > remaining) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Requested quantity (${requestedQty}) for "${oi.name}" exceeds remaining unshipped quantity (${remaining}).`,
+                        });
+                    }
+                }
+            }
+        }
+
+        const isSandbox = getSrBase().includes("sandbox");
+        console.log(`📦 [DISPATCH] Starting dispatch for order ${orderId} (Base URL: ${getSrBase()})`);
+
+        // Stage 1: Create SR order if not already created
         let srOrderId = order.shippingDetails?.shiprocketOrderId;
         let srShipmentId = order.shippingDetails?.shiprocketShipmentId;
 
         if (!srOrderId) {
-            console.log(`  📦 [Stage 1] Creating Shiprocket order...`);
-            const createRes = await createShiprocketOrder(order);
+            console.log(`  🚀 [Stage 1] Creating Shiprocket order...`);
+            const createRes = await createShiprocketOrder(order, {
+                items,
+                orderType,
+                package: pkg,
+                b2bDetails,
+            });
             srOrderId = String(createRes.order_id || createRes.sr_order_id);
             srShipmentId = String(createRes.shipment_id);
             console.log(`  ✅ [Stage 1] SR order created: srOrderId=${srOrderId}, shipmentId=${srShipmentId}`);
 
-            await Order.findByIdAndUpdate(orderId, {
+            // Increment shipped quantity per item so same item is not shipped twice
+            if (Array.isArray(items) && items.length > 0 && Array.isArray(order.items)) {
+                items.forEach((itemReq) => {
+                    const requestedQty = Number(itemReq.qty || itemReq.quantity || 0);
+                    if (requestedQty <= 0) return;
+                    const oi = order.items.find((it, idx) =>
+                        String(it._id) === String(itemReq.itemId) ||
+                        String(it.product) === String(itemReq.itemId) ||
+                        String(it.sku) === String(itemReq.itemId) ||
+                        String(it.name).toLowerCase() === String(itemReq.name || '').toLowerCase() ||
+                        idx === Number(itemReq.itemId)
+                    );
+                    if (oi) {
+                        oi.shippedQuantity = (Number(oi.shippedQuantity || 0)) + requestedQty;
+                    }
+                });
+            } else if (Array.isArray(order.items)) {
+                order.items.forEach((oi) => {
+                    oi.shippedQuantity = oi.quantity;
+                });
+            }
+
+            const allFullyShipped = order.items?.every(
+                (oi) => (Number(oi.shippedQuantity || 0)) >= oi.quantity
+            );
+
+            await Order.findByIdAndUpdate(order._id, {
                 $set: {
+                    items: order.items,
                     "shippingDetails.shiprocketOrderId": srOrderId,
                     "shippingDetails.shiprocketShipmentId": srShipmentId,
-                    orderStatus: "processing",
+                    "shippingDetails.orderType": orderType,
+                    "shippingDetails.package": pkg,
+                    orderStatus: allFullyShipped ? "processing" : "processing",
                 },
                 $push: {
                     statusHistory: {
                         status: "processing",
                         timestamp: new Date(),
-                        note: `Shiprocket order #${srOrderId} created [${isSandbox ? "SANDBOX" : "LIVE"}]. Shipment ID: ${srShipmentId}.`,
+                        note: `Shiprocket order #${srOrderId} created (${orderType}). Shipment ID: ${srShipmentId}.`,
                     },
                 },
             });
@@ -404,7 +487,7 @@ export const dispatchOrder = async (req, res) => {
             console.log(`  ℹ️ [Stage 1] Shiprocket order already exists: srOrderId=${srOrderId}, shipmentId=${srShipmentId}`);
         }
 
-        // ── Stage 2: Assign AWB ───────────────────────────────────────────────
+                // ── Stage 2: Assign AWB ───────────────────────────────────────────────
         let awbCode = order.shippingDetails?.awbCode;
         let courierName = order.shippingDetails?.courierName;
 
@@ -631,7 +714,7 @@ export const getShipmentForOrder = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            environment: process.env.SHIPROCKET_USE_SANDBOX === "true" ? "sandbox" : "live",
+            environment: getSrBase().includes("sandbox") ? "sandbox" : "live",
             shiprocketShipmentId: srShipmentId,
             data,
         });

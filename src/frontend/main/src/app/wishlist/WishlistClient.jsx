@@ -167,11 +167,11 @@ function WishlistCard({ product }) {
             {product.name}
           </h3>
 
-          {/* Navratri Special Offer Tag */}
+          {/* Diwali Special Offer Tag */}
           <div className="mb-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
               <span>🪔</span>
-              <span>Navratri Special: 10% + 10% More</span>
+              <span>Diwali Special: 10% + 10% More</span>
             </span>
           </div>
 

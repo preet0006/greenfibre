@@ -5,17 +5,25 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useCategoryStore } from "@/store/useCategoryStore";
-import { OFFICIAL_CATEGORIES } from "@/data/officialProducts";
-import { ArrowRight, Loader2, Leaf, ChevronRight } from "lucide-react";
+import { ArrowRight, Leaf, ChevronRight } from "lucide-react";
 
 // ── Category Card ─────────────────────────────────────────────
 function CategoryCard({ category, index }) {
+  const imgSrc =
+    category.firstProductImage ||
+    (typeof category.image === "string"
+      ? category.image
+      : category.image?.large ||
+        category.image?.original ||
+        category.image?.medium ||
+        category.image?.thumbnail);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
+      transition={{ duration: 0.5, delay: index * 0.08 }}
     >
       <Link
         href={`/shop?category=${category.slug}`}
@@ -23,17 +31,23 @@ function CategoryCard({ category, index }) {
       >
         {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
-          <Image
-            src={category.image?.large || category.image?.original || "/products/soup-bowl-250-ml.jpg"}
-            alt={category.name}
-            fill
-            priority={index === 0}
-            className="object-cover transition-transform duration-700 group-hover:scale-110"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          />
+          {imgSrc ? (
+            <Image
+              src={imgSrc}
+              alt={category.name}
+              fill
+              priority={index < 4}
+              className="object-cover transition-transform duration-700 group-hover:scale-110"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gray-100">
+              <Leaf className="h-10 w-10 text-gray-300" />
+            </div>
+          )}
 
           {/* Gradient Overlay */}
-          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-black/20 to-transparent opacity-60 transition-opacity group-hover:opacity-80" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent transition-opacity group-hover:opacity-90" />
 
           {/* Featured Badge */}
           {category.isFeatured && (
@@ -42,7 +56,7 @@ function CategoryCard({ category, index }) {
             </div>
           )}
 
-          {/* Category Name Overlay */}
+          {/* Category Info Overlay */}
           <div className="absolute bottom-0 left-0 right-0 p-5">
             <h3
               className="mb-1 text-2xl font-semibold text-white drop-shadow-lg transition-transform group-hover:translate-x-1 sm:text-3xl"
@@ -53,8 +67,13 @@ function CategoryCard({ category, index }) {
             >
               {category.name}
             </h3>
+            {category.productCount > 0 && (
+              <p className="text-xs font-semibold text-green-300 mb-1">
+                {category.productCount} {category.productCount === 1 ? "Product" : "Products"}
+              </p>
+            )}
             {category.description && (
-              <p className="line-clamp-2 text-sm text-white/90">
+              <p className="line-clamp-2 text-xs text-white/90">
                 {category.description}
               </p>
             )}
@@ -68,7 +87,7 @@ function CategoryCard({ category, index }) {
           </div>
         </div>
 
-        {/* Bottom Section (optional - remove if you want image-only cards) */}
+        {/* Bottom Section */}
         <div className="p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">
@@ -103,14 +122,16 @@ function SkeletonCard({ index }) {
 export default function ShopByCategorySection() {
   const categories = useCategoryStore((s) => s.categories);
   const loading = useCategoryStore((s) => s.loading);
+  const refetchCategories = useCategoryStore((s) => s.refetchCategories);
   const fetchCategories = useCategoryStore((s) => s.fetchCategories);
 
   useEffect(() => {
-    fetchCategories();
+    refetchCategories();
   }, []);
 
-  const activeCategories = categories.filter((cat) => cat.isActive);
-  const displayCategories = activeCategories.length > 0 ? activeCategories : OFFICIAL_CATEGORIES;
+  const displayCategories = categories.filter(
+    (cat) => cat.isActive && (cat.productCount === undefined || cat.productCount > 0)
+  );
 
   return (
     <section className="relative overflow-hidden bg-linear-to-b from-white to-gray-50 py-16 sm:py-20 lg:py-24">

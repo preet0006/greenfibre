@@ -17,7 +17,6 @@ import {
   Instagram,
   Twitter,
   Youtube,
-  Linkedin,
   Link,
   MessageCircle,
   Hash,
@@ -461,15 +460,6 @@ export default function PageSettingsPage() {
                 onChange={setSocialLink}
                 color="#ff0000"
                 placeholder="https://youtube.com/@greenfibre"
-              />
-              <SocialRow
-                icon={Linkedin}
-                label="LinkedIn"
-                platform="linkedin"
-                value={settings.socialLinks?.linkedin || ""}
-                onChange={setSocialLink}
-                color="#0a66c2"
-                placeholder="https://linkedin.com/company/greenfibre"
               />
               <SocialRow
                 icon={Link}

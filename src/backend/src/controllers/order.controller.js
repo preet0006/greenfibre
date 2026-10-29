@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import { getRazorpayInstance, getRazorpayKeyId, getRazorpayKeySecret } from "../config/razorpay.js";
+import { fulfillOrder } from "./razorpay.controller.js";
 import { Order } from "../models/order.model.js";
 import { Cart } from "../models/cart.model.js";
 import { Product } from "../models/product.model.js";
@@ -9,6 +11,7 @@ import fs from "fs";
 import axios from "axios";
 import { generateInvoicePdf } from "../utils/generateInvoicePdf.js";
 import { sendMail } from "../utils/sendMail.js";
+import { getNextOrderNumber } from "../utils/orderNumber.js";
 import { baseEmailTemplate } from "../utils/emailTemplate.js";
 import { cleanupTempInvoice } from "../utils/invoiceHelpers.js";
 import { applyCouponUsage } from "./coupon.controller.js";
@@ -19,6 +22,20 @@ import {
     cancelShiprocketOrder,
     autoFulfillOrder,
 } from "../utils/shiprocket.js";
+import { getChannelStock, deductOrderStock, restoreOrderStock } from "../utils/channelStock.js";
+import {
+    canTransition,
+    ORDER_STATUSES,
+    sanitizeStatusHistoryForCustomer,
+} from "../utils/orderStatusMachine.js";
+import {
+    isRewardsEnabled,
+    getRewardConfig,
+    reserveRedeemPoints,
+    creditEarnedPoints,
+    restoreRedeemedPoints,
+    reverseEarnedPoints,
+} from "../services/rewards.service.js";
 
 // Easebuzz configuration — read lazily so a server restart always picks up
 // the current .env values without any code changes needed.
@@ -61,7 +78,7 @@ const generateEasebuzzHash = (data) => {
 export const createOrder = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { shippingAddress, couponCode } = req.body;
+        const { shippingAddress, couponCode, pointsToRedeem } = req.body;
 
         // Validate shipping address
         if (
@@ -106,10 +123,14 @@ export const createOrder = async (req, res) => {
                 });
             }
 
-            // Check stock
-            if (color.stock < cartItem.quantity) {
+            // Check channel stock
+            const orderChannel = req.body.orderChannel === "b2b" ? "b2b" : (req.body.orderChannel === "mobile" ? "mobile" : (currentUser?.accountType === "B2B" ? "b2b" : "b2c"));
+            const stockPool = orderChannel === "b2b" ? "b2b" : "b2c";
+            const availableChannelStock = getChannelStock(color, stockPool);
+
+            if (availableChannelStock < cartItem.quantity) {
                 return res.status(400).json({
-                    message: `Only ${color.stock} units available for ${product.name} in ${color.name}`,
+                    message: `Only ${availableChannelStock} units available for ${product.name} in ${color.name}`,
                 });
             }
 
@@ -217,16 +238,60 @@ export const createOrder = async (req, res) => {
             appliedCoupon = coupon;
         }
 
-        const finalAmount = totalAmount - discountAmount;
+        // ── Server-side first-order coupon enforcement ──────────────────────────────
+        if (appliedCoupon?.isFirstOrderCoupon) {
+            const currentUser = await User.findById(userId).select("has_completed_first_order accountType");
+            if (currentUser?.has_completed_first_order) {
+                return res.status(400).json({
+                    message: "This coupon is only valid for your first order.",
+                });
+            }
+            if (currentUser?.accountType === "B2B") {
+                return res.status(400).json({
+                    message: "This coupon is not valid for B2B accounts.",
+                });
+            }
+        }
 
-        // Generate unique Easebuzz order ID
+        // ── Server-side reward points redemption ───────────────────────────────────
+        // Server always recomputes — never trusts client-submitted amounts.
+        let rewardPointsRedeemed = 0;
+        let rewardDiscount = 0;
+        let rewardConfigSnap = null;
+
+        if (isRewardsEnabled() && pointsToRedeem && Number(pointsToRedeem) > 0) {
+            try {
+                const cfg = await getRewardConfig();
+                rewardConfigSnap = {
+                    earn_percent: cfg.earn_percent,
+                    point_value: cfg.point_value,
+                    max_redeem_percent: cfg.max_redeem_percent,
+                    direct_percent: cfg.direct_percent,
+                    coupon_percent: cfg.coupon_percent,
+                };
+            } catch (rewardErr) {
+                console.error("Reward config fetch error:", rewardErr);
+            }
+        }
+
+        // Generate human-friendly unique order number & Easebuzz order ID
+        const orderNumber = await getNextOrderNumber();
         const easebuzzOrderId = `ORD${Date.now()}${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
         // Create order
+        let rewardCfgForSnapshot = null;
+        if (isRewardsEnabled()) {
+            try { rewardCfgForSnapshot = await getRewardConfig(); } catch (e) { /* non-fatal */ }
+        }
+
+        const resolvedChannel = req.body.orderChannel === "b2b" ? "b2b" : (req.body.orderChannel === "mobile" ? "mobile" : (currentUser?.accountType === "B2B" ? "b2b" : "b2c"));
+
         const order = await Order.create({
             user: userId,
+            orderNumber,
             items: orderItems,
             shippingAddress,
+            orderChannel: resolvedChannel,
             totalAmount,
             discountAmount,
             finalAmount,
@@ -234,6 +299,13 @@ export const createOrder = async (req, res) => {
             easebuzzOrderId,
             paymentStatus: "pending",
             orderStatus: "pending",
+            rewardConfigSnapshot: rewardCfgForSnapshot ? {
+                earn_percent: rewardCfgForSnapshot.earn_percent,
+                point_value: rewardCfgForSnapshot.point_value,
+                max_redeem_percent: rewardCfgForSnapshot.max_redeem_percent,
+                direct_percent: rewardCfgForSnapshot.direct_percent,
+                coupon_percent: rewardCfgForSnapshot.coupon_percent,
+            } : undefined,
             statusHistory: [
                 {
                     status: "pending",
@@ -243,12 +315,42 @@ export const createOrder = async (req, res) => {
             ],
         });
 
+        // ── Reserve reward points NOW (after order created, so we have orderId) ──
+        if (isRewardsEnabled() && pointsToRedeem && Number(pointsToRedeem) > 0) {
+            try {
+                const redeemResult = await reserveRedeemPoints(
+                    userId,
+                    order._id,
+                    Number(pointsToRedeem),
+                    totalAmount, // cart total before any discount
+                    rewardCfgForSnapshot
+                );
+                if (redeemResult) {
+                    rewardPointsRedeemed = redeemResult.pointsRedeemed;
+                    rewardDiscount = redeemResult.discountAmount;
+                    // Update order with reward deduction
+                    await Order.findByIdAndUpdate(order._id, {
+                        $set: {
+                            rewardPointsRedeemed,
+                            rewardDiscount,
+                            finalAmount: Math.max(0, finalAmount - rewardDiscount),
+                        },
+                    });
+                    order.rewardPointsRedeemed = rewardPointsRedeemed;
+                    order.rewardDiscount = rewardDiscount;
+                    order.finalAmount = Math.max(0, finalAmount - rewardDiscount);
+                }
+            } catch (rewardErr) {
+                console.error("Reward redemption error (non-fatal, continuing):", rewardErr);
+            }
+        }
+
         const requestedGateway = String(req.body.paymentMethod || "Razorpay").toLowerCase();
 
         if (requestedGateway !== "easebuzz") {
             try {
                 const razorpay = getRazorpayInstance();
-                const amountInPaise = Math.max(100, Math.round(finalAmount * 100));
+                const amountInPaise = Math.max(100, Math.round(order.finalAmount * 100));
                 const receipt = `rcpt_${order._id.toString().slice(-8)}_${Date.now().toString().slice(-4)}`;
 
                 const razorpayOrder = await razorpay.orders.create({
@@ -272,6 +374,7 @@ export const createOrder = async (req, res) => {
                     message: "Order created successfully",
                     order: {
                         _id: order._id,
+                        orderNumber: order.orderNumber,
                         totalAmount: order.totalAmount,
                         discountAmount: order.discountAmount,
                         finalAmount: order.finalAmount,
@@ -283,6 +386,8 @@ export const createOrder = async (req, res) => {
                         orderStatus: order.orderStatus,
                         paymentStatus: order.paymentStatus,
                     },
+                    orderId: order._id,
+                    orderNumber: order.orderNumber,
                     paymentMethod: "Razorpay",
                     razorpayOrderId: razorpayOrder.id,
                     order_id: razorpayOrder.id,
@@ -401,12 +506,15 @@ export const createOrder = async (req, res) => {
             message: "Order created successfully",
             order: {
                 _id: order._id,
+                orderNumber: order.orderNumber,
                 easebuzzOrderId: order.easebuzzOrderId,
                 totalAmount: order.totalAmount,
                 discountAmount: order.discountAmount,
                 finalAmount: order.finalAmount,
                 couponCode: order.couponCode,
             },
+            orderId: order._id,
+            orderNumber: order.orderNumber,
             paymentUrl, // Frontend redirects to this URL directly (GET)
         });
     } catch (error) {
@@ -541,32 +649,21 @@ export const verifyPaymentGateway = async (req, res) => {
             order.paymentResponse = paymentResponse;
             order.orderStatus = "processing";
 
-            // Atomic stock deduction
-            for (const item of order.items) {
-                try {
-                    const updated = await Product.findOneAndUpdate(
-                        { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
-                        { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
-                        { new: true }
-                    );
-                    if (!updated) {
-                        await Product.findByIdAndUpdate(item.product, {
-                            $set: { [`colors.${item.colorIndex}.stock`]: 0 },
-                        });
-                        order.hasStockConflict = true;
-                        if (!order.stockConflictNotes) order.stockConflictNotes = [];
-                        const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
-                        order.stockConflictNotes.push(conflictNote);
-                        order.statusHistory.push({
-                            status: order.orderStatus,
-                            timestamp: new Date(),
-                            note: conflictNote,
-                        });
-                        console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${order._id}`);
-                    }
-                } catch (stockErr) {
-                    console.error("Atomic stock decrement error:", stockErr);
-                }
+            // Atomic stock deduction across correct channel
+            const deductResult = await deductOrderStock(order);
+            if (!deductResult.success) {
+                order.hasStockConflict = true;
+                if (!order.stockConflictNotes) order.stockConflictNotes = [];
+                const conflictNote = `⚠️ STOCK CONFLICT: Item "${deductResult.conflictItem?.name || deductResult.conflictItem?.product}" ran out of stock before payment confirmation. Flagged for ops review.`;
+                order.stockConflictNotes.push(conflictNote);
+                order.statusHistory.push({
+                    status: order.orderStatus,
+                    timestamp: new Date(),
+                    note: conflictNote,
+                });
+                console.warn(`⚠️ Stock conflict for Easebuzz order ${order._id}: ${deductResult.reason}`);
+            } else {
+                order.stockDeducted = true;
             }
 
             // Track coupon usage
@@ -703,7 +800,7 @@ export const verifyPayment = async (req, res) => {
             const targetOrder = await Order.findOne({
                 $or: [
                     { razorpayOrderId: razorpay_order_id },
-                    ...(orderId ? [{ _id: orderId }] : []),
+                    ...(mongoose.isValidObjectId(orderId) ? [{ _id: orderId }] : []),
                 ],
             }).populate("user", "full_name email");
 
@@ -714,99 +811,45 @@ export const verifyPayment = async (req, res) => {
                 });
             }
 
-            if (targetOrder.paymentStatus !== "paid") {
-                targetOrder.paymentStatus = "paid";
-                targetOrder.orderStatus = "processing";
-                targetOrder.paymentMethod = "Razorpay";
-                targetOrder.razorpayPaymentId = razorpay_payment_id;
-                targetOrder.razorpaySignature = razorpay_signature;
-                targetOrder.transactionId = razorpay_payment_id;
-                targetOrder.paymentResponse = req.body;
-                targetOrder.statusHistory.push({
-                    status: "processing",
-                    timestamp: new Date(),
-                    note: `Payment verified successfully via Razorpay (Payment ID: ${razorpay_payment_id})`,
+            try {
+                const fulfillResult = await fulfillOrder(
+                    targetOrder,
+                    razorpay_payment_id,
+                    razorpay_signature,
+                    req.body
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: "Payment verified successfully",
+                    order_id: razorpay_order_id,
+                    payment_id: razorpay_payment_id,
+                    orderId: targetOrder._id,
+                    order: fulfillResult.order || targetOrder,
+                    pointsEarned: fulfillResult.pointsEarned ?? 0,
+                    newRewardBalance: fulfillResult.newRewardBalance ?? null,
                 });
-                await targetOrder.save();
-
-                // Atomic stock deduction
-                for (const item of targetOrder.items || []) {
-                    try {
-                        const updated = await Product.findOneAndUpdate(
-                            { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
-                            { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
-                            { new: true }
-                        );
-                        if (!updated) {
-                            await Product.findByIdAndUpdate(item.product, {
-                                $set: { [`colors.${item.colorIndex}.stock`]: 0 },
-                            });
-                            targetOrder.hasStockConflict = true;
-                            if (!targetOrder.stockConflictNotes) targetOrder.stockConflictNotes = [];
-                            const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
-                            targetOrder.stockConflictNotes.push(conflictNote);
-                            targetOrder.statusHistory.push({
-                                status: targetOrder.orderStatus,
-                                timestamp: new Date(),
-                                note: conflictNote,
-                            });
-                            await targetOrder.save();
-                            console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${targetOrder._id}`);
-                        }
-                    } catch (itemErr) {
-                        console.error("Error updating stock:", itemErr);
-                    }
+            } catch (fulfillErr) {
+                if (fulfillErr.code === "PAYMENT_PENDING_CONFIRMATION") {
+                    return res.status(202).json({
+                        success: false,
+                        pending: true,
+                        message: "Payment received, confirmation in progress",
+                        orderId: targetOrder._id,
+                    });
                 }
-
-                // Apply coupon
-                if (targetOrder.couponCode) {
-                    try {
-                        await applyCouponUsage(targetOrder.couponCode, targetOrder.user?._id || targetOrder.user);
-                    } catch (couponErr) {
-                        console.error("Error applying coupon usage:", couponErr);
-                    }
+                if (
+                    fulfillErr.code === "AMOUNT_MISMATCH" ||
+                    fulfillErr.code === "PAYMENT_VALIDATION_FAILED"
+                ) {
+                    return res.status(400).json({
+                        success: false,
+                        message: fulfillErr.message || "Payment validation failed. Payment not fulfilled.",
+                        error: fulfillErr.message,
+                    });
                 }
-
-                // Clear cart
-                if (targetOrder.user) {
-                    try {
-                        await Cart.findOneAndUpdate(
-                            { user: targetOrder.user?._id || targetOrder.user },
-                            { items: [], totalAmount: 0 }
-                        );
-                    } catch (cartErr) {
-                        console.error("Error clearing cart:", cartErr);
-                    }
-                }
-
-                // Generate invoice asynchronously
-                setImmediate(async () => {
-                    try {
-                        const invoiceResult = await generateInvoicePdf(targetOrder);
-                        if (invoiceResult?.minioUrl) {
-                            targetOrder.invoiceUrl = invoiceResult.minioUrl;
-                            await targetOrder.save();
-                        }
-                        if (invoiceResult?.localPath) {
-                            cleanupTempInvoice(invoiceResult.localPath);
-                        }
-
-                        // 🚚 Automatically dispatch order via Shiprocket
-                        await autoFulfillOrder(targetOrder);
-                    } catch (err) {
-                        console.error("Invoice/fulfillment error for order:", err);
-                    }
-                });
+                throw fulfillErr;
             }
-
-            return res.status(200).json({
-                success: true,
-                message: "Payment verified successfully",
-                order_id: razorpay_order_id,
-                payment_id: razorpay_payment_id,
-                orderId: targetOrder._id,
-                order: targetOrder,
-            });
         }
 
         if (!txnid || !hash) {
@@ -910,32 +953,21 @@ export const verifyPayment = async (req, res) => {
             order.paymentResponse = paymentResponse;
             order.orderStatus = "processing";
 
-            // Atomic stock deduction
-            for (const item of order.items) {
-                try {
-                    const updated = await Product.findOneAndUpdate(
-                        { _id: item.product, [`colors.${item.colorIndex}.stock`]: { $gte: item.quantity } },
-                        { $inc: { [`colors.${item.colorIndex}.stock`]: -item.quantity } },
-                        { new: true }
-                    );
-                    if (!updated) {
-                        await Product.findByIdAndUpdate(item.product, {
-                            $set: { [`colors.${item.colorIndex}.stock`]: 0 },
-                        });
-                        order.hasStockConflict = true;
-                        if (!order.stockConflictNotes) order.stockConflictNotes = [];
-                        const conflictNote = `⚠️ STOCK CONFLICT: Item "${item.name || item.product}" (Color Index: ${item.colorIndex}) ran out of stock before payment confirmation. Flagged for ops review.`;
-                        order.stockConflictNotes.push(conflictNote);
-                        order.statusHistory.push({
-                            status: order.orderStatus,
-                            timestamp: new Date(),
-                            note: conflictNote,
-                        });
-                        console.warn(`⚠️ Stock conflict on product ${item.product} (color ${item.colorIndex}) for order ${order._id}`);
-                    }
-                } catch (stockErr) {
-                    console.error("Atomic stock decrement error:", stockErr);
-                }
+            // Atomic stock deduction across correct channel
+            const deductResult = await deductOrderStock(order);
+            if (!deductResult.success) {
+                order.hasStockConflict = true;
+                if (!order.stockConflictNotes) order.stockConflictNotes = [];
+                const conflictNote = `⚠️ STOCK CONFLICT: Item "${deductResult.conflictItem?.name || deductResult.conflictItem?.product}" ran out of stock before payment confirmation. Flagged for ops review.`;
+                order.stockConflictNotes.push(conflictNote);
+                order.statusHistory.push({
+                    status: order.orderStatus,
+                    timestamp: new Date(),
+                    note: conflictNote,
+                });
+                console.warn(`⚠️ Stock conflict for Easebuzz order ${order._id}: ${deductResult.reason}`);
+            } else {
+                order.stockDeducted = true;
             }
 
             if (order.couponCode) {
@@ -966,17 +998,37 @@ export const verifyPayment = async (req, res) => {
                     );
                     cleanupTempInvoice(invoiceResult.localPath);
 
-                    // 🚚 Automatically dispatch order via Shiprocket
+                    // 🚀 Automatically dispatch order via Shiprocket
                     await autoFulfillOrder(order);
                 } catch (err) {
                     console.error("❌ Invoice/fulfillment error (AJAX):", err);
                 }
             });
 
+            // 🎁 Credit reward points (non-blocking, idempotent)
+            let pointsEarned = 0;
+            let newRewardBalance = null;
+            if (isRewardsEnabled()) {
+                try {
+                    const populatedUser = await User.findById(order.user?._id || order.user)
+                        .select("reward_balance has_completed_first_order accountType");
+                    const earnResult = await creditEarnedPoints(order, populatedUser);
+                    if (earnResult) {
+                        pointsEarned = earnResult.pointsEarned;
+                        newRewardBalance = earnResult.newBalance;
+                    }
+                } catch (rewardErr) {
+                    console.error("Reward credit error (non-fatal):", rewardErr);
+                }
+            }
+
             return res.status(200).json({
                 success: true,
                 message: "Payment verified successfully",
                 orderId: order._id,
+                pointsEarned,
+                newRewardBalance,
+                firstOrder: !order.user?.has_completed_first_order,
             });
         } else {
             if (order.paymentStatus === "paid") {
@@ -996,6 +1048,15 @@ export const verifyPayment = async (req, res) => {
                 note: "Payment failed (AJAX)",
             });
             await order.save();
+
+            // 🔄 Restore redeemed points on payment failure
+            if (isRewardsEnabled()) {
+                try {
+                    await restoreRedeemedPoints(order, order.user?._id || order.user);
+                } catch (rewardErr) {
+                    console.error("Reward restore error on failure (non-fatal):", rewardErr);
+                }
+            }
 
             return res.status(400).json({
                 success: false,
@@ -1035,7 +1096,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
                     <tr>
                         <td style="padding:8px 0; color:#6b7280; font-size:13px;">Order Number:</td>
                         <td style="padding:8px 0; text-align:right; font-weight:600; color:#15803d;">
-                            ${order.easebuzzOrderId}
+                            ${order.orderNumber || order.easebuzzOrderId || order._id}
                         </td>
                     </tr>
                     <tr>
@@ -1201,9 +1262,10 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
 
         // Prepare attachments
         const attachments = [];
+        const safeOrderNum = order.orderNumber || order.easebuzzOrderId || order._id;
         if (invoiceAttachment && fs.existsSync(invoiceAttachment)) {
             attachments.push({
-                filename: `Invoice-${order.easebuzzOrderId}.pdf`,
+                filename: `Invoice-${safeOrderNum}.pdf`,
                 path: invoiceAttachment,
             });
         }
@@ -1211,7 +1273,7 @@ async function sendOrderConfirmationEmail(order, invoiceAttachment = null) {
         // Send email
         await sendMail(
             userEmail,
-            `Order Confirmation - ${order.easebuzzOrderId} | Green Fibre`,
+            `Order Confirmation - ${safeOrderNum} | Green Fibre`,
             emailHtml,
             attachments
         );
@@ -1246,9 +1308,10 @@ export const getMyOrders = async (req, res) => {
 
         const total = await Order.countDocuments(filter);
 
-        // Transform images
+        // Transform images and sanitize internal statusHistory notes for customer
         const ordersWithImages = orders.map((order) => ({
             ...order,
+            statusHistory: sanitizeStatusHistoryForCustomer(order.statusHistory),
             items: order.items.map((item) => ({
                 ...item,
                 image: item.image || null,
@@ -1351,20 +1414,12 @@ export const getAllOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const { status, note, trackingNumber, courierName } = req.body;
+        const { status, note, trackingNumber, courierName, overrideReason } = req.body;
 
-        const validStatuses = [
-            "placed",
-            "processing",
-            "shipped",
-            "delivered",
-            "cancelled",
-            "failed",
-        ];
-
-        if (!validStatuses.includes(status)) {
+        if (!status || !ORDER_STATUSES.includes(status)) {
             return res.status(400).json({
-                message: "Invalid order status",
+                success: false,
+                message: `Invalid order status "${status}". Allowed values: ${ORDER_STATUSES.join(", ")}`,
             });
         }
 
@@ -1372,6 +1427,7 @@ export const updateOrderStatus = async (req, res) => {
 
         if (!order) {
             return res.status(404).json({
+                success: false,
                 message: "Order not found",
             });
         }
@@ -1380,106 +1436,57 @@ export const updateOrderStatus = async (req, res) => {
             order.shippingDetails = {};
         }
 
+        // Validate transition through shared state machine
+        const transition = canTransition(order.orderStatus, status, {
+            isAdmin: true,
+            overrideReason: typeof overrideReason === "string" ? overrideReason : (typeof note === "string" && note.toLowerCase().includes("override") ? note : ""),
+            adminId: req.user?._id || req.admin?._id || "admin",
+        });
+
+        if (!transition.allowed) {
+            return res.status(400).json({
+                success: false,
+                message: transition.reason,
+                requiresOverride: transition.requiresOverride || false,
+                currentStatus: order.orderStatus,
+                requestedStatus: status,
+            });
+        }
+
         // Update status
         order.orderStatus = status;
+
+        if (status === "shipped") {
+            if (trackingNumber) order.shippingDetails.trackingNumber = trackingNumber;
+            if (courierName) order.shippingDetails.courierName = courierName;
+            if (!order.shippingDetails.shippedAt) {
+                order.shippingDetails.shippedAt = new Date();
+            }
+        }
+
+        if (["delivered", "rto_delivered", "return_delivered"].includes(status) && !order.shippingDetails.deliveredAt) {
+            order.shippingDetails.deliveredAt = new Date();
+        }
+
+        // Check if status is shipped, out for delivery or delivered without an AWB
+        const hasAwb = Boolean(order.shippingDetails?.awbCode || order.shippingDetails?.trackingNumber);
+        const requiresAwbCheck = ["shipped", "out for delivery", "out_for_delivery", "delivered"].includes(status);
+        let noCourierBooked = false;
+
+        let historyNote = transition.auditNote || note || `Order status updated to ${status}`;
+
+        if (requiresAwbCheck && !hasAwb) {
+            noCourierBooked = true;
+            historyNote = transition.auditNote
+                ? `${transition.auditNote} (Status set manually, no courier booked)`
+                : "Status set manually, no courier booked";
+        }
+
         order.statusHistory.push({
             status,
             timestamp: new Date(),
-            note: note || `Order status updated to ${status}`,
+            note: historyNote,
         });
-
-        // Handle specific status updates
-        if (status === "shipped") {
-            // ── Step 1: If admin manually provided tracking info, save it now ──
-            if (trackingNumber && courierName) {
-                order.shippingDetails.trackingNumber = trackingNumber;
-                order.shippingDetails.courierName = courierName;
-                order.shippingDetails.shippedAt = new Date();
-            } else if (process.env.SHIPROCKET_ENABLED === "true") {
-                const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
-
-                try {
-                    let srOrderId = order.shippingDetails?.shiprocketOrderId;
-                    let srShipmentId = order.shippingDetails?.shiprocketShipmentId;
-
-                    // If Shiprocket order was not reserved in Stage 1, create it now
-                    if (!srOrderId || !srShipmentId) {
-                        console.log(`🚚 Creating missing Shiprocket order for order ${order._id} (Test Mode: ${isTestMode})...`);
-                        const srResponse = await createShiprocketOrder(order);
-                        srOrderId = srResponse.order_id || srResponse.sr_order_id;
-                        srShipmentId = srResponse.shipment_id;
-
-                        if (srOrderId) order.shippingDetails.shiprocketOrderId = String(srOrderId);
-                        if (srShipmentId) order.shippingDetails.shiprocketShipmentId = String(srShipmentId);
-                    }
-
-                    // If AWB is not yet assigned, generate AWB and request pickup (Stage 2)
-                    if (srShipmentId && !order.shippingDetails.trackingNumber) {
-                        if (isTestMode) {
-                            console.log(`🧪 [SHIPROCKET_TEST_MODE=true] Shiprocket order ${srOrderId} checked. AWB & Pickup skipped.`);
-                            order.statusHistory.push({
-                                status: "shipped",
-                                timestamp: new Date(),
-                                note: `[Test Mode] Shiprocket order ${srOrderId} created/checked. AWB & Pickup skipped.`,
-                            });
-                        } else {
-                            try {
-                                const awbData = await generateAWB(srShipmentId);
-                                const awb = awbData.awb_code;
-                                const courierNameSr = awbData.courier_name || awbData.assigned_courier || "";
-
-                                if (awb) {
-                                    order.shippingDetails.trackingNumber = awb;
-                                    order.shippingDetails.trackingUrl = `https://shiprocket.co/tracking/${awb}`;
-                                }
-                                if (courierNameSr && !order.shippingDetails.courierName) {
-                                    order.shippingDetails.courierName = courierNameSr;
-                                }
-                                console.log(`✅ AWB assigned: ${awb} via ${courierNameSr}`);
-
-                                // Request courier pickup
-                                try {
-                                    await requestPickup(srShipmentId);
-                                    console.log(`✅ Pickup requested for shipment ${srShipmentId}`);
-                                } catch (pickupErr) {
-                                    const pickupErrMsg = pickupErr?.response?.data?.message || pickupErr.message;
-                                    console.warn(`⚠️ Shiprocket pickup request pending:`, pickupErrMsg);
-                                    order.statusHistory.push({
-                                        status: "shipped",
-                                        timestamp: new Date(),
-                                        note: `Shiprocket pickup request pending: ${pickupErrMsg}`,
-                                    });
-                                }
-                            } catch (awbErr) {
-                                const awbErrMsg = awbErr?.response?.data?.message || awbErr.message;
-                                console.error(`🚨 Shiprocket AWB generation failed for order ${order._id}:`, awbErrMsg);
-                                order.statusHistory.push({
-                                    status: "shipped",
-                                    timestamp: new Date(),
-                                    note: `Shiprocket AWB generation failed: ${awbErrMsg}`,
-                                });
-                            }
-                        }
-                    }
-
-                    if (!order.shippingDetails.shippedAt) {
-                        order.shippingDetails.shippedAt = new Date();
-                    }
-                } catch (srError) {
-                    console.error("Shiprocket shipment processing error:", srError?.response?.data || srError.message);
-                    order.statusHistory.push({
-                        status: "shipped",
-                        timestamp: new Date(),
-                        note: `Shiprocket processing error: ${srError?.response?.data?.message || srError.message}`,
-                    });
-                }
-            } else {
-                console.log("🚧 [DEV] SHIPROCKET_ENABLED=false — Order marked as shipped locally.");
-                if (!order.shippingDetails.shippedAt) {
-                    order.shippingDetails.shippedAt = new Date();
-                }
-            }
-        }
 
         if (status === "delivered") {
             order.shippingDetails.deliveredAt = new Date();
@@ -1489,16 +1496,8 @@ export const updateOrderStatus = async (req, res) => {
             order.cancelledAt = new Date();
             order.cancellationReason = note;
 
-            // Atomic restore stock
-            for (const item of order.items || []) {
-                try {
-                    await Product.findByIdAndUpdate(item.product, {
-                        $inc: { [`colors.${item.colorIndex}.stock`]: item.quantity },
-                    });
-                } catch (restoreErr) {
-                    console.error("Error restoring stock on cancellation:", restoreErr);
-                }
-            }
+            // Atomic restore stock (idempotent, channel-specific)
+            await restoreOrderStock(order, note || "Order Cancellation");
 
             // Decrement coupon usage count if it was a paid order
             if (order.couponCode && order.paymentStatus === "paid") {
@@ -1520,6 +1519,25 @@ export const updateOrderStatus = async (req, res) => {
                     );
                 }
             }
+
+            // 🎁 Reward points reversal and restoration on cancellation
+            if (isRewardsEnabled()) {
+                const orderUserId = order.user?._id || order.user;
+                if (order.rewardPointsEarned > 0) {
+                    try {
+                        await reverseEarnedPoints(order, orderUserId);
+                    } catch (revEarnErr) {
+                        console.error("Error reversing earned points on cancellation:", revEarnErr);
+                    }
+                }
+                if (order.rewardPointsRedeemed > 0) {
+                    try {
+                        await restoreRedeemedPoints(order, orderUserId);
+                    } catch (revRedeemErr) {
+                        console.error("Error restoring redeemed points on cancellation:", revRedeemErr);
+                    }
+                }
+            }
         }
 
         await order.save();
@@ -1527,6 +1545,7 @@ export const updateOrderStatus = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Order status updated successfully",
+            ...(noCourierBooked ? { noCourierBooked: true } : {}),
             order,
         });
     } catch (error) {
@@ -1543,10 +1562,17 @@ export const updateOrderStatus = async (req, res) => {
 export const getSingleOrder = async (req, res) => {
     try {
         const { orderId } = req.params;
-        const userId = req.user._id;
-        const isAdmin = req.user.role === "admin";
+        const userId = req.user?._id;
+        const isAdmin = req.user?.role === "admin";
 
-        const order = await Order.findById(orderId)
+        const order = await Order.findOne({
+            $or: [
+                ...(mongoose.isValidObjectId(orderId) ? [{ _id: orderId }] : []),
+                { orderNumber: orderId },
+                { razorpayOrderId: orderId },
+                { easebuzzOrderId: orderId },
+            ],
+        })
             .populate("user", "full_name email profile_image")
             .lean();
 
@@ -1556,16 +1582,19 @@ export const getSingleOrder = async (req, res) => {
             });
         }
 
-        // Check authorization
-        if (!isAdmin && order.user._id.toString() !== userId.toString()) {
+        // Check authorization: if user is logged in, ensure ownership or admin role
+        if (userId && !isAdmin && order.user?._id?.toString() !== userId.toString()) {
             return res.status(403).json({
                 message: "Not authorized to view this order",
             });
         }
 
-        // Transform images
+        // Transform images and sanitize internal notes for customer
         const orderWithImages = {
             ...order,
+            statusHistory: isAdmin
+                ? order.statusHistory
+                : sanitizeStatusHistoryForCustomer(order.statusHistory),
             user: order.user
                 ? {
                     ...order.user,

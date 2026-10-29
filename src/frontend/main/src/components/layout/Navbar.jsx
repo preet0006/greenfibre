@@ -26,7 +26,10 @@ import {
   Leaf,
   Recycle,
   Loader2,
+  Coins,
 } from "lucide-react";
+import RewardsBadge from "@/components/rewards/RewardsBadge";
+import RewardsDrawer from "@/components/rewards/RewardsDrawer";
 
 // ── Variants ──────────────────────────────────────────────────
 const mobileMenuV = {
@@ -350,22 +353,37 @@ export default function Navbar() {
       />
 
       {/* ── Marquee banner ── */}
-      <div className="fixed left-0 right-0 z-60" style={{ top: 4 }}>
+      <div
+        className={`fixed left-0 right-0 z-60 transition-all duration-300 ${
+          scrolled ? "-translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
+        }`}
+        style={{ top: 4 }}
+      >
         <MarqueeBanner coupons={coupons} />
       </div>
 
       {/* ── Main navbar ── */}
       <header
-        className={`fixed left-0 right-0 z-70 transition-all duration-300 ${scrolled
-            ? "bg-white shadow-sm border-b border-gray-100"
-            : "bg-white/95 backdrop-blur-sm"
-          }`}
-        style={{ top: 40 }}
+        className={`fixed left-0 right-0 z-70 transition-all duration-300 ${
+          scrolled
+            ? "top-0 bg-white/98 shadow-sm border-b border-gray-100"
+            : "top-10 bg-white/95 backdrop-blur-sm"
+        }`}
       >
-        <div className="mx-auto flex h-20 md:h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div
+          className={`mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
+            scrolled ? "h-14 md:h-16" : "h-20 md:h-24"
+          }`}
+        >
           {/* Logo */}
           <Link href="/" className="flex shrink-0 items-center">
-            <div className="relative h-16 w-32 sm:h-18 sm:w-36 md:h-22 md:w-22">
+            <div
+              className={`relative transition-all duration-300 ${
+                scrolled
+                  ? "h-10 w-24 sm:h-11 sm:w-28 md:h-12 md:w-32"
+                  : "h-16 w-32 sm:h-18 sm:w-36 md:h-22 md:w-22"
+              }`}
+            >
               <Image
                 src="/logo-main.png" // Update with your actual logo
                 alt="Green Fibre"
@@ -610,6 +628,9 @@ export default function Navbar() {
               </AnimatePresence>
             </div>
 
+            {/* Rewards Points Badge */}
+            <RewardsBadge />
+
             {/* Cart */}
             <Link
               href="/cart"
@@ -681,6 +702,7 @@ export default function Navbar() {
                       </div>
                       {[
                         { icon: Package, label: "My Orders", href: "/orders" },
+                        { icon: Coins, label: "Reward Points", href: "/rewards" },
                         { icon: Heart, label: "Wishlist", href: "/wishlist" },
                         { icon: Settings, label: "Account", href: "/account" },
                       ].map(({ icon: Icon, label, href }) => (
@@ -864,6 +886,7 @@ export default function Navbar() {
                   </div>
                   {[
                     { icon: Package, label: "My Orders", href: "/orders" },
+                    { icon: Coins, label: "Reward Points", href: "/rewards" },
                     { icon: Heart, label: "Wishlist", href: "/wishlist" },
                     { icon: Settings, label: "Account", href: "/account" },
                   ].map(({ icon: Icon, label, href }) => (
@@ -898,6 +921,9 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Rewards Slide-over Drawer */}
+      <RewardsDrawer />
     </>
   );
 }

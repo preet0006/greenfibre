@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Coupon } from "../models/coupon.model.js";
+import { User } from "../models/user.model.js";
 
 // =============================
 // CREATE COUPON (Admin)
@@ -122,8 +123,22 @@ export const validateCoupon = async (req, res) => {
             });
         }
 
-        const userUsage = coupon.usedBy.find(
-            (u) => u.user.toString() === userId.toString()
+        if (coupon.isFirstOrderCoupon) {
+            const user = await User.findById(userId).select("has_completed_first_order accountType");
+            if (user?.has_completed_first_order) {
+                return res.status(400).json({
+                    message: "This coupon is only valid for your first order.",
+                });
+            }
+            if (user?.accountType === "B2B") {
+                return res.status(400).json({
+                    message: "This coupon is not valid for B2B accounts.",
+                });
+            }
+        }
+
+        const userUsage = (coupon.usedBy || []).find(
+            (u) => u.user?.toString() === userId.toString()
         );
 
         if (userUsage && userUsage.count >= coupon.perUserLimit) {

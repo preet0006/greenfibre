@@ -194,12 +194,24 @@ const useOrderStore = create((set, get) => ({
         actionLoading: false,
       });
 
-      toast.success("Order status updated successfully");
-      return true;
+      if (res.data.noCourierBooked) {
+        toast("Status set manually — no courier booked", {
+          icon: "⚠️",
+          duration: 5000,
+        });
+      } else {
+        toast.success("Order status updated successfully");
+      }
+      return { success: true, ...res.data };
     } catch (error) {
-      toast.error(error?.response?.data?.message || "Failed to update status");
+      const msg = error?.response?.data?.message || "Failed to update status";
+      toast.error(msg);
       set({ actionLoading: false });
-      return false;
+      return {
+        success: false,
+        error: msg,
+        requiresOverride: Boolean(error?.response?.data?.requiresOverride),
+      };
     }
   },
 

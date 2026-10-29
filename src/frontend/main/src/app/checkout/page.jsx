@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,6 +9,10 @@ import useCartStore from "@/store/useCartStore";
 import useAddressStore from "@/store/useAddressStore";
 import useOrderStore from "@/store/useOrderStore";
 import useUserStore from "@/store/useUserStore";
+import useRewardStore from "@/store/useRewardStore";
+import api from "@/lib/axios";
+import RedeemToggle from "@/components/rewards/RedeemToggle";
+import CheckoutBreakdown from "@/components/rewards/CheckoutBreakdown";
 import { loadRazorpayScript } from "@/utils/loadRazorpay";
 import toast from "react-hot-toast";
 import {
@@ -548,7 +552,19 @@ function AddressCard({ address, selected, onSelect, onEdit }) {
 // ── Cart summary item ─────────────────────────────────────────
 function CartSummaryItem({ item }) {
   const product = item.product;
-  const imgSrc = product?.thumbnail || product?.image || null;
+  let imgSrc = null;
+  if (product?.colors && product.colors[item.colorIndex]) {
+    const colorVariant = product.colors[item.colorIndex];
+    const colorImages = colorVariant?.images;
+    if (colorImages && colorImages.length > 0) {
+      const firstImage = colorImages[0];
+      imgSrc = typeof firstImage === "string" ? firstImage : firstImage?.card || firstImage?.thumbnail || firstImage?.original;
+    }
+  }
+  imgSrc = imgSrc || product?.thumbnail || product?.image || product?.mainImage || null;
+  const unitPrice = item.price || 0;
+  const origPrice = product?.originalPrice || 0;
+  const hasDiscount = origPrice > unitPrice;
 
   return (
     <div className="flex gap-3">
@@ -584,9 +600,16 @@ function CartSummaryItem({ item }) {
             <span className="text-xs text-gray-500">{item.colorName}</span>
           </div>
         )}
-        <p className="mt-1 text-sm font-bold text-green-600">
-          {formatPrice(item.price)} × {item.quantity}
-        </p>
+        <div className="mt-1 flex items-baseline gap-2">
+          <span className="text-sm font-bold text-green-600">
+            {formatPrice(unitPrice)} × {item.quantity}
+          </span>
+          {hasDiscount && (
+            <span className="text-xs text-gray-400 line-through">
+              {formatPrice(origPrice * item.quantity)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -618,11 +641,25 @@ export default function CheckoutPage() {
 
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [couponCode, setCouponCode] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("online"); // online or cod
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [editingAddress, setEditingAddress] = useState(null);
+  const config = useRewardStore((s) => s.config);
+
+  const redirectTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (authChecked && !user) {
@@ -687,12 +724,42 @@ export default function CheckoutPage() {
 
   const productSavings = originalTotal - subtotal;
   const couponDiscount = appliedCoupon?.discountAmount || 0;
-  const subtotalAfterDiscount = subtotal - couponDiscount;
+  const rewardDiscount = pointsToRedeem * (config?.point_value || 1);
+  const subtotalAfterDiscount = Math.max(0, subtotal - couponDiscount - rewardDiscount);
 
   // Catalog prices are charged as-is (backend/Easebuzz). Do not add GST here
   // or the UI total will disagree with the amount actually charged.
   const shippingCharges = 0; // Free shipping
   const finalTotal = subtotalAfterDiscount + shippingCharges;
+
+  const handleApplyCoupon = async (codeOverride) => {
+    const code = String(codeOverride || couponInput).trim().toUpperCase();
+    if (!code) {
+      toast.error("Please enter a coupon code");
+      return;
+    }
+    try {
+      setApplyingCoupon(true);
+      const res = await api.post("/coupons/validate", {
+        code,
+        cartTotal: subtotal,
+      });
+      if (res.data?.success) {
+        setAppliedCoupon({
+          code,
+          discountAmount: res.data.discountAmount || 0,
+        });
+        setCouponInput("");
+        toast.success(`Coupon ${code} applied! Saved ₹${res.data.discountAmount}`);
+      } else {
+        toast.error(res.data?.message || "Invalid coupon code");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Invalid coupon code");
+    } finally {
+      setApplyingCoupon(false);
+    }
+  };
 
   // Check stock
   const hasOutOfStock = items.some((i) => {
@@ -749,6 +816,7 @@ export default function CheckoutPage() {
         currency: "INR",
         shippingAddress,
         couponCode: appliedCoupon?.code || undefined,
+        pointsToRedeem: pointsToRedeem > 0 ? pointsToRedeem : undefined,
         notes: {
           customerName: selectedAddress.fullName,
           customerPhone: selectedAddress.phone,
@@ -794,6 +862,7 @@ export default function CheckoutPage() {
           },
         },
         handler: async function (response) {
+          let keepLoadingDisabled = false;
           try {
             toast.loading("Verifying payment...", { id: "razorpay-verify" });
 
@@ -807,7 +876,24 @@ export default function CheckoutPage() {
 
             toast.dismiss("razorpay-verify");
 
-            if (verifyRes?.success) {
+            // 1. PENDING (HTTP 202 / pending === true)
+            if (verifyRes?.outcome === "PENDING" || verifyRes?.pending) {
+              keepLoadingDisabled = true; // Keep Pay button disabled
+              toast(
+                "Payment received. We're confirming it; this can take a minute.",
+                {
+                  icon: "ℹ️",
+                  duration: 6000,
+                }
+              );
+              // Invalidate orders cache so /orders refetches fresh list on arrival
+              useOrderStore.getState().resetOrders();
+              router.push("/orders");
+              return;
+            }
+
+            // 2. SUCCESS (HTTP 200)
+            if (verifyRes?.outcome === "SUCCESS" || verifyRes?.success) {
               toast.success("Payment verified successfully!");
               await clearCart();
               const targetOrderId =
@@ -815,17 +901,114 @@ export default function CheckoutPage() {
                 result.orderId ||
                 response.razorpay_order_id;
               router.push(`/orders/success?order=${targetOrderId}`);
-            } else {
-              toast.error(
-                verifyRes?.message || "Payment signature verification failed"
-              );
-              router.push(`/orders/failed?reason=signature_mismatch`);
+              return;
             }
+
+            // 3. UNKNOWN OUTCOME (Network error, timeout, HTTP 5xx, 408, 429, 404, 401/403)
+            if (
+              verifyRes?.outcome === "UNKNOWN_OUTCOME" ||
+              verifyRes?.unknownOutcome
+            ) {
+              keepLoadingDisabled = true; // Do NOT re-enable Pay
+              toast.error(
+                "If money was deducted, do not pay again. Check My Orders or contact support.",
+                { duration: 8000 }
+              );
+              useOrderStore.getState().resetOrders();
+              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.push("/orders");
+              }, 4000);
+              return;
+            }
+
+            // 4. CLIENT / JS ERROR inside store
+            if (
+              verifyRes?.outcome === "CLIENT_ERROR" ||
+              verifyRes?.clientError
+            ) {
+              console.error(
+                "Client error during payment verification:",
+                verifyRes.error
+              );
+              keepLoadingDisabled = true;
+              toast.error(
+                "Something went wrong confirming your payment. Check My Orders before paying again.",
+                { duration: 8000 }
+              );
+              useOrderStore.getState().resetOrders();
+              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.push("/orders");
+              }, 4000);
+              return;
+            }
+
+            // 5. HARD FAILURE (HTTP 400)
+            const isValidationOrMismatch =
+              verifyRes?.outcome === "VALIDATION_FAILED" ||
+              verifyRes?.isValidationMismatch ||
+              verifyRes?.code === "PAYMENT_VALIDATION_FAILED" ||
+              verifyRes?.code === "AMOUNT_MISMATCH" ||
+              (verifyRes?.message &&
+                (verifyRes.message.includes("Payment validation failed") ||
+                  verifyRes.message.includes("mismatch")));
+
+            if (isValidationOrMismatch) {
+              keepLoadingDisabled = true; // Do NOT re-enable Pay
+              const payId = response.razorpay_payment_id || "";
+              toast.error(
+                `We couldn't match your payment to this order. If money was deducted, do not pay again. Contact support with payment ID ${payId}.`,
+                { duration: 8000 }
+              );
+              useOrderStore.getState().resetOrders();
+              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.push("/orders");
+              }, 4000);
+              return;
+            }
+
+            // Invalid payment signature (or other 400 error):
+            // Keep today's behavior: toast, redirect to /orders/failed, re-enable Pay
+            toast.error(
+              verifyRes?.message || "Payment signature verification failed"
+            );
+            router.push(`/orders/failed?reason=signature_mismatch`);
           } catch (err) {
             toast.dismiss("razorpay-verify");
-            toast.error("Error during payment verification");
+            console.error("Payment handler exception:", err);
+
+            const isAxios = Boolean(err?.isAxiosError || err?.request);
+            if (isAxios) {
+              // Network / Axios error thrown directly in handler
+              keepLoadingDisabled = true;
+              toast.error(
+                "If money was deducted, do not pay again. Check My Orders or contact support.",
+                { duration: 8000 }
+              );
+              useOrderStore.getState().resetOrders();
+              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.push("/orders");
+              }, 4000);
+            } else {
+              // Plain JS error in our handler after Razorpay reported success
+              keepLoadingDisabled = true;
+              toast.error(
+                "Something went wrong confirming your payment. Check My Orders before paying again.",
+                { duration: 8000 }
+              );
+              useOrderStore.getState().resetOrders();
+              if (redirectTimeoutRef.current) clearTimeout(redirectTimeoutRef.current);
+              redirectTimeoutRef.current = setTimeout(() => {
+                router.push("/orders");
+              }, 4000);
+            }
           } finally {
-            setRazorpayLoading(false);
+            if (!keepLoadingDisabled) {
+              setRazorpayLoading(false);
+            }
           }
         },
       };
@@ -1040,6 +1223,15 @@ export default function CheckoutPage() {
               </div>
             </div>
 
+            {/* Rewards Redemption & First Order Benefits */}
+            <RedeemToggle
+              cartTotal={subtotal}
+              pointsToRedeem={pointsToRedeem}
+              onPointsChange={setPointsToRedeem}
+              appliedCoupon={appliedCoupon}
+              onApplyFirstOrderCoupon={(code) => handleApplyCoupon(code)}
+            />
+
             {/* Terms */}
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <label className="flex cursor-pointer items-start gap-3">
@@ -1087,84 +1279,90 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* Coupon Form */}
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+                <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-500">
+                  Have a Coupon?
+                </p>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-emerald-600" />
+                      <span className="text-xs font-bold text-emerald-800">
+                        {appliedCoupon.code} applied
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-700">
+                        −₹{Math.round(couponDiscount).toLocaleString("en-IN")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAppliedCoupon(null)}
+                        className="rounded-md p-1 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleApplyCoupon();
+                    }}
+                    className="flex gap-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Enter promo code"
+                      value={couponInput}
+                      onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-mono font-medium uppercase outline-none focus:border-emerald-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={applyingCoupon || !couponInput.trim()}
+                      className="rounded-xl bg-gray-900 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
+                    >
+                      {applyingCoupon ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+                    </button>
+                  </form>
+                )}
+              </div>
+
               {/* Price Breakdown */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
                 <p className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-500">
                   Price Details
                 </p>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
-                      Subtotal ({items.reduce((s, i) => s + i.quantity, 0)}{" "}
-                      items)
+                <CheckoutBreakdown
+                  originalTotal={originalTotal}
+                  subtotal={subtotal}
+                  productSavings={productSavings}
+                  couponDiscount={couponDiscount}
+                  rewardDiscount={rewardDiscount}
+                  finalTotal={finalTotal}
+                  appliedCoupon={appliedCoupon}
+                  pointsRedeemed={pointsToRedeem}
+                />
+
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-bold text-gray-900">
+                      Total Amount
                     </span>
-                    <span className="font-semibold text-gray-900">
-                      {formatPrice(subtotal)}
-                    </span>
-                  </div>
-
-                  {productSavings > 0 && (
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-green-600">Product discount</span>
-                      <span className="font-semibold text-green-600">
-                        −{formatPrice(productSavings)}
+                    <div className="text-right">
+                      <span
+                        className="text-2xl font-bold text-emerald-600"
+                        style={{
+                          fontFamily:
+                            "var(--font-cormorant, 'Cormorant Garamond', serif)",
+                        }}
+                      >
+                        {formatPrice(finalTotal)}
                       </span>
-                    </div>
-                  )}
-
-                  {appliedCoupon && (
-                    <div className="flex items-center justify-between rounded-lg border border-green-100 bg-green-50 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-green-600" />
-                        <span className="text-sm font-semibold text-green-700">
-                          {appliedCoupon.code}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-green-600">
-                          −{formatPrice(couponDiscount)}
-                        </span>
-                        <button
-                          onClick={() => setAppliedCoupon(null)}
-                          className="text-green-600 hover:text-green-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Shipping</span>
-                    <span className="font-semibold text-green-600">Free</span>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Prices are as listed; no extra GST is added at checkout.
-                  </p>
-
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-bold text-gray-900">
-                        Total Amount
-                      </span>
-                      <div className="text-right">
-                        <span
-                          className="text-2xl font-bold text-green-600"
-                          style={{
-                            fontFamily:
-                              "var(--font-cormorant, 'Cormorant Garamond', serif)",
-                          }}
-                        >
-                          {formatPrice(finalTotal)}
-                        </span>
-                        {productSavings + couponDiscount > 0 && (
-                          <p className="text-xs font-semibold text-green-600">
-                            You save{" "}
-                            {formatPrice(productSavings + couponDiscount)}!
-                          </p>
-                        )}
-                      </div>
                     </div>
                   </div>
                 </div>

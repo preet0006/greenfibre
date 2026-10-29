@@ -2,6 +2,13 @@ import mongoose from "mongoose";
 import slugify from "slugify";
 import { Product } from "../models/product.model.js";
 import { Category } from "../models/category.model.js";
+import { StockAuditLog } from "../models/stockAudit.model.js";
+import {
+    projectChannelStock,
+    getChannelStock,
+    getChannelTotalStock,
+} from "../utils/channelStock.js";
+import logger from "../utils/logger.js";
 import {
     uploadOnCloudinary,
     deleteFromCloudinary,
@@ -36,7 +43,9 @@ const formatImageVariant = (img) => {
 };
 
 const transformProductImages = (product, sizes = "full") => {
-    const productObj = product.toObject ? product.toObject() : { ...product };
+    // Project channel-specific stock (B2C) into .stock, .stockQuantity, .totalStock
+    const projected = projectChannelStock(product, "b2c");
+    const productObj = projected.toObject ? projected.toObject() : { ...projected };
 
     // Primary & gallery images (plain strings)
     const rawImages = Array.isArray(productObj.images) ? productObj.images : [];
@@ -70,16 +79,20 @@ const transformProductImages = (product, sizes = "full") => {
                 ? color.images
                 : (productObj.images.length > 0 ? productObj.images : []);
 
-            return {
+            const cleanedColor = {
                 ...color,
                 images: cImgs.map(formatImageVariant).filter(Boolean),
             };
+            // Do not leak internal B2B stock numbers to public B2C visitors
+            delete cleanedColor.b2bStock;
+            return cleanedColor;
         });
     }
 
-    // Clean B2C Data Isolation: Remove internal B2B wholesale margins & competitor data
+    // Clean B2C Data Isolation: Remove internal B2B wholesale margins & stock
     delete productObj.b2bMargin;
     delete productObj.competitors;
+    delete productObj.b2bStock;
 
     return productObj;
 };
@@ -172,9 +185,12 @@ export const getProducts = async (req, res) => {
             filter.isFeatured = true;
         }
 
-        // Stock filter (at least one color has stock)
+        // Stock filter (at least one color or top-level has B2C stock)
         if (inStock === "true") {
-            filter["colors.stock"] = { $gt: 0 };
+            filter.$or = [
+                { "colors.b2cStock": { $gt: 0 } },
+                { b2cStock: { $gt: 0 } },
+            ];
         }
 
         const skip = (Number(page) - 1) * Number(limit);
@@ -184,7 +200,8 @@ export const getProducts = async (req, res) => {
             .populate("subCategory", "name slug")
             .sort(sort)
             .skip(skip)
-            .limit(Number(limit));
+            .limit(Number(limit))
+            .lean();
 
         const total = await Product.countDocuments(filter);
 
@@ -268,7 +285,8 @@ export const searchProducts = async (req, res) => {
             .populate("subCategory", "name slug")
             .sort({ averageRating: -1, reviewCount: -1 })
             .skip(skip)
-            .limit(Number(limit));
+            .limit(Number(limit))
+            .lean();
 
         // Prefer products whose name/slug starts matching the query.
         const ranked = [...products].sort((a, b) => {
@@ -329,7 +347,8 @@ export const getSingleProduct = async (req, res) => {
 
         const product = await Product.findOne(filter)
             .populate("category", "name slug")
-            .populate("subCategory", "name slug");
+            .populate("subCategory", "name slug")
+            .lean();
 
         if (!product) {
             return res.status(404).json({
@@ -385,7 +404,8 @@ export const getRelatedProducts = async (req, res) => {
             .populate("category", "name slug")
             .populate("subCategory", "name slug")
             .sort({ averageRating: -1, reviewCount: -1 })
-            .limit(Number(limit));
+            .limit(Number(limit))
+            .lean();
 
         // Transform images for card view
         const productsWithImages = relatedProducts.map((product) => {
@@ -705,8 +725,57 @@ export const updateStock = async (req, res) => {
             });
         }
 
-        product.colors[colorIndex].stock = parseInt(stock);
+        const newPhysical = parseInt(stock, 10);
+        const color = product.colors[colorIndex];
+        const oldB2B = color.b2bStock || 0;
+        const oldB2C = color.b2cStock || 0;
+        const oldSum = oldB2B + oldB2C;
+
+        color.stock = newPhysical;
+
+        // Keep channel stock and physical stock in sync without violating invariants
+        if (newPhysical < oldSum) {
+            // Scale down channel stocks proportionally
+            if (oldSum > 0) {
+                const ratioB2C = oldB2C / oldSum;
+                color.b2cStock = Math.floor(newPhysical * ratioB2C);
+                color.b2bStock = newPhysical - color.b2cStock;
+            } else {
+                color.b2cStock = newPhysical;
+                color.b2bStock = 0;
+            }
+        } else if (oldSum === 0) {
+            // If neither channel had stock allocated, allocate to B2C by default
+            color.b2cStock = newPhysical;
+            color.b2bStock = 0;
+        }
+
+        // Recompute top-level
+        product.stockQuantity = product.colors.reduce((sum, c) => sum + (c.stock || 0), 0);
+        product.b2cStock = product.colors.reduce((sum, c) => sum + (c.b2cStock || 0), 0);
+        product.b2bStock = product.colors.reduce((sum, c) => sum + (c.b2bStock || 0), 0);
+
         await product.save();
+
+        // Record audit log
+        await StockAuditLog.create({
+            productId: product._id,
+            sku: product.sku || "",
+            productName: product.name,
+            action: "ADMIN_MANUAL_EDIT",
+            mode: "set",
+            oldB2BStock: oldB2B,
+            oldB2CStock: oldB2C,
+            newB2BStock: color.b2bStock,
+            newB2CStock: color.b2cStock,
+            physicalStock: newPhysical,
+            performedBy: {
+                userId: req.user?._id?.toString() || "admin",
+                email: req.user?.email || "admin",
+                role: req.user?.role || "admin",
+            },
+            reason: `Legacy admin updated physical stock on color ${color.name} to ${newPhysical}`,
+        }).catch((err) => logger.warn(`Audit log error: ${err.message}`));
 
         const totalStock = calculateTotalStock(product.colors);
 
@@ -717,7 +786,7 @@ export const updateStock = async (req, res) => {
             totalStock,
         });
     } catch (error) {
-        console.error("Update stock error:", error);
+        logger.error(`Update stock error: ${error.message}`);
         return res.status(500).json({
             message: "Error updating stock",
         });

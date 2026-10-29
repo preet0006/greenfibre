@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { Category } from "../models/category.model.js";
+import { Product } from "../models/product.model.js";
 
 import {
     uploadOnCloudinary,
@@ -69,27 +70,66 @@ export const getAllCategories = async (req, res) => {
             isActive: true,
         }).sort({
             displayOrder: 1,
+            name: 1,
         });
 
-        // Format image structure if needed
-        const formattedCategories = categories.map((category) => {
+        const formattedCategories = [];
+
+        for (const category of categories) {
             const categoryObj = category.toObject();
 
-            if (categoryObj.image && typeof categoryObj.image === "string") {
-                categoryObj.image = {
-                    original: category.image,
-                    large: category.image,
-                    medium: category.image,
-                    thumbnail: category.image,
-                };
+            // Count active products and fetch first product
+            const [productCount, firstProduct] = await Promise.all([
+                Product.countDocuments({ category: category._id, isActive: true }),
+                Product.findOne({ category: category._id, isActive: true })
+                    .sort({ createdAt: -1 })
+                    .lean(),
+            ]);
+
+            categoryObj.productCount = productCount;
+
+            // Filter out unnecessary/empty categories with 0 products unless explicitly requested
+            if (req.query.includeEmpty !== "true" && productCount === 0) {
+                continue;
             }
 
-            return categoryObj;
-        });
+            // Real first product image
+            let realImage = null;
+            if (firstProduct) {
+                if (firstProduct.mainImage) {
+                    realImage = firstProduct.mainImage;
+                } else if (firstProduct.thumbnail) {
+                    realImage = firstProduct.thumbnail;
+                } else if (firstProduct.colors && firstProduct.colors.length > 0) {
+                    const colorImgs = firstProduct.colors[0]?.images;
+                    if (colorImgs && colorImgs.length > 0) {
+                        const firstImg = colorImgs[0];
+                        realImage = typeof firstImg === "string" ? firstImg : firstImg?.card || firstImg?.original || firstImg?.medium;
+                    }
+                }
+            }
+
+            // Fallback to category image if no product image found
+            if (!realImage && category.image) {
+                realImage = typeof category.image === "string" ? category.image : category.image.original || category.image.large;
+            }
+
+            if (realImage) {
+                categoryObj.image = {
+                    original: realImage,
+                    large: realImage,
+                    medium: realImage,
+                    thumbnail: realImage,
+                };
+                categoryObj.firstProductImage = realImage;
+            }
+
+            formattedCategories.push(categoryObj);
+        }
 
         return res.status(200).json({
             success: true,
-            categories: formattedCategories || [],
+            categories: formattedCategories,
         });
     } catch (error) {
         console.error("Error fetching categories:", error);

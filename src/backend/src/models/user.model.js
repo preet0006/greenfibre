@@ -141,6 +141,19 @@ const userSchema = new mongoose.Schema(
                 type: Date,
             },
         },
+        // ── Reward Points (B2C only) ──────────────────────────────────────────
+        // Cached balance. Source of truth is the RewardLedger collection.
+        // Never write to this directly — always use rewards.service.js helpers.
+        reward_balance: {
+            type: Number,
+            default: 0,
+        },
+        // Set to true after first successful payment. Controls coupon eligibility
+        // and whether the rewards redemption UI is shown at checkout.
+        has_completed_first_order: {
+            type: Boolean,
+            default: false,
+        },
     },
     {
         timestamps: true,

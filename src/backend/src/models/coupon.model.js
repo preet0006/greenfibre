@@ -63,6 +63,13 @@ const couponSchema = new mongoose.Schema(
             },
         ],
 
+        // When true: only usable by users who have NOT completed their first order.
+        // Enforced server-side in createOrder and on the redeem-preview endpoint.
+        isFirstOrderCoupon: {
+            type: Boolean,
+            default: false,
+        },
+
         isActive: {
             type: Boolean,
             default: true,

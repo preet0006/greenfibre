@@ -10,6 +10,11 @@ import { connectDB } from "../db/connectDB.js";
 import { Order } from "../models/order.model.js";
 
 async function simulate() {
+    if (process.env.NODE_ENV === "production" || process.env.RAZORPAY_KEY_ID?.startsWith("rzp_live_")) {
+        console.error("🚨 REFUSED: simulateWebhook cannot run when NODE_ENV=production or live Razorpay keys are active.");
+        process.exit(1);
+    }
+
     await connectDB();
 
     const statusArg = process.argv[2] || "DELIVERED";

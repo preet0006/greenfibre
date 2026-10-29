@@ -13,6 +13,10 @@ import {
 } from "../controllers/user.controller.js";
 import { adminAuthMiddleware } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import {
+    updateChannelStock,
+    getChannelStockTable,
+} from "../controllers/stock.controller.js";
 
 const router = express.Router();
 
@@ -33,5 +37,9 @@ router.get("/users", listUsers);
 router.put("/update-password", updatePassword);
 router.post("/create-admin", createAdminByAdmin);
 router.delete("/delete-user", deleteUserByAdmin);
+
+// Channel Stock Management (B2B / B2C split)
+router.put("/stock/channel", updateChannelStock);
+router.get("/stock/channel", getChannelStockTable);
 
 export default router;

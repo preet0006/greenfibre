@@ -1,4 +1,4 @@
-// GreenFibre backend — Live Razorpay active rzp_live_TXVnl7XtdLZsws
+// GreenFibre backend server - Razorpay live active
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -27,11 +27,16 @@ import razorpayRoutes from "./routes/razorpay.route.js";
 import shiprocketRoutes from "./routes/shiprocket.route.js";
 import mobileRoutes from "./routes/mobile.route.js";
 import b2bRoutes from "./routes/b2b.route.js";
+import rewardsRoutes from "./routes/rewards.route.js";
 import { handleShiprocketWebhook } from "./controllers/shiprocket.controller.js";
+import { validateStartupModes } from "./utils/envValidation.js";
 
 dotenv.config({
     path: "./.env",
 });
+
+// Enforce environment mode safety (logs modes without secrets; refuses mixed environments)
+validateStartupModes();
 
 const app = express();
 const port = process.env.PORT || 5500;
@@ -156,6 +161,8 @@ app.use("/api/razorpay", razorpayRoutes);
 app.use("/api/shipping", shiprocketRoutes);
 app.use("/api/mobile", mobileRoutes);   // ← mobile-only aggregated API
 app.use("/api/b2b", b2bRoutes);         // ← dedicated B2B wholesale platform API
+app.use("/api/rewards", rewardsRoutes); // ← B2C reward points system
+app.use("/api/admin/rewards", rewardsRoutes); // ← Admin rewards management
 app.post("/delivery-update", handleShiprocketWebhook);
 
 app.all("/", (req, res) => {

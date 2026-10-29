@@ -15,9 +15,19 @@ router.post("/create-order", optionalAuthMiddleware, createRazorpayOrder);
 // POST /api/verify-payment
 router.post("/verify-payment", optionalAuthMiddleware, verifyRazorpayPayment);
 
-// Standalone real test payment HTML interface for gateway verification (₹5.00 real transaction)
+// Standalone real test payment HTML interface for gateway verification
 router.get("/test-payment", (req, res) => {
-    const keyId = getRazorpayKeyId() || "rzp_live_TXVnl7XtdLZsws";
+    const keyId = getRazorpayKeyId() || "";
+    const isLiveKey = keyId.startsWith("rzp_live_") || process.env.NODE_ENV === "production";
+    const isEnabled = process.env.ENABLE_TEST_PAYMENT_ROUTE === "true";
+
+    if (!isEnabled || isLiveKey) {
+        return res.status(404).json({
+            success: false,
+            message: "Test payment route is disabled or disallowed when Razorpay live keys / production are active.",
+        });
+    }
+
     res.removeHeader("Content-Security-Policy");
     res.setHeader("Content-Type", "text/html");
     res.send(`<!DOCTYPE html>

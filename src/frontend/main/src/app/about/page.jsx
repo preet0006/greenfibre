@@ -85,15 +85,14 @@ const jsonLd = [
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer support",
-      email: "support@greenfibre.org", // TODO: replace with real support email
+      email: "info@greenfibre.org",
       url: `${SITE_URL}/contact`,
       availableLanguage: ["English", "Hindi"],
     },
     sameAs: [
-      "https://www.instagram.com/greenfibre", // TODO: replace with real Instagram URL
-      "https://www.facebook.com/greenfibre",  // TODO: replace with real Facebook URL
-      // "https://twitter.com/greenfibre",    // TODO: uncomment + replace if you have Twitter/X
-      // "https://www.linkedin.com/company/greenfibre", // TODO: uncomment + replace if LinkedIn
+      "https://www.instagram.com/greenfibre_4?dlrf=Y2Rxdzc2cHNqNmdz",
+      "https://www.facebook.com/profile.php?id=100064103706224",
+      "https://x.com/greenfibre01",
     ],
   },
 

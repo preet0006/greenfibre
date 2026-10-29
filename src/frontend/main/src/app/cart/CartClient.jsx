@@ -36,6 +36,20 @@ function discountPct(orig, disc) {
   if (!orig || !disc || orig <= disc) return 0;
   return Math.round(((orig - disc) / orig) * 100);
 }
+function getSummaryItemImage(item) {
+  const product = item?.product;
+  if (product?.colors && product.colors[item.colorIndex]) {
+    const colorVariant = product.colors[item.colorIndex];
+    const colorImages = colorVariant?.images;
+    if (colorImages && colorImages.length > 0) {
+      const firstImage = colorImages[0];
+      return typeof firstImage === "string"
+        ? firstImage
+        : firstImage?.card || firstImage?.thumbnail || firstImage?.original || null;
+    }
+  }
+  return product?.thumbnail || product?.image || product?.mainImage || null;
+}
 
 // ── Variants ──────────────────────────────────────────────────
 const fadeUp = {
@@ -824,27 +838,122 @@ export default function UserCartPage() {
 
               {/* Price breakdown */}
               <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <p className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-500">
-                  Order Summary
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">
-                      Subtotal ({items.reduce((s, i) => s + i.quantity, 0)}{" "}
-                      items)
-                    </span>
-                    <span className="font-semibold text-gray-900">
-                      {formatPrice(subtotal)}
-                    </span>
-                  </div>
-                  {productSavings > 0 && (
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                    Order Summary
+                  </p>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-gray-600">
+                    {items.reduce((s, i) => s + i.quantity, 0)}{" "}
+                    {items.reduce((s, i) => s + i.quantity, 0) === 1 ? "item" : "items"}
+                  </span>
+                </div>
+
+                {/* Itemized product list with discounted price */}
+                <div className="mb-4 divide-y divide-gray-100 max-h-56 overflow-y-auto pr-1">
+                  {items.map((item) => {
+                    const product = item.product;
+                    const unitPrice = item.price || 0;
+                    const origPrice = product?.originalPrice || 0;
+                    const hasDiscount = origPrice > unitPrice;
+                    const lineTotal = unitPrice * item.quantity;
+                    const origLineTotal = origPrice * item.quantity;
+                    const imgSrc = getSummaryItemImage(item);
+
+                    return (
+                      <div
+                        key={`${product?._id || item._id}-${item.colorIndex}`}
+                        className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                            {imgSrc ? (
+                              <Image
+                                src={imgSrc}
+                                alt={product?.name || "Product"}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center">
+                                <Package className="h-4 w-4 text-gray-300" />
+                              </div>
+                            )}
+                            {item.quantity > 1 && (
+                              <div className="absolute -bottom-0.5 -right-0.5 rounded-full bg-gray-900 px-1 text-[9px] font-bold text-white leading-tight">
+                                ×{item.quantity}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="text-xs font-semibold text-gray-900 truncate"
+                              title={product?.name}
+                            >
+                              {product?.name || "Product"}
+                            </p>
+                            <div className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                              {item.colorName && (
+                                <span className="truncate">{item.colorName}</span>
+                              )}
+                              {item.colorName && <span>•</span>}
+                              <span>Qty: {item.quantity}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="flex items-baseline justify-end gap-1.5">
+                            <span className="text-xs font-bold text-green-600">
+                              {formatPrice(lineTotal)}
+                            </span>
+                            {hasDiscount && (
+                              <span className="text-[10px] text-gray-400 line-through">
+                                {formatPrice(origLineTotal)}
+                              </span>
+                            )}
+                          </div>
+                          {item.quantity > 1 && (
+                            <span className="block text-[10px] text-gray-400">
+                              {formatPrice(unitPrice)} each
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t border-gray-200 pt-3 space-y-3">
+                  {productSavings > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">
+                          Total MRP ({items.reduce((s, i) => s + i.quantity, 0)}{" "}
+                          items)
+                        </span>
+                        <span className="font-semibold text-gray-900">
+                          {formatPrice(originalTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-green-600 font-medium">Product discount</span>
+                        <span className="font-semibold text-green-600">
+                          −{formatPrice(productSavings)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-green-600">Product discount</span>
-                      <span className="font-semibold text-green-600">
-                        −{formatPrice(productSavings)}
+                      <span className="text-gray-600">
+                        Subtotal ({items.reduce((s, i) => s + i.quantity, 0)}{" "}
+                        items)
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {formatPrice(subtotal)}
                       </span>
                     </div>
                   )}
+
                   {couponDiscount > 0 && (
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-green-600">

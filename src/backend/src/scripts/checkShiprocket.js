@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 import axios from "axios";
-import { getShiprocketToken } from "../utils/shiprocket.js";
+import { getShiprocketToken, getSrBase } from "../utils/shiprocket.js";
 
 async function main() {
     console.log("==================================================");
@@ -23,13 +23,18 @@ async function main() {
         return;
     }
 
-    const srBase = "https://apiv2.shiprocket.in/v1/external";
+    const srBase = getSrBase();
+    const isSandbox = srBase.includes("sandbox");
     const client = axios.create({
         baseURL: srBase,
         timeout: 15000,
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            ...(isSandbox ? {
+                "Referer": "https://sandbox.shiprocket.in/",
+                "Origin": "https://sandbox.shiprocket.in",
+            } : {}),
         },
     });
 

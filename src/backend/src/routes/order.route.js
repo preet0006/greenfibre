@@ -11,6 +11,7 @@ import {
 } from "../controllers/order.controller.js";
 import {
     authMiddleware,
+    optionalAuthMiddleware,
     adminAuthMiddleware,
 } from "../middlewares/auth.middleware.js";
 
@@ -39,7 +40,7 @@ router.post("/payment/verify", verifyPayment);
 // ── Order queries & management ───────────────────────────────
 router.get("/my-orders", authMiddleware, getMyOrders);
 router.get("/admin", adminAuthMiddleware, getAllOrders);
-router.get("/:orderId", authMiddleware, getSingleOrder);
+router.get("/:orderId", optionalAuthMiddleware, getSingleOrder);
 router.patch("/status/:orderId", adminAuthMiddleware, updateOrderStatus);
 router.post("/admin/:orderId/release-shipment", adminAuthMiddleware, releaseShipment);
 

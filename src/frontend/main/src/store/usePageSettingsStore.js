@@ -3,18 +3,20 @@ import api from "@/lib/axios";
 import toast from "react-hot-toast";
 
 const defaultSettings = {
-  companyName: "",
-  phoneNumbers: [],
-  whatsappNumber: "",
-  emails: [],
-  address: "",
+  companyName: "GreenFibre",
+  phoneNumbers: ["+91 9217328777", "+91 9217988874"],
+  whatsappNumber: "+91 9217988874",
+  emails: ["info@greenfibre.org"],
+  address:
+    "Plot no: 334, Udyog Kendra 2, Ecotech III, Greater Noida, Uttar Pradesh 201306",
   gstNumber: "",
   footerDescription: "",
   googleMapEmbedUrl: "",
   socialLinks: {
-    facebook: "",
-    instagram: "",
-    twitter: "",
+    facebook: "https://www.facebook.com/profile.php?id=100064103706224",
+    instagram:
+      "https://www.instagram.com/greenfibre_4?dlrf=Y2Rxdzc2cHNqNmdz",
+    twitter: "https://x.com/greenfibre01",
     youtube: "",
     linkedin: "",
     pinterest: "",

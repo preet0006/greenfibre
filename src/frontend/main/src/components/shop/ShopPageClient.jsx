@@ -74,7 +74,7 @@ function ProductCard({ product, compact = false }) {
 
   const [wishLoading, setWishLoading] = useState(false);
 
-  // 10% regular discount + 10% more Navratri special offer (20% total discount)
+  // 10% regular discount + 10% more Diwali special offer (20% total discount)
   const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
   const offerPrice = Math.round(originalPrice * 0.80);
   const inStock = product.totalStock > 0;
@@ -181,11 +181,11 @@ function ProductCard({ product, compact = false }) {
             </div>
           )}
 
-          {/* Navratri Special Offer Tag */}
+          {/* Diwali Special Offer Tag */}
           <div className="mb-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
               <span>🪔</span>
-              <span>Navratri Special: 10% + 10% More</span>
+              <span>Diwali Special: 10% + 10% More</span>
             </span>
           </div>
 
@@ -239,8 +239,9 @@ function FilterSidebar({
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:sticky top-0 left-0 z-50 h-screen lg:h-auto lg:top-24 w-80 lg:w-full bg-white border-r lg:border-r-0 lg:border border-gray-200 rounded-none lg:rounded-xl overflow-y-auto transition-transform lg:transition-none ${isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-          }`}
+        className={`fixed lg:sticky top-0 left-0 z-40 h-screen lg:h-auto lg:top-20 lg:self-start w-80 lg:w-full bg-white border-r lg:border-r-0 lg:border border-gray-200 rounded-none lg:rounded-2xl transition-all duration-300 shadow-xs overflow-y-auto lg:overflow-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden ${
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
       >
         {/* Header (mobile) */}
         <div className="flex items-center justify-between border-b border-gray-200 p-4 lg:hidden">
@@ -481,7 +482,7 @@ function ShopPageInner() {
 
       {/* Body */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[240px_1fr] lg:items-start">
           {/* Filters Sidebar */}
           <FilterSidebar
             filters={filters}

@@ -3,14 +3,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * Shiprocket API client for Green Fibre.
  *
- * Environment flags (set in .env):
- *  SHIPROCKET_USE_SANDBOX=true   → All API calls go to the Shiprocket Sandbox:
- *                                    General API : https://api-sandbox.shiprocket.in
- *                                    Serviceability: https://serviceability-sandbox.shiprocket.in
- *  SHIPROCKET_USE_SANDBOX=false  → All API calls go to Live:
- *                                    https://apiv2.shiprocket.in/v1/external
- *  SHIPROCKET_TEST_MODE=true     → Prefixes order_id with "TEST-" and uses
- *                                    SHIPROCKET_TEST_PICKUP_LOCATION in order payload
+ * Environment configuration (set in .env):
+ *  SHIPROCKET_BASE_URL           → Base external URL (e.g. https://api-sandbox.shiprocket.in/v1/external
+ *                                   or https://apiv2.shiprocket.in/v1/external)
+ *  SHIPROCKET_ORDER_ID_PREFIX    → Prefix for Shiprocket orders (e.g. "TEST-")
+ *  SHIPROCKET_PICKUP_LOCATION    → Configured warehouse pickup location nickname
  *  SHIPROCKET_ENABLED=true       → Gate for autoFulfillOrder() — won't fire unless true
  *
  * Safety & Reliability:
@@ -24,27 +21,37 @@ import axios from "axios";
 import { Order } from "../models/order.model.js";
 
 // ── API Base URLs ────────────────────────────────────────────────────────────
-// Shiprocket Sandbox uses a DIFFERENT domain from live production.
-// Source: sandbox.shiprocket.in → Dashboard → Environment panel
-const SR_LIVE_BASE   = "https://apiv2.shiprocket.in/v1/external";
-const SR_SBX_BASE    = "https://api-sandbox.shiprocket.in/v1/external";
+const SR_LIVE_BASE = "https://apiv2.shiprocket.in/v1/external";
+const SR_SBX_BASE = "https://api-sandbox.shiprocket.in/v1/external";
 const SR_SBX_SVC_BASE = "https://serviceability-sandbox.shiprocket.in/v1/external";
 
 /**
- * Returns the correct Shiprocket API base URL for the current environment.
- *  - Sandbox (SHIPROCKET_USE_SANDBOX=true)  → https://api-sandbox.shiprocket.in/v1/external
- *  - Live    (SHIPROCKET_USE_SANDBOX=false) → https://apiv2.shiprocket.in/v1/external
- * Exported so test scripts can log which environment they're targeting.
+ * Returns the configured Shiprocket API base URL.
+ * Requires SHIPROCKET_BASE_URL to be set explicitly outside NODE_ENV=production.
  */
-export const getSrBase = () =>
-    process.env.SHIPROCKET_USE_SANDBOX === "true" ? SR_SBX_BASE : SR_LIVE_BASE;
+export const getShiprocketBaseUrl = () => {
+    const raw = process.env.SHIPROCKET_BASE_URL;
+    if (raw && typeof raw === "string" && raw.trim()) {
+        return raw.trim().replace(/\/+$/, "");
+    }
+    if (process.env.NODE_ENV === "production") {
+        return SR_LIVE_BASE;
+    }
+    throw new Error(
+        "SHIPROCKET_BASE_URL must be set explicitly outside NODE_ENV=production. (e.g. https://api-sandbox.shiprocket.in/v1/external)"
+    );
+};
+
+export const getSrBase = () => getShiprocketBaseUrl();
 
 /**
  * Returns the serviceability base URL.
  * Sandbox uses a dedicated serviceability subdomain.
  */
-export const getSrServiceabilityBase = () =>
-    process.env.SHIPROCKET_USE_SANDBOX === "true" ? SR_SBX_SVC_BASE : SR_LIVE_BASE;
+export const getSrServiceabilityBase = () => {
+    const base = getSrBase();
+    return base.includes("sandbox") ? SR_SBX_SVC_BASE : SR_LIVE_BASE;
+};
 
 // ── Token cache ────────────────────────────────────────────────────────────
 // Token is valid for 10 days (240 hours). We cache for 9 days as a safety margin.
@@ -60,47 +67,61 @@ export const invalidateShiprocketToken = () => {
 
 /**
  * Authenticate with Shiprocket and return a cached bearer token.
- * Automatically uses sandbox or live URL based on SHIPROCKET_USE_SANDBOX.
+ * Reads SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD with no silent fallbacks.
  */
 export const getShiprocketToken = async (forceRefresh = false) => {
     if (!forceRefresh && _srToken && _srTokenExpiry && Date.now() < _srTokenExpiry) {
+        console.log("🔑 [SHIPROCKET AUTH] Using cached token (valid for remaining TTL).");
         return _srToken;
     }
 
     const srBase = getSrBase();
-    const isSandbox = process.env.SHIPROCKET_USE_SANDBOX === "true";
-    // When sandbox mode is active, use sandbox-specific credentials if provided,
-    // otherwise fall back to the main credentials
-    const email = (isSandbox && process.env.SHIPROCKET_SANDBOX_EMAIL)
-        ? process.env.SHIPROCKET_SANDBOX_EMAIL
-        : process.env.SHIPROCKET_EMAIL;
-    const password = (isSandbox && process.env.SHIPROCKET_SANDBOX_PASSWORD)
-        ? process.env.SHIPROCKET_SANDBOX_PASSWORD
-        : process.env.SHIPROCKET_PASSWORD;
+    const email = process.env.SHIPROCKET_EMAIL;
+    const password = process.env.SHIPROCKET_PASSWORD;
 
     if (!email || !password) {
-        throw new Error(
-            "Shiprocket credentials missing: set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in .env"
+        const err = new Error(
+            "Shiprocket credentials missing: set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in environment."
         );
+        console.error("❌ [SHIPROCKET AUTH] Login halted:", err.message);
+        throw err;
     }
 
-    const res = await axios.post(
-        `${srBase}/auth/login`,
-        { email, password },
-        { headers: { "Content-Type": "application/json" }, timeout: 15000 }
-    );
+    console.log(`🔐 [SHIPROCKET AUTH] Attempting login to: ${srBase}/auth/login (User: ${email})`);
+    const isSandbox = srBase.includes("sandbox");
+    const authHeaders = {
+        "Content-Type": "application/json",
+        ...(isSandbox ? {
+            "Referer": "https://sandbox.shiprocket.in/",
+            "Origin": "https://sandbox.shiprocket.in",
+        } : {}),
+    };
 
-    if (!res.data?.token) {
-        throw new Error(
-            `Shiprocket auth failed: ${JSON.stringify(res.data)}`
+    try {
+        const res = await axios.post(
+            `${srBase}/auth/login`,
+            { email, password },
+            { headers: authHeaders, timeout: 15000 }
         );
+
+        if (!res.data?.token) {
+            console.error(`❌ [SHIPROCKET AUTH] Login response missing token (Status: ${res.status}):`, res.data);
+            throw new Error(
+                `Shiprocket auth failed: ${JSON.stringify(res.data)}`
+            );
+        }
+
+        _srToken = res.data.token;
+        _srTokenExpiry = Date.now() + TOKEN_CACHE_MS;
+
+        console.log(`✅ [SHIPROCKET AUTH] Authenticated successfully [HTTP ${res.status}]. Token received: true (cached for 9 days).`);
+        return _srToken;
+    } catch (authErr) {
+        const status = authErr?.response?.status || "NO_RESPONSE";
+        const errorData = authErr?.response?.data || authErr.message;
+        console.error(`❌ [SHIPROCKET AUTH] Login failed [HTTP ${status}]:`, errorData);
+        throw authErr;
     }
-
-    _srToken = res.data.token;
-    _srTokenExpiry = Date.now() + TOKEN_CACHE_MS;
-
-    console.log(`✅ Shiprocket token refreshed [${isSandbox ? "SANDBOX" : "LIVE"}] (cached for 9 days).`);
-    return _srToken;
 };
 
 /**
@@ -117,6 +138,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const makeSrRequest = async (config, maxRetries = 2) => {
     let attempts = 0;
     let token = await getShiprocketToken();
+    const isSandbox = getSrBase().includes("sandbox");
 
     while (attempts <= maxRetries) {
         try {
@@ -126,6 +148,10 @@ const makeSrRequest = async (config, maxRetries = 2) => {
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
+                    ...(isSandbox ? {
+                        "Referer": "https://sandbox.shiprocket.in/",
+                        "Origin": "https://sandbox.shiprocket.in",
+                    } : {}),
                     ...(config.headers || {}),
                 },
             });
@@ -200,56 +226,81 @@ export const checkServiceability = async (
 /**
  * Create a Shiprocket order for a Green Fibre order document.
  *
- * Handles TEST_MODE guardrails:
- *  - Uses process.env.SHIPROCKET_TEST_PICKUP_LOCATION || "TEST-WAREHOUSE"
- *  - Prefixes order_id with "TEST-"
+ * Uses:
+ *  - process.env.SHIPROCKET_PICKUP_LOCATION (default: "Primary")
+ *  - process.env.SHIPROCKET_ORDER_ID_PREFIX (default: "")
  *
  * @param {Object} order - Mongoose Order document (or lean object)
  * @returns {Object} Shiprocket create-order response
  */
-export const createShiprocketOrder = async (order) => {
-    const isTestMode = process.env.SHIPROCKET_TEST_MODE === "true";
-
-    const pickupLocation = isTestMode
-        ? (process.env.SHIPROCKET_TEST_PICKUP_LOCATION || "TEST-WAREHOUSE")
-        : (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary");
+export const createShiprocketOrder = async (order, customOptions = {}) => {
+    const pickupLocation = (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary").trim();
 
     const shippingAddr = order.shippingAddress || {};
+    const b2bDetails = customOptions.b2bDetails || {};
+    const isB2B = (customOptions.orderType || "").toUpperCase() === "B2B" || Boolean(b2bDetails.companyName || shippingAddr.companyName);
 
     // Customer name: split into first & last name (max 50 chars each)
-    const rawFullName = (shippingAddr.fullName || "Customer").trim();
+    const rawFullName = (b2bDetails.contactPerson || shippingAddr.fullName || "Customer").trim();
     const nameParts = rawFullName.split(/\s+/);
     const firstName = (nameParts[0] || "Customer").slice(0, 50);
     const lastName = (nameParts.slice(1).join(" ") || ".").slice(0, 50);
 
     // Sanitize phone (must be 10 digits)
-    const cleanPhone = (shippingAddr.phone || "")
+    const cleanPhone = (b2bDetails.phone || shippingAddr.phone || "")
         .replace(/\D/g, "")
         .slice(-10) || "9999999999";
 
     // Sanitize pincode (must be 6 digits)
-    const cleanPincode = (shippingAddr.pincode || "")
+    const cleanPincode = (b2bDetails.pincode || shippingAddr.pincode || "")
         .toString()
         .replace(/\D/g, "")
         .slice(0, 6) || "110001";
 
     // Email fallback
     const cleanEmail = (
+        b2bDetails.email ||
         shippingAddr.email ||
         order.user?.email ||
         process.env.COMPANY_EMAIL ||
         "support@greenfibre.org"
     ).trim();
 
-    // Sanitize line items
-    const orderItems = (order.items || []).map((item, idx) => {
+    // Sanitize line items - allow partial item selection
+    let sourceItems = order.items || [];
+    if (Array.isArray(customOptions.items) && customOptions.items.length > 0) {
+        sourceItems = customOptions.items.map((ci, idx) => {
+            const matched = (order.items || []).find((oi, oIdx) => {
+                return (
+                    (ci.itemId && String(oi._id) === String(ci.itemId)) ||
+                    (ci.itemId && String(oi.product) === String(ci.itemId)) ||
+                    (ci.itemId && String(oi.sku) === String(ci.itemId)) ||
+                    (ci.name && String(oi.name).toLowerCase() === String(ci.name).toLowerCase()) ||
+                    oIdx === Number(ci.itemId)
+                );
+            }) || {};
+
+            return {
+                ...matched,
+                name: ci.name || matched.name || `Green Fibre Item ${idx + 1}`,
+                sku: ci.sku || matched.sku || matched.product || `GF-ITEM-${idx + 1}`,
+                quantity: Math.max(1, Math.round(Number(ci.qty || ci.quantity || matched.quantity || 1))),
+                price: Math.max(1, Math.round(Number(ci.price || matched.price || 1))),
+                colorIndex: matched.colorIndex,
+            };
+        });
+    }
+
+    const orderItems = sourceItems.map((item, idx) => {
         const itemName = (item.name || `Green Fibre Item ${idx + 1}`).trim().slice(0, 50);
         const itemQty = Math.max(1, Math.round(Number(item.quantity) || 1));
         const itemPrice = Math.max(1, Math.round(Number(item.price) || 1));
         const itemSku = (
-            item.product
-                ? `${item.product}-${item.colorIndex ?? 0}`
-                : `GF-SKU-${idx + 1}`
+            item.sku
+                ? String(item.sku)
+                : item.product
+                    ? `${item.product}-${item.colorIndex ?? 0}`
+                    : `GF-SKU-${idx + 1}`
         ).slice(0, 50);
 
         return {
@@ -275,23 +326,34 @@ export const createShiprocketOrder = async (order) => {
         });
     }
 
-    // Use easebuzzOrderId / razorpayOrderId / _id as base reference
+    // Use human-friendly orderNumber if available, else easebuzzOrderId / razorpayOrderId / _id
     const rawRef =
+        order.orderNumber ||
         order.easebuzzOrderId ||
         order.razorpayOrderId ||
         order._id?.toString() ||
         `GF_${Date.now()}`;
 
-    // In test mode, prefix order_id with TEST- to distinguish in Shiprocket dashboard
-    const orderRef = isTestMode ? `TEST-${rawRef}` : rawRef;
+    const orderIdPrefix = (process.env.SHIPROCKET_ORDER_ID_PREFIX || "").trim();
+    const orderRef = orderIdPrefix ? `${orderIdPrefix}${rawRef}` : rawRef;
 
     const subTotal = Math.max(
         1,
         Math.round(
-            Number(order.finalAmount) ||
             orderItems.reduce((s, i) => s + i.selling_price * i.units, 0)
         )
     );
+
+    // Package weight & dimensions
+    const pkg = customOptions.package || customOptions.pkg || {};
+    const rawWeight = Number(pkg.weight);
+    const weightKg = rawWeight > 0
+        ? (rawWeight > 10 ? rawWeight / 1000 : rawWeight)
+        : Math.max(0.05, (Number(process.env.SHIPROCKET_PKG_WEIGHT_G) || 500) / 1000);
+
+    const lengthCm = Math.max(1, Math.round(Number(pkg.length) || Number(process.env.SHIPROCKET_PKG_LENGTH) || 10));
+    const breadthCm = Math.max(1, Math.round(Number(pkg.breadth) || Number(process.env.SHIPROCKET_PKG_BREADTH) || 10));
+    const heightCm = Math.max(1, Math.round(Number(pkg.height) || Number(process.env.SHIPROCKET_PKG_HEIGHT) || 10));
 
     const payload = {
         order_id: orderRef,
@@ -304,42 +366,61 @@ export const createShiprocketOrder = async (order) => {
         // Customer details
         billing_customer_name: firstName,
         billing_last_name: lastName,
-        billing_address: (shippingAddr.streetAddress || "Main Street").trim(),
+        billing_address: (b2bDetails.address || shippingAddr.streetAddress || "Main Street").trim(),
         billing_address_2: (shippingAddr.landmark || "").trim(),
-        billing_city: (shippingAddr.city || "Delhi").trim(),
+        billing_city: (b2bDetails.city || shippingAddr.city || "Delhi").trim(),
         billing_pincode: cleanPincode,
-        billing_state: (shippingAddr.state || "Delhi").trim(),
+        billing_state: (b2bDetails.state || shippingAddr.state || "Delhi").trim(),
         billing_country: "India",
         billing_email: cleanEmail,
         billing_phone: cleanPhone,
+
+        // B2B specific company and GSTIN fields supported by Shiprocket
+        ...(isB2B && (b2bDetails.companyName || shippingAddr.companyName) ? {
+            billing_company_name: (b2bDetails.companyName || shippingAddr.companyName).trim(),
+        } : {}),
+        ...(isB2B && (b2bDetails.gstin || shippingAddr.gstin) ? {
+            billing_gstin: (b2bDetails.gstin || shippingAddr.gstin).trim(),
+        } : {}),
 
         shipping_is_billing: true,
 
         order_items: orderItems,
 
         payment_method:
-            order.paymentStatus === "paid" ? "Prepaid" : "COD",
+            order.paymentStatus === "paid" ? "Prepaid" : (order.paymentMethod === "COD" ? "COD" : "Prepaid"),
         sub_total: subTotal,
-        length: Math.max(5, Number(process.env.SHIPROCKET_PKG_LENGTH) || 10),
-        breadth: Math.max(5, Number(process.env.SHIPROCKET_PKG_BREADTH) || 10),
-        height: Math.max(5, Number(process.env.SHIPROCKET_PKG_HEIGHT) || 10),
-        weight: Math.max(0.05, (Number(process.env.SHIPROCKET_PKG_WEIGHT_G) || 500) / 1000), // kg
+        length: lengthCm,
+        breadth: breadthCm,
+        height: heightCm,
+        weight: Math.max(0.01, Number(weightKg.toFixed(3))), // kg
     };
 
-    const res = await makeSrRequest({
-        method: "POST",
-        url: "/orders/create/adhoc",
-        data: payload,
-    });
+    console.log("📦 [SHIPROCKET CREATE-ORDER] Exact payload sent to /orders/create/adhoc:\n" + JSON.stringify(payload, null, 2));
 
-    if (!res.data?.order_id && !res.data?.shipment_id) {
-        console.error("Shiprocket create order unexpected response:", res.data);
-        throw new Error(
-            `Shiprocket order creation failed: ${JSON.stringify(res.data)}`
-        );
+    try {
+        const res = await makeSrRequest({
+            method: "POST",
+            url: "/orders/create/adhoc",
+            data: payload,
+        });
+
+        console.log(`📡 [SHIPROCKET CREATE-ORDER] Response status: ${res.status}, body:\n` + JSON.stringify(res.data, null, 2));
+
+        if (!res.data?.order_id && !res.data?.shipment_id) {
+            console.error("❌ [SHIPROCKET CREATE-ORDER] Unexpected response structure (missing order_id & shipment_id):", res.data);
+            throw new Error(
+                `Shiprocket order creation failed: ${JSON.stringify(res.data)}`
+            );
+        }
+
+        return res.data;
+    } catch (orderErr) {
+        const status = orderErr?.response?.status || "NO_RESPONSE";
+        const errorData = orderErr?.response?.data || orderErr.message;
+        console.error(`❌ [SHIPROCKET CREATE-ORDER] Request failed [HTTP ${status}]:`, errorData);
+        throw orderErr;
     }
-
-    return res.data;
 };
 
 // ── 3. AWB generation ────────────────────────────────────────────────────────

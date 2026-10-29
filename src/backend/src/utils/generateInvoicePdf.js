@@ -32,7 +32,7 @@ export const generateInvoicePdf = async (order) => {
         margin: 0,
         size: "A4",
         info: {
-            Title: `Invoice – ${order.easebuzzOrderId || order._id.toString()}`,
+            Title: `Invoice – ${order.orderNumber || order.easebuzzOrderId || order._id.toString()}`,
             Author: process.env.COMPANY_NAME || "Green Fibre",
             Subject: "Tax Invoice",
         },
@@ -82,7 +82,7 @@ export const generateInvoicePdf = async (order) => {
         .font("Helvetica")
         .fontSize(9)
         .text(
-            `Invoice No: ${order.easebuzzOrderId || order._id?.toString().slice(-10).toUpperCase()}`,
+            `Invoice No: ${order.orderNumber || order.easebuzzOrderId || order._id?.toString().slice(-10).toUpperCase()}`,
             MARGIN,
             60,
             { width: CONTENT_W, align: "right" }
@@ -198,6 +198,7 @@ export const generateInvoicePdf = async (order) => {
         {
             label: "Order ID",
             value:
+                order.orderNumber ||
                 order.easebuzzOrderId ||
                 order._id?.toString().slice(-10).toUpperCase(),
         },
@@ -500,9 +501,9 @@ export const generateInvoicePdf = async (order) => {
         .fontSize(7.5)
         .text(
             "This is a computer generated invoice and does not require a physical signature. " +
-                "All prices are inclusive of applicable taxes. " +
-                "For any queries, please contact us at " +
-                (process.env.COMPANY_EMAIL || "support@greenfibre.com"),
+            "All prices are inclusive of applicable taxes. " +
+            "For any queries, please contact us at " +
+            (process.env.COMPANY_EMAIL || "support@greenfibre.com"),
             MARGIN,
             footerY + 8,
             { width: CONTENT_W, align: "center" }

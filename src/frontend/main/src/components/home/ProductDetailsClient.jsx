@@ -369,11 +369,11 @@ function RelatedProductCard({ product }) {
           {product.name}
         </h4>
 
-        {/* Navratri Special Offer Tag */}
+        {/* Diwali Special Offer Tag */}
         <div className="mb-2">
           <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] font-semibold text-amber-900 shadow-2xs">
             <span>🪔</span>
-            <span>Navratri Special</span>
+            <span>Diwali Special</span>
           </span>
         </div>
 
@@ -487,7 +487,10 @@ export default function ProductDetailClient({ slug, initialProduct }) {
 
   const currentColor = product.colors?.[selectedColor];
   const images = currentColor?.images || [];
-  const inStock = currentColor?.stock > 0;
+  const currentStock = currentColor?.stock !== undefined
+    ? Number(currentColor.stock)
+    : Number(product.stockQuantity ?? product.totalStock ?? 0);
+  const inStock = currentStock > 0;
   const isWishlisted = wishlist.some(
     (item) => item._id === product._id || item.productId === product._id,
   );
@@ -642,9 +645,22 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                     <span className="text-gray-300">|</span>
                   </>
                 )}
-                <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700">
-                  <Check className="h-3.5 w-3.5" /> In Stock & Ready to Dispatch
-                </span>
+                {inStock ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700">
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                    <span>In Stock</span>
+                    <span className="rounded-full bg-green-100/90 border border-green-200/80 px-2 py-0.5 text-[11px] font-extrabold text-green-800">
+                      {currentStock} available
+                    </span>
+                    <span className="text-gray-300">•</span>
+                    <span>Ready to Dispatch</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    <span>Out of Stock</span>
+                  </span>
+                )}
               </div>
             </div>
 
@@ -697,64 +713,107 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                       {currentColor?.name || "Natural"}
                     </span>
                   </span>
+                  <span className="text-xs font-medium text-gray-500">
+                    {currentStock > 0 ? (
+                      <>
+                        Stock: <span className="font-bold text-green-700">{currentStock}</span> units
+                      </>
+                    ) : (
+                      <span className="font-bold text-rose-600">Out of Stock</span>
+                    )}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-2.5">
-                  {product.colors.map((color, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSelectedColor(idx);
-                        setSelectedImage(0);
-                      }}
-                      className={`group relative flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 transition-all ${
-                        selectedColor === idx
-                          ? "border-green-600 bg-green-50/80 ring-2 ring-green-100"
-                          : "border-gray-200 hover:border-gray-300 bg-white"
-                      }`}
-                    >
-                      <div
-                        className="h-5 w-5 rounded-full border border-gray-300 shadow-2xs flex-shrink-0"
-                        style={{ background: color.hex || "#e5e7eb" }}
-                      />
-                      <span
-                        className={`text-xs font-bold ${
+                  {product.colors.map((color, idx) => {
+                    const colorStock = Number(color.stock ?? 0);
+                    const isColorInStock = colorStock > 0;
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setSelectedColor(idx);
+                          setSelectedImage(0);
+                        }}
+                        className={`group relative flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 transition-all cursor-pointer ${
                           selectedColor === idx
-                            ? "text-green-800"
-                            : "text-gray-700"
+                            ? "border-green-600 bg-green-50/80 ring-2 ring-green-100"
+                            : isColorInStock
+                            ? "border-gray-200 hover:border-gray-300 bg-white"
+                            : "border-gray-200 bg-gray-50/70 opacity-60 hover:opacity-90"
                         }`}
                       >
-                        {color.name}
-                      </span>
-                      {selectedColor === idx && (
-                        <Check className="h-3.5 w-3.5 text-green-700" />
-                      )}
-                    </button>
-                  ))}
+                        <div
+                          className="h-5 w-5 rounded-full border border-gray-300 shadow-2xs flex-shrink-0"
+                          style={{ background: color.hex || "#e5e7eb" }}
+                        />
+                        <span
+                          className={`text-xs font-bold ${
+                            selectedColor === idx
+                              ? "text-green-800"
+                              : isColorInStock
+                              ? "text-gray-700"
+                              : "text-gray-400"
+                          }`}
+                        >
+                          {color.name}
+                        </span>
+                        <span
+                          className={`text-[11px] font-semibold ${
+                            selectedColor === idx
+                              ? "text-green-700"
+                              : isColorInStock
+                              ? "text-gray-500"
+                              : "text-rose-500"
+                          }`}
+                        >
+                          ({colorStock})
+                        </span>
+                        {selectedColor === idx && (
+                          <Check className="h-3.5 w-3.5 text-green-700" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {/* Quantity and Dual Action Buttons (Add to Cart & Buy Now) */}
             <div className="space-y-3 pt-2">
+              {inStock && currentStock <= 10 && (
+                <div className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-800">
+                  <span>⚡</span>
+                  <span>Only <strong className="font-extrabold text-amber-900">{currentStock}</strong> left in stock — order soon</span>
+                </div>
+              )}
+              {!inStock && (
+                <div className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-800">
+                  <span>✕</span>
+                  <span>Currently out of stock in this option</span>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 {/* Quantity Stepper */}
                 <div className="flex items-center justify-between sm:justify-center rounded-xl border border-gray-300 bg-white px-2 py-1.5 shrink-0 shadow-2xs">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                    disabled={!inStock || quantity <= 1}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     -
                   </button>
                   <span className="w-10 text-center text-sm font-bold text-gray-900">
-                    {quantity}
+                    {inStock ? quantity : 0}
                   </span>
                   <button
                     onClick={() =>
                       setQuantity(
-                        Math.min(currentColor?.stock || 99, quantity + 1),
+                        Math.min(currentStock || 1, quantity + 1),
                       )
                     }
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                    disabled={!inStock || quantity >= currentStock}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     +
                   </button>
@@ -763,8 +822,8 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                 {/* Add to Cart Button */}
                 <button
                   onClick={handleAddToCart}
-                  disabled={cartLoading}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-3.5 text-sm font-bold text-white shadow-md shadow-green-700/20 transition-all hover:bg-green-800 active:scale-[0.98] disabled:opacity-60"
+                  disabled={cartLoading || !inStock}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-3.5 text-sm font-bold text-white shadow-md shadow-green-700/20 transition-all hover:bg-green-800 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {cartLoading ? (
                     <>
@@ -776,6 +835,8 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                       <Check className="h-4 w-4" />
                       Added to Cart!
                     </>
+                  ) : !inStock ? (
+                    "Out of Stock"
                   ) : (
                     <>
                       <ShoppingCart className="h-4 w-4" />
@@ -787,10 +848,10 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                 {/* Buy Now Button */}
                 <button
                   onClick={handleBuyNow}
-                  disabled={cartLoading}
-                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-green-700 bg-white px-5 py-3.5 text-sm font-bold text-green-800 transition-all hover:bg-green-50 active:scale-[0.98] disabled:opacity-60"
+                  disabled={cartLoading || !inStock}
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border-2 border-green-700 bg-white px-5 py-3.5 text-sm font-bold text-green-800 transition-all hover:bg-green-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Buy Now
+                  {!inStock ? "Unavailable" : "Buy Now"}
                 </button>
 
                 {/* Wishlist Button */}

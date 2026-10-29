@@ -26,7 +26,7 @@ function ProductCard({ product, index }) {
   const firstColor = product.colors?.[0] || {};
   const displayImage = firstColor.images?.[0]?.card || firstColor.images?.[0]?.original || "/images/placeholder.jpg";
 
-  // Base price and Navratri 10% + 10% special offer (20% total discount)
+  // Base price and Diwali 10% + 10% special offer (20% total discount)
   const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
   const offerPrice = Math.round(originalPrice * 0.80);
 
@@ -128,11 +128,11 @@ function ProductCard({ product, index }) {
             </div>
           )}
 
-          {/* Navratri Special Offer Tag */}
+          {/* Diwali Special Offer Tag */}
           <div className="mb-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
               <span>🪔</span>
-              <span>Navratri Special: 10% + 10% More</span>
+              <span>Diwali Special: 10% + 10% More</span>
             </span>
           </div>
 

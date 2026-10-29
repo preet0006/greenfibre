@@ -38,6 +38,8 @@ export const formatUserResponse = (user) => {
             accountType: "B2C",
             isVerified: Boolean(user.isVerified),
             profile_image: user.profile_image || null,
+            reward_balance: user.reward_balance || 0,
+            has_completed_first_order: Boolean(user.has_completed_first_order),
             createdAt: user.createdAt,
         };
     }

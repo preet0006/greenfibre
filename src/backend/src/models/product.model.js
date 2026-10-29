@@ -16,6 +16,13 @@ const productSchema = new mongoose.Schema(
             index: true,
         },
 
+        sku: {
+            type: String,
+            trim: true,
+            default: "",
+            index: true,
+        },
+
         unit: {
             type: String,
             default: "piece",
@@ -90,6 +97,38 @@ const productSchema = new mongoose.Schema(
         stockQuantity: {
             type: Number,
             default: 0,
+        },
+
+        b2bStock: {
+            type: Number,
+            default: 0,
+            min: [0, "b2bStock cannot be negative"],
+            validate: {
+                validator: function (val) {
+                    if (val === undefined || val === null) return true;
+                    if (!Number.isInteger(val)) return false;
+                    const colorTotal = Array.isArray(this.colors) ? this.colors.reduce((s, c) => s + (c.stock || 0), 0) : 0;
+                    const physical = Math.max(this.stockQuantity ?? 0, colorTotal);
+                    return val + (this.b2cStock || 0) <= physical;
+                },
+                message: "b2bStock must be an integer and b2bStock + b2cStock must not exceed physical stock",
+            },
+        },
+
+        b2cStock: {
+            type: Number,
+            default: 0,
+            min: [0, "b2cStock cannot be negative"],
+            validate: {
+                validator: function (val) {
+                    if (val === undefined || val === null) return true;
+                    if (!Number.isInteger(val)) return false;
+                    const colorTotal = Array.isArray(this.colors) ? this.colors.reduce((s, c) => s + (c.stock || 0), 0) : 0;
+                    const physical = Math.max(this.stockQuantity ?? 0, colorTotal);
+                    return (this.b2bStock || 0) + val <= physical;
+                },
+                message: "b2cStock must be an integer and b2bStock + b2cStock must not exceed physical stock",
+            },
         },
 
         // ================= PRODUCT IMAGES & GIFT BOX PHOTOS =================
@@ -240,6 +279,34 @@ const productSchema = new mongoose.Schema(
                         type: Number,
                         default: 0,
                     },
+                    b2bStock: {
+                        type: Number,
+                        default: 0,
+                        min: [0, "Color b2bStock cannot be negative"],
+                        validate: {
+                            validator: function (val) {
+                                if (val === undefined || val === null) return true;
+                                if (!Number.isInteger(val)) return false;
+                                const physical = this.stock ?? 0;
+                                return val + (this.b2cStock || 0) <= physical;
+                            },
+                            message: "Color b2bStock must be an integer and b2bStock + b2cStock must not exceed color stock",
+                        },
+                    },
+                    b2cStock: {
+                        type: Number,
+                        default: 0,
+                        min: [0, "Color b2cStock cannot be negative"],
+                        validate: {
+                            validator: function (val) {
+                                if (val === undefined || val === null) return true;
+                                if (!Number.isInteger(val)) return false;
+                                const physical = this.stock ?? 0;
+                                return (this.b2bStock || 0) + val <= physical;
+                            },
+                            message: "Color b2cStock must be an integer and b2bStock + b2cStock must not exceed color stock",
+                        },
+                    },
                 },
             ],
             default: [
@@ -248,6 +315,8 @@ const productSchema = new mongoose.Schema(
                     hex: "#2E7D32",
                     images: [],
                     stock: 0,
+                    b2bStock: 0,
+                    b2cStock: 0,
                 },
             ],
         },
@@ -328,8 +397,18 @@ const productSchema = new mongoose.Schema(
 // VIRTUAL: totalStock (sum across all color variants)
 // =============================
 productSchema.virtual("totalStock").get(function () {
-    if (!this.colors || this.colors.length === 0) return 0;
+    if (!this.colors || this.colors.length === 0) return this.stockQuantity || 0;
     return this.colors.reduce((sum, c) => sum + (c.stock || 0), 0);
+});
+
+productSchema.virtual("totalB2CStock").get(function () {
+    if (!this.colors || this.colors.length === 0) return this.b2cStock || 0;
+    return this.colors.reduce((sum, c) => sum + (c.b2cStock || 0), 0);
+});
+
+productSchema.virtual("totalB2BStock").get(function () {
+    if (!this.colors || this.colors.length === 0) return this.b2bStock || 0;
+    return this.colors.reduce((sum, c) => sum + (c.b2bStock || 0), 0);
 });
 
 // =============================

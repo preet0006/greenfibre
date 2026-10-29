@@ -67,8 +67,79 @@ function StatusBadge({ status }) {
       icon: XCircle,
       label: "Cancelled",
     },
+    undelivered: {
+      bg: "bg-amber-100",
+      text: "text-amber-800",
+      icon: Clock,
+      label: "Delivery Attempt Failed",
+    },
+    qc_failed: {
+      bg: "bg-red-100",
+      text: "text-red-700",
+      icon: XCircle,
+      label: "QC Failed",
+    },
+    lost: {
+      bg: "bg-red-100",
+      text: "text-red-800",
+      icon: XCircle,
+      label: "Package Lost in Transit",
+    },
+    rto_initiated: {
+      bg: "bg-orange-100",
+      text: "text-orange-800",
+      icon: Truck,
+      label: "Returning to Origin",
+    },
+    rto_in_transit: {
+      bg: "bg-orange-100",
+      text: "text-orange-800",
+      icon: Truck,
+      label: "Return in Transit",
+    },
+    rto_delivered: {
+      bg: "bg-gray-100",
+      text: "text-gray-700",
+      icon: CheckCircle,
+      label: "Returned to Warehouse",
+    },
+    return_out_for_pickup: {
+      bg: "bg-indigo-100",
+      text: "text-indigo-700",
+      icon: Truck,
+      label: "Return Out for Pickup",
+    },
+    return_picked_up: {
+      bg: "bg-indigo-100",
+      text: "text-indigo-700",
+      icon: Package,
+      label: "Return Picked Up",
+    },
+    return_in_transit: {
+      bg: "bg-indigo-100",
+      text: "text-indigo-700",
+      icon: Truck,
+      label: "Return in Transit",
+    },
+    return_delivered: {
+      bg: "bg-gray-100",
+      text: "text-gray-700",
+      icon: CheckCircle,
+      label: "Return Delivered",
+    },
+    failed: {
+      bg: "bg-red-100",
+      text: "text-red-700",
+      icon: XCircle,
+      label: "Failed",
+    },
   };
-  const config = configs[status] || configs.placed;
+  const config = configs[status] || {
+    bg: "bg-gray-100",
+    text: "text-gray-600",
+    icon: Package,
+    label: status ?? "Unknown",
+  };
   const Icon = config.icon;
   return (
     <span
@@ -157,11 +228,10 @@ export default function OrderDetailPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <StatusBadge status={order.orderStatus} />
                   <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      order.paymentStatus === "paid"
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${order.paymentStatus === "paid"
                         ? "bg-green-100 text-green-700"
                         : "bg-amber-100 text-amber-700"
-                    }`}
+                      }`}
                   >
                     {order.paymentStatus === "paid" ? "Paid" : "Payment pending"}
                   </span>

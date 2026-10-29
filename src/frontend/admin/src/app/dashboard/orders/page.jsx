@@ -38,6 +38,12 @@ import { Input } from "@/components/ui/input";
 
 // ── Status configurations ──────────────────────────────────────
 const ORDER_STATUS = {
+  pending: {
+    label: "Pending",
+    color: "#64748b",
+    bg: "#f1f5f9",
+    icon: Clock,
+  },
   placed: {
     label: "Placed",
     color: "#0284c7",
@@ -68,9 +74,81 @@ const ORDER_STATUS = {
     bg: "#d1fae5",
     icon: CheckCircle2,
   },
+  undelivered: {
+    label: "Undelivered (NDR)",
+    color: "#ea580c",
+    bg: "#ffedd5",
+    icon: AlertTriangle,
+  },
+  qc_failed: {
+    label: "QC Failed",
+    color: "#dc2626",
+    bg: "#fee2e2",
+    icon: AlertCircle,
+  },
+  lost: {
+    label: "Lost / Damaged",
+    color: "#991b1b",
+    bg: "#fee2e2",
+    icon: AlertCircle,
+  },
+  rto_initiated: {
+    label: "RTO Initiated",
+    color: "#c2410c",
+    bg: "#ffedd5",
+    icon: RefreshCw,
+  },
+  rto_in_transit: {
+    label: "RTO In Transit",
+    color: "#b45309",
+    bg: "#fef3c7",
+    icon: Truck,
+  },
+  rto_delivered: {
+    label: "RTO Delivered",
+    color: "#475569",
+    bg: "#f1f5f9",
+    icon: CheckCircle2,
+  },
+  return_out_for_pickup: {
+    label: "Return Out for Pickup",
+    color: "#4f46e5",
+    bg: "#e0e7ff",
+    icon: Truck,
+  },
+  return_picked_up: {
+    label: "Return Picked Up",
+    color: "#4338ca",
+    bg: "#e0e7ff",
+    icon: Package,
+  },
+  return_in_transit: {
+    label: "Return In Transit",
+    color: "#3730a3",
+    bg: "#e0e7ff",
+    icon: Truck,
+  },
+  return_delivered: {
+    label: "Return Delivered",
+    color: "#334155",
+    bg: "#f1f5f9",
+    icon: CheckCircle2,
+  },
   cancelled: {
     label: "Cancelled",
     color: "#ef4444",
+    bg: "#fee2e2",
+    icon: XCircle,
+  },
+  failed: {
+    label: "Failed",
+    color: "#dc2626",
+    bg: "#fee2e2",
+    icon: XCircle,
+  },
+  payment_failed: {
+    label: "Payment Failed",
+    color: "#b91c1c",
     bg: "#fee2e2",
     icon: XCircle,
   },
@@ -120,22 +198,70 @@ function OrderDetailModal({ order, onClose }) {
   if (!order) return null;
 
   const [status, setStatus] = useState(order.orderStatus || "placed");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [backendError, setBackendError] = useState("");
+  const [requiresOverride, setRequiresOverride] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const [showConfirmRelease, setShowConfirmRelease] = useState(false);
   const updateOrderStatus = useOrderStore((s) => s.updateOrderStatus);
   const releaseShipment = useOrderStore((s) => s.releaseShipment);
 
+  const isTerminalOrLocked = useMemo(() => {
+    return [
+      "delivered",
+      "rto_delivered",
+      "return_delivered",
+      "cancelled",
+      "failed",
+      "payment_failed",
+      "lost",
+      "qc_failed",
+    ].includes(order.orderStatus);
+  }, [order.orderStatus]);
+
   useEffect(() => {
     setStatus(order.orderStatus || "placed");
+    setOverrideReason("");
+    setBackendError("");
+    setRequiresOverride(false);
     setShowConfirmRelease(false);
   }, [order.orderStatus, order._id]);
 
   const handleUpdateStatus = async () => {
     if (!status || status === order.orderStatus) return;
+
+    // Check if moving to shipped/delivered without an AWB
+    const hasAwb = Boolean(shipping.trackingNumber || shipping.awbCode);
+    const isShippingOrDelivery = ["shipped", "delivered"].includes(status);
+
+    if (isShippingOrDelivery && !hasAwb) {
+      const confirmed = window.confirm(
+        "No courier is booked for this order. Changing the status will NOT ship the parcel."
+      );
+      if (!confirmed) return;
+    }
+
     setUpdating(true);
-    await updateOrderStatus(order._id, { status });
+    setBackendError("");
+
+    const res = await updateOrderStatus(order._id, {
+      status,
+      overrideReason: overrideReason.trim(),
+    });
+
     setUpdating(false);
+
+    if (!res?.success) {
+      setBackendError(res?.error || "Failed to update status");
+      if (res?.requiresOverride) {
+        setRequiresOverride(true);
+      }
+    } else {
+      setBackendError("");
+      setRequiresOverride(false);
+      setOverrideReason("");
+    }
   };
 
   const handleReleaseShipment = async () => {
@@ -171,7 +297,7 @@ function OrderDetailModal({ order, onClose }) {
               Order Details
             </h3>
             <p className="text-sm text-gray-400 mt-0.5">
-              Order #{order.easebuzzOrderId || order._id?.slice(-8)}
+              Order #{order.orderNumber || order.easebuzzOrderId || order._id?.slice(-8)}
             </p>
           </div>
           <button
@@ -262,21 +388,37 @@ function OrderDetailModal({ order, onClose }) {
                 Change Order Status
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Selecting <strong className="text-purple-700">Shipped</strong> will automatically create a Shiprocket order and generate tracking AWB.
+                Manage order lifecycle state. To book courier, assign AWB, and schedule pickup, use &quot;Release &amp; Book Courier&quot; below.
               </p>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => {
+                  setStatus(e.target.value);
+                  setBackendError("");
+                }}
                 className="flex-1 h-11 px-3.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-600 cursor-pointer"
               >
+                <option value="pending">⏳ Pending (Awaiting confirmation)</option>
                 <option value="placed">📦 Placed (Order Confirmed)</option>
                 <option value="processing">⚙️ Processing (In Warehouse)</option>
-                <option value="shipped">🚚 Shipped (Dispatch via Shiprocket)</option>
+                <option value="shipped">🚚 Shipped</option>
                 <option value="delivered">✅ Delivered (Completed)</option>
+                <option value="undelivered">⚠️ Undelivered (NDR / Attempt Failed)</option>
+                <option value="qc_failed">🛑 QC Failed (Quality check failed)</option>
+                <option value="lost">🚨 Lost / Damaged</option>
+                <option value="rto_initiated">🔄 RTO Initiated</option>
+                <option value="rto_in_transit">🚚 RTO In Transit</option>
+                <option value="rto_delivered">🏁 RTO Delivered</option>
+                <option value="return_out_for_pickup">📦 Return Out for Pickup</option>
+                <option value="return_picked_up">📫 Return Picked Up</option>
+                <option value="return_in_transit">🚚 Return In Transit</option>
+                <option value="return_delivered">🏁 Return Delivered</option>
                 <option value="cancelled">❌ Cancelled</option>
+                <option value="failed">❌ Failed</option>
+                <option value="payment_failed">💳 Payment Failed</option>
               </select>
 
               <button
@@ -298,6 +440,34 @@ function OrderDetailModal({ order, onClose }) {
                 )}
               </button>
             </div>
+
+            {/* Admin Override Reason Input */}
+            {(isTerminalOrLocked || requiresOverride) && (
+              <div className="mt-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-700" />
+                  Admin Override Reason (Required for Terminal &amp; Locked States)
+                </div>
+                <input
+                  type="text"
+                  placeholder="Enter reason for override (e.g. Customer requested re-dispatch, package recovered)..."
+                  value={overrideReason}
+                  onChange={(e) => setOverrideReason(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-amber-300 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                />
+              </div>
+            )}
+
+            {/* Backend Error Message Banner */}
+            {backendError && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">Status Update Blocked by State Machine</p>
+                  <p className="mt-0.5">{backendError}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 🚀 Stage 2: Courier Release Action Box */}
@@ -739,7 +909,7 @@ function OrderRow({ order, index, onViewDetails }) {
             {userName}
           </p>
           <p className="text-xs text-gray-400 truncate">
-            #{order.easebuzzOrderId || order._id?.slice(-8)}
+            #{order.orderNumber || order.easebuzzOrderId || order._id?.slice(-8)}
           </p>
         </div>
 
@@ -831,7 +1001,7 @@ function OrderRow({ order, index, onViewDetails }) {
 // ── Main Page ──────────────────────────────────────────────────
 export default function OrdersPage() {
   const { orders, loading, fetchAllOrders } = useOrderStore();
-  
+
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterPayment, setFilterPayment] = useState("All");
@@ -845,7 +1015,7 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchAllOrders();
   }, []);
- 
+
   // ── Filtered ──────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...orders];
@@ -1033,19 +1203,18 @@ export default function OrdersPage() {
                     <button
                       key={s}
                       onClick={() => setFilterStatus(s)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
-                        active
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${active
                           ? "text-white shadow-sm"
                           : "text-gray-500 bg-white border border-gray-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200"
-                      }`}
+                        }`}
                       style={
                         active && config
                           ? { background: config.color }
                           : active
                             ? {
-                                background:
-                                  "linear-gradient(135deg, #15803d, #22c55e)",
-                              }
+                              background:
+                                "linear-gradient(135deg, #15803d, #22c55e)",
+                            }
                             : {}
                       }
                     >
@@ -1074,19 +1243,18 @@ export default function OrdersPage() {
                 <button
                   key={s}
                   onClick={() => setFilterPayment(s)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    active
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 ${active
                       ? "text-white shadow-sm"
                       : "text-gray-500 bg-white border border-gray-200 hover:bg-green-50 hover:text-green-600 hover:border-green-200"
-                  }`}
+                    }`}
                   style={
                     active && config
                       ? { background: config.color }
                       : active
                         ? {
-                            background:
-                              "linear-gradient(135deg, #15803d, #22c55e)",
-                          }
+                          background:
+                            "linear-gradient(135deg, #15803d, #22c55e)",
+                        }
                         : {}
                   }
                 >

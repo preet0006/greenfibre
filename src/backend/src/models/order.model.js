@@ -22,6 +22,10 @@ const orderItemSchema = new mongoose.Schema(
             type: Number,
             required: true,
         },
+        shippedQuantity: {
+            type: Number,
+            default: 0,
+        },
         price: {
             type: Number,
             required: true,
@@ -51,6 +55,14 @@ const orderSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: true,
+        },
+
+        // Human-friendly unique order number (e.g. GF-2026-000123)
+        orderNumber: {
+            type: String,
+            unique: true,
+            sparse: true,
+            index: true,
         },
 
         items: [orderItemSchema],
@@ -97,6 +109,16 @@ const orderSchema = new mongoose.Schema(
                 "processing",
                 "shipped",
                 "delivered",
+                "undelivered",
+                "qc_failed",
+                "lost",
+                "rto_initiated",
+                "rto_in_transit",
+                "rto_delivered",
+                "return_out_for_pickup",
+                "return_picked_up",
+                "return_in_transit",
+                "return_delivered",
                 "cancelled",
                 "failed",
                 "payment_failed",
@@ -131,6 +153,9 @@ const orderSchema = new mongoose.Schema(
                 deliveredAt: Date,
                 labelUrl: String,             // Shiprocket label PDF URL
                 manifestUrl: String,          // Shiprocket manifest PDF URL
+                lastCourierStatus: String,    // Raw incoming courier status string
+                lastCourierTimestamp: String, // Incoming courier timestamp for deduplication
+                lastCourierRaw: Object,       // Full unmapped courier scans/payload
             },
             default: () => ({}),
         },
@@ -141,6 +166,34 @@ const orderSchema = new mongoose.Schema(
             default: false,
         },
         stockConflictNotes: [String],
+
+        // Idempotency flags for payment fulfillment
+        stockDeducted: {
+            type: Boolean,
+            default: false,
+        },
+        stockRestored: {
+            type: Boolean,
+            default: false,
+        },
+        orderChannel: {
+            type: String,
+            enum: ["b2c", "b2b", "mobile"],
+            default: "b2c",
+            index: true,
+        },
+        couponApplied: {
+            type: Boolean,
+            default: false,
+        },
+        invoiceClaimedAt: {
+            type: Date,
+            default: null,
+        },
+        dispatchClaimedAt: {
+            type: Date,
+            default: null,
+        },
 
         // Status history
         statusHistory: [
@@ -157,6 +210,32 @@ const orderSchema = new mongoose.Schema(
         // Cancellation
         cancellationReason: String,
         cancelledAt: Date,
+
+        // ── Reward Points ──────────────────────────────────────────────────
+        // Points deducted from user balance at order creation (REDEEM ledger entry)
+        rewardPointsRedeemed: {
+            type: Number,
+            default: 0,
+        },
+        // \u20b9 discount applied from reward redemption (points × point_value)
+        rewardDiscount: {
+            type: Number,
+            default: 0,
+        },
+        // Points credited to user after successful payment (EARN ledger entry)
+        rewardPointsEarned: {
+            type: Number,
+            default: 0,
+        },
+        // Snapshot of the config rates at order-creation time
+        // Prevents later config changes from altering this order's earn/redeem logic
+        rewardConfigSnapshot: {
+            earn_percent: { type: Number },
+            point_value: { type: Number },
+            max_redeem_percent: { type: Number },
+            direct_percent: { type: Number },
+            coupon_percent: { type: Number },
+        },
     },
     { timestamps: true }
 );

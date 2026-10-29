@@ -147,27 +147,25 @@ export default function ContactPage() {
   const isPhoneLocked = isLoggedIn && Boolean((formData.phone || "").trim());
 
   // Fallback defaults if page settings are not yet configured in DB
-  const defaultEmails = ["greenfibre.marketing@gmail.com", ""];
-  const defaultPhones = ["+91 98765 43210", "+91 87654 32109"];
+  const defaultEmails = ["info@greenfibre.org"];
+  const defaultPhones = ["+91 9217328777", "+91 9217988874"];
   const defaultAddress =
-    "334, Ecotech-3 ,Udyog Kendra 2, Greater Noida, Uttar Pradesh - 201306";
+    "Plot no: 334, Udyog Kendra 2, Ecotech III, Greater Noida, Uttar Pradesh 201306";
   const defaultWhatsApp = "+91 9217988874";
   const mapEmbedUrl =
     settings?.googleMapEmbedUrl ||
     "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3505.25943799619!2d77.47238697495301!3d28.53192068864341!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390cebde114dff31%3A0xc7e173c48c5b9a1f!2s334%2C%20Udyog%20Kendra%202%2C%20Ecotech%20III%2C%20Greater%20Noida%2C%20Tusyana%2C%20Uttar%20Pradesh%20201306!5e0!3m2!1sen!2sin!4v1787641826858!5m2!1sen!2sin";
 
   const emails =
-    settings?.emails && settings.emails.length > 0
+    settings?.emails && settings.emails.length > 0 && !settings.emails[0].includes("marketing@gmail")
       ? settings.emails
       : defaultEmails;
   const phoneNumbers =
-    settings?.phoneNumbers && settings.phoneNumbers.length > 0
+    settings?.phoneNumbers && settings.phoneNumbers.length > 0 && !settings.phoneNumbers[0].includes("98765")
       ? settings.phoneNumbers
       : defaultPhones;
-  const addressList = settings?.address ? [settings.address] : [defaultAddress];
-  const whatsAppList = settings?.whatsappNumber
-    ? [settings.whatsappNumber]
-    : [defaultWhatsApp];
+  const addressList = [defaultAddress];
+  const whatsAppList = [defaultWhatsApp];
 
   const contactInfo = [
     {
@@ -222,7 +220,7 @@ export default function ContactPage() {
               fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
             }}
           >
-            We'd Love to
+            We&apos;d Love to
             <br />
             Hear From You
           </motion.h1>
@@ -234,7 +232,7 @@ export default function ContactPage() {
             className="text-lg text-gray-600 max-w-2xl mx-auto"
           >
             Have questions about our sustainable products? Want to learn more
-            about our eco-friendly initiatives? We're here to help!
+            about our eco-friendly initiatives? We&apos;re here to help!
           </motion.p>
         </div>
       </div>
@@ -356,7 +354,7 @@ export default function ContactPage() {
                 Send Us a Message
               </h2>
               <p className="text-base text-gray-600 mb-8">
-                Fill out the form below and we'll get back to you as soon as
+                Fill out the form below and we&apos;ll get back to you as soon as
                 possible.
               </p>
 
@@ -377,7 +375,7 @@ export default function ContactPage() {
                 >
                   <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
                   <p className="text-sm text-green-700">
-                    Thank you! Your message has been sent successfully. We'll
+                    Thank you! Your message has been sent successfully. We&apos;ll
                     get back to you soon.
                   </p>
                 </motion.div>
