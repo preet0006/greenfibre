@@ -28,8 +28,8 @@ def should_exclude(path):
     normalized = path.replace('\\', '/')
     parts = normalized.split('/')
     
-    # Exclude development artifact directories
-    exclude_dirs = {'node_modules', '.next', '.git', '.idea', '.vscode', 'out', 'dist'}
+    # Exclude development artifact directories and test suites
+    exclude_dirs = {'node_modules', '.next', '.git', '.idea', '.vscode', 'out', 'dist', 'tests'}
     for p in parts:
         if p in exclude_dirs:
             return True
@@ -53,7 +53,7 @@ def make_tarfile(output_filename, source_dir):
                 
                 # Strip the 'src' prefix so it unpacks directly into green-api, green-main, etc.
                 rel_path = os.path.relpath(full_path, source_dir)
-                tar.add(full_path, arcname=rel_path)
+                tar.add(full_path, arcname=rel_path.replace('\\', '/'))
                 count += 1
     print(f"✨ Created archive with {count} files.")
 
@@ -108,10 +108,10 @@ def main():
         # Backup environment files to be absolutely safe
         run_ssh_command(
             ssh, 
-            "mkdir -p /root/env_backups && "
-            "cp /var/www/greenfibre/src/backend/.env /root/env_backups/backend.env 2>/dev/null || true && "
-            "cp /var/www/greenfibre/src/frontend/main/.env.production /root/env_backups/main.env 2>/dev/null || true && "
-            "cp /var/www/greenfibre/src/frontend/admin/.env.production /root/env_backups/admin.env 2>/dev/null || true",
+            "mkdir -p /root/env_backups/backend /root/env_backups/main /root/env_backups/admin && "
+            "cp /var/www/greenfibre/src/backend/.env* /root/env_backups/backend/ 2>/dev/null || true && "
+            "cp /var/www/greenfibre/src/frontend/main/.env* /root/env_backups/main/ 2>/dev/null || true && "
+            "cp /var/www/greenfibre/src/frontend/admin/.env* /root/env_backups/admin/ 2>/dev/null || true",
             "Backing up remote env files"
         )
         
@@ -139,9 +139,9 @@ def main():
         # Restore environment files in case anything got overwritten
         run_ssh_command(
             ssh,
-            "cp /root/env_backups/backend.env /var/www/greenfibre/src/backend/.env 2>/dev/null || true && "
-            "cp /root/env_backups/main.env /var/www/greenfibre/src/frontend/main/.env.production 2>/dev/null || true && "
-            "cp /root/env_backups/admin.env /var/www/greenfibre/src/frontend/admin/.env.production 2>/dev/null || true",
+            "cp /root/env_backups/backend/.env* /var/www/greenfibre/src/backend/ 2>/dev/null || true && "
+            "cp /root/env_backups/main/.env* /var/www/greenfibre/src/frontend/main/ 2>/dev/null || true && "
+            "cp /root/env_backups/admin/.env* /var/www/greenfibre/src/frontend/admin/ 2>/dev/null || true",
             "Restoring env files"
         )
         

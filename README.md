@@ -150,6 +150,115 @@ Exact server credentials and live `.env` values are **out of band** — not in t
 - Rotate credentials after handover (see `SECURITY_CREDENTIAL_ROTATION.md`)
 - Email mailbox ownership must be transferred via Google / provider settings (see `EMAIL_HANDOVER_NOTE.md`)
 
+## Channel Stock Management (B2B / B2C)
+
+GreenFibre isolates retail (B2C & mobile) and wholesale (B2B) inventory pools while ensuring that `b2bStock + b2cStock <= physicalStock` at all times.
+
+### Migration Script
+Backfills channel stock from PostgreSQL Neon allocation rules (or 100% B2C default):
+```bash
+# Dry run (simulates changes without database writes)
+node src/scripts/migrate-channel-stock.js --dry-run
+
+# Live execution (idempotent bulkWrite batches of 500)
+node src/scripts/migrate-channel-stock.js
+```
+
+### Admin Endpoints
+
+#### 1. Batch / Single Stock Allocation Update
+- **Method & Route**: `PUT /api/admin/stock/channel`
+- **Auth**: Admin authentication token (`adminAuthMiddleware`)
+- **Headers**: `Content-Type: application/json`
+
+**Single Product Request Body:**
+```json
+{
+  "productId": "6abb7adb3b3433817a2a5dbb",
+  "b2bStock": 80,
+  "b2cStock": 20
+}
+```
+
+**Multi-Product Request Body (with SKU / ID and modes):**
+```json
+{
+  "mode": "set",
+  "items": [
+    {
+      "sku": "GF-FAMILY-PACK",
+      "b2bStock": 100,
+      "b2cStock": 250
+    },
+    {
+      "productId": "6abb9ea741c3bdffa53c2df3",
+      "b2bStock": 40,
+      "b2cStock": 80
+    }
+  ]
+}
+```
+
+**Response (HTTP 200 / 207 / 400):**
+```json
+{
+  "success": true,
+  "summary": {
+    "total": 2,
+    "updated": 2,
+    "failed": 0
+  },
+  "results": [
+    {
+      "sku": "GF-FAMILY-PACK",
+      "productId": "6abb7adb3b3433817a2a5dbb",
+      "status": "updated",
+      "b2bStock": 100,
+      "b2cStock": 250
+    },
+    {
+      "sku": "GF-DESK-SET",
+      "productId": "6abb9ea741c3bdffa53c2df3",
+      "status": "updated",
+      "b2bStock": 40,
+      "b2cStock": 80
+    }
+  ]
+}
+```
+
+#### 2. Inventory Channel Table
+- **Method & Route**: `GET /api/admin/stock/channel?search=&page=1&limit=20`
+- **Auth**: Admin authentication token (`adminAuthMiddleware`)
+- **Query Params**:
+  - `search` (optional): Filter by SKU or product name
+  - `page` (optional): Page number (default: 1)
+  - `limit` (optional): Page size (default: 20, max: 100)
+
+**Response (HTTP 200):**
+```json
+{
+  "success": true,
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 21,
+    "pages": 2
+  },
+  "inventory": [
+    {
+      "id": "6abb7adb3b3433817a2a5dbb",
+      "sku": "GF-FAMILY-PACK",
+      "name": "Eco Green Fibre Family Pack",
+      "warehouse": "Central Facility",
+      "physicalStock": 100,
+      "b2bStock": 80,
+      "b2cStock": 20
+    }
+  ]
+}
+```
+
 ## License / ownership
 
 Prepared for client handover of the GreenFibre production application source.
