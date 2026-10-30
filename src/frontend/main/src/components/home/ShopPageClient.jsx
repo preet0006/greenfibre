@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -13,14 +13,20 @@ import {
   SlidersHorizontal,
   X,
   ChevronDown,
+  ChevronRight,
   Grid3x3,
   LayoutGrid,
+  List,
   Heart,
   Package,
   Search,
-  ChevronRight,
   Loader2,
   Sparkles,
+  Utensils,
+  Gift,
+  Coffee,
+  PawPrint,
+  Leaf,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -45,20 +51,89 @@ const fadeUp = {
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
+// ── Category Icon Renderer ─────────────────────────────────────
+function CategoryIcon({ slug = "", name = "", className = "h-4 w-4" }) {
+  const s = `${slug} ${name}`.toLowerCase();
+  if (s.includes("bottle")) {
+    return (
+      <svg
+        className={className}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M8 2h8" />
+        <path d="M9 2v3a2 2 0 0 1-2 2h0a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h0a2 2 0 0 1-2-2V2" />
+      </svg>
+    );
+  }
+  if (s.includes("planter") || s.includes("plant")) {
+    return (
+      <svg
+        className={className}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 10V2" />
+        <path d="M12 5a3 3 0 0 0-3-3H7v3a3 3 0 0 0 3 3h2" />
+        <path d="M12 7a3 3 0 0 1 3-3h2v3a3 3 0 0 1-3 3h-2" />
+        <path d="M6 10h12l-1.5 11h-9L6 10z" />
+      </svg>
+    );
+  }
+  if (s.includes("storage") || s.includes("box")) {
+    return (
+      <svg
+        className={className}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <ellipse cx="12" cy="7" rx="8" ry="3" />
+        <path d="M4 7v10c0 1.66 3.58 3 8 3s8-1.34 8-3V7" />
+        <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+      </svg>
+    );
+  }
+  if (s.includes("tableware") || s.includes("dining") || s.includes("kitchen")) {
+    return <Utensils className={className} />;
+  }
+  if (s.includes("gift")) {
+    return <Gift className={className} />;
+  }
+  if (s.includes("drink")) {
+    return <Coffee className={className} />;
+  }
+  if (s.includes("pet")) {
+    return <PawPrint className={className} />;
+  }
+  return <Leaf className={className} />;
+}
+
 // ── Skeleton Card ─────────────────────────────────────────────
 function SkeletonCard({ compact }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+    <div className="overflow-hidden rounded-[14px] sm:rounded-2xl border border-gray-200 bg-white">
       <div className="aspect-square animate-pulse bg-gray-100" />
-      <div className="p-4 space-y-2.5">
-        <div className="h-3 w-20 animate-pulse rounded-full bg-gray-200" />
+      <div className="p-3 sm:p-4 space-y-2">
+        <div className="h-3 w-16 sm:w-20 animate-pulse rounded-full bg-gray-200" />
         <div className="h-4 w-full animate-pulse rounded-xl bg-gray-100" />
         {!compact && (
-          <div className="h-4 w-3/4 animate-pulse rounded-xl bg-gray-100" />
+          <div className="h-3.5 w-3/4 animate-pulse rounded-xl bg-gray-100 hidden sm:block" />
         )}
-        <div className="mt-3 flex items-center justify-between">
-          <div className="h-6 w-24 animate-pulse rounded-full bg-gray-200" />
-          <div className="h-8 w-8 animate-pulse rounded-full bg-gray-100" />
+        <div className="mt-2.5 flex items-center justify-between">
+          <div className="h-5 w-20 sm:h-6 sm:w-24 animate-pulse rounded-full bg-gray-200" />
+          <div className="h-6 w-6 sm:h-8 sm:w-8 animate-pulse rounded-full bg-gray-100" />
         </div>
       </div>
     </div>
@@ -75,8 +150,9 @@ function ProductCard({ product, compact = false }) {
   const [wishLoading, setWishLoading] = useState(false);
 
   // 10% regular discount + 10% more Diwali special offer (20% total discount)
-  const originalPrice = Number(product.originalPrice) || Number(product.discountedPrice) || 0;
-  const offerPrice = Math.round(originalPrice * 0.80);
+  const originalPrice =
+    Number(product.originalPrice) || Number(product.discountedPrice) || 0;
+  const offerPrice = Math.round(originalPrice * 0.8);
   const inStock = product.totalStock > 0;
   const isWishlisted = wishlist.some(
     (item) => item._id === product._id || item.productId === product._id,
@@ -89,6 +165,7 @@ function ProductCard({ product, compact = false }) {
 
   const handleWishlist = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!user) {
       router.push("/login");
       return;
@@ -99,36 +176,36 @@ function ProductCard({ product, compact = false }) {
   };
 
   return (
-    <motion.div variants={fadeUp}>
+    <motion.div variants={fadeUp} className="h-full">
       <Link
         href={`/shop/${product.slug}`}
-        className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:shadow-md"
+        className="group flex h-full flex-col overflow-hidden rounded-[14px] sm:rounded-2xl border border-gray-200/90 bg-white shadow-2xs transition-all hover:shadow-md"
       >
         {/* Image */}
-        <div className="relative aspect-square overflow-hidden bg-gray-50/80 flex items-center justify-center">
+        <div className="relative aspect-square overflow-hidden bg-[#FAF7F2] sm:bg-gray-50/80 flex items-center justify-center">
           {imgSrc ? (
             <Image
               src={imgSrc}
               alt={product.name}
               fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <Package className="h-10 w-10 text-gray-300" />
+              <Package className="h-8 w-8 sm:h-10 sm:w-10 text-gray-300" />
             </div>
           )}
 
           {/* Top Discount Badge */}
-          <span className="absolute left-2.5 top-2.5 z-10 rounded-full bg-green-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+          <span className="absolute left-2 top-2 sm:left-2.5 sm:top-2.5 z-10 rounded-full bg-green-600 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[10px] sm:text-xs font-bold text-white shadow-xs">
             20% OFF
           </span>
 
           {/* Out of stock overlay */}
           {!inStock && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-              <span className="rounded-full bg-white border-2 border-red-500 px-4 py-1.5 text-xs font-bold text-red-500 shadow-sm">
+            <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10">
+              <span className="rounded-full bg-white border-2 border-red-500 px-3 py-1 text-[10px] sm:text-xs font-bold text-red-500 shadow-sm">
                 Out of Stock
               </span>
             </div>
@@ -138,43 +215,51 @@ function ProductCard({ product, compact = false }) {
           <button
             onClick={handleWishlist}
             disabled={wishLoading}
-            className={`absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-sm border shadow-sm transition-all hover:scale-110 disabled:opacity-50 ${isWishlisted
-              ? "bg-red-500 border-red-500 text-white"
-              : "bg-white/95 border-gray-200 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500"
-              }`}
+            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+            className={`absolute right-2 top-2 sm:right-2.5 sm:top-2.5 z-10 flex h-7 w-7 sm:h-9 sm:w-9 items-center justify-center rounded-full border shadow-2xs transition-all hover:scale-110 disabled:opacity-50 ${
+              isWishlisted
+                ? "bg-red-500 border-red-500 text-white"
+                : "bg-white/95 border-gray-200/90 text-gray-600 hover:bg-red-50 hover:border-red-200 hover:text-red-500"
+            }`}
           >
             <Heart
-              className={`h-4 w-4 ${isWishlisted ? "fill-current" : ""}`}
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isWishlisted ? "fill-current" : ""}`}
             />
           </button>
         </div>
 
         {/* Info */}
-        <div className="flex flex-1 flex-col p-4">
+        <div className="flex flex-1 flex-col p-2.5 sm:p-4">
           {product.category?.name && (
-            <span className="mb-1.5 text-xs font-medium text-gray-500">
+            <span className="mb-0.5 sm:mb-1.5 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">
               {product.category.name}
             </span>
           )}
           <h3
-            className={`mb-2 flex-1 text-sm font-semibold leading-snug text-gray-900 ${compact ? "line-clamp-1" : "line-clamp-2"}`}
+            className={`mb-1.5 sm:mb-2 flex-1 text-[13px] sm:text-sm font-semibold leading-[1.35] text-gray-900 ${
+              compact ? "line-clamp-1" : "line-clamp-2"
+            }`}
+            style={{
+              fontFamily:
+                "var(--font-cormorant, 'Cormorant Garamond', serif)",
+            }}
           >
             {product.name}
           </h3>
 
           {/* Colors */}
           {product.colors && product.colors.length > 0 && (
-            <div className="mb-3 flex items-center gap-1.5">
+            <div className="mb-1.5 sm:mb-3 flex items-center gap-1 sm:gap-1.5">
               {product.colors.slice(0, 4).map((color, idx) => (
                 <div
                   key={idx}
-                  className="h-5 w-5 rounded-full border-2 border-gray-200 shadow-sm"
+                  className="h-3.5 w-3.5 sm:h-5 sm:w-5 rounded-full border border-gray-200 shadow-2xs"
                   style={{ background: color.hex || "#e5e7eb" }}
                   title={color.name}
                 />
               ))}
               {product.colors.length > 4 && (
-                <span className="text-xs text-gray-500">
+                <span className="text-[10px] sm:text-xs text-gray-500">
                   +{product.colors.length - 4}
                 </span>
               )}
@@ -182,20 +267,20 @@ function ProductCard({ product, compact = false }) {
           )}
 
           {/* Diwali Special Offer Tag */}
-          <div className="mb-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 text-[11px] font-semibold text-amber-900 shadow-2xs">
-              <span>🪔</span>
+          <div className="mb-1.5 sm:mb-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200/80 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-amber-900 shadow-2xs whitespace-normal leading-tight">
+              <span>🏷️</span>
               <span>Diwali Special: 10% + 10% More</span>
             </span>
           </div>
 
           {/* Price */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold text-green-600">
+          <div className="mt-auto flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-[15px] sm:text-lg font-bold text-green-700 sm:text-green-600">
               {formatPrice(offerPrice)}
             </span>
             {originalPrice > offerPrice && (
-              <span className="text-sm text-gray-400 line-through">
+              <span className="text-[11px] sm:text-sm text-gray-400 line-through">
                 {formatPrice(originalPrice)}
               </span>
             )}
@@ -206,7 +291,7 @@ function ProductCard({ product, compact = false }) {
   );
 }
 
-// ── Filter Sidebar ────────────────────────────────────────────
+// ── Desktop Filter Sidebar (100% UNCHANGED for Desktop / Tablet) ──
 function FilterSidebar({
   filters,
   onFilterChange,
@@ -219,6 +304,13 @@ function FilterSidebar({
     min: filters.minPrice || "",
     max: filters.maxPrice || "",
   });
+
+  useEffect(() => {
+    setPriceRange({
+      min: filters.minPrice || "",
+      max: filters.maxPrice || "",
+    });
+  }, [filters.minPrice, filters.maxPrice]);
 
   const handlePriceApply = () => {
     onFilterChange({
@@ -243,7 +335,7 @@ function FilterSidebar({
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Header (mobile) */}
+        {/* Header (tablet/mobile slide-out) */}
         <div className="flex items-center justify-between border-b border-gray-200 p-4 lg:hidden">
           <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
           <button
@@ -263,21 +355,23 @@ function FilterSidebar({
             <div className="space-y-2">
               <button
                 onClick={() => onFilterChange({ category: "" })}
-                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${!filters.category
-                  ? "bg-green-50 text-green-700 font-semibold"
-                  : "text-gray-700 hover:bg-gray-50"
-                  }`}
+                className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
+                  !filters.category
+                    ? "bg-green-50 text-green-700 font-semibold"
+                    : "text-gray-700 hover:bg-gray-50"
+                }`}
               >
                 All Categories
               </button>
               {categories.map((cat) => (
                 <button
                   key={cat._id}
-                  onClick={() => onFilterChange({ category: cat._id })}
-                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${filters.category === cat._id
-                    ? "bg-green-50 text-green-700 font-semibold"
-                    : "text-gray-700 hover:bg-gray-50"
-                    }`}
+                  onClick={() => onFilterChange({ category: cat.slug || cat._id })}
+                  className={`w-full text-left rounded-lg px-3 py-2 text-sm transition-colors ${
+                    filters.category === cat._id || filters.category === cat.slug
+                      ? "bg-green-50 text-green-700 font-semibold"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
                 >
                   {cat.name}
                 </button>
@@ -369,7 +463,391 @@ function FilterSidebar({
   );
 }
 
-// ── Main Component ────────────────────────────────────────────
+// ── Mobile Horizontally Scrollable Category Pills ─────────────
+function MobileCategoryPills({ categories, selectedCategory, onSelectCategory }) {
+  const rootCategories = useMemo(
+    () => categories.filter((c) => c.isActive && !c.parentCategory),
+    [categories],
+  );
+
+  return (
+    <div className="relative mb-3.5 md:hidden -mx-4 px-4">
+      <div className="flex items-center gap-2 overflow-x-auto py-1 scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* All Categories pill */}
+        <button
+          type="button"
+          onClick={() => onSelectCategory("")}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition-all min-h-[44px] ${
+            !selectedCategory
+              ? "bg-[#eaf8ed] border border-green-500 text-green-700 font-semibold shadow-2xs"
+              : "bg-white border border-gray-200/90 text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          <LayoutGrid
+            className={`h-4 w-4 ${!selectedCategory ? "text-green-600" : "text-gray-500"}`}
+          />
+          <span>All Categories</span>
+        </button>
+
+        {/* Dynamic categories */}
+        {rootCategories.map((cat) => {
+          const isSelected =
+            selectedCategory === cat._id ||
+            selectedCategory === cat.slug ||
+            String(selectedCategory) === String(cat._id);
+
+          return (
+            <button
+              key={cat._id}
+              type="button"
+              onClick={() => onSelectCategory(cat.slug || cat._id)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition-all min-h-[44px] ${
+                isSelected
+                  ? "bg-[#eaf8ed] border border-green-500 text-green-700 font-semibold shadow-2xs"
+                  : "bg-white border border-gray-200/90 text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <CategoryIcon
+                slug={cat.slug}
+                name={cat.name}
+                className={`h-4 w-4 ${isSelected ? "text-green-600" : "text-gray-600"}`}
+              />
+              <span>{cat.name}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Subtle right fade hint with arrow */}
+      <div className="pointer-events-none absolute right-4 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent flex items-center justify-end pr-0.5">
+        <ChevronRight className="h-3.5 w-3.5 text-gray-400 opacity-60" />
+      </div>
+    </div>
+  );
+}
+
+// ── Mobile Compact Toolbar ────────────────────────────────────
+function MobileToolbar({
+  totalCount,
+  sort,
+  onSortChange,
+  onOpenFilter,
+  activeFilterCount,
+  viewMode,
+  onViewModeChange,
+}) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-2 md:hidden">
+      {/* Product count */}
+      <span className="text-xs sm:text-sm font-semibold text-gray-800">
+        {totalCount} {totalCount === 1 ? "product" : "products"}
+      </span>
+
+      {/* Right controls */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Filter Button */}
+        <button
+          type="button"
+          onClick={onOpenFilter}
+          className={`relative inline-flex items-center gap-1.5 rounded-xl border bg-white px-2.5 sm:px-3 py-1.5 text-xs font-medium transition-all min-h-[38px] ${
+            activeFilterCount > 0
+              ? "border-green-500 text-green-700 bg-green-50/50"
+              : "border-gray-200 text-gray-700 hover:border-gray-300"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 text-gray-600" />
+          <span>Filter</span>
+          {activeFilterCount > 0 && (
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-600 text-[10px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+
+        {/* Sort Select */}
+        <div className="relative">
+          <select
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value)}
+            className="h-[38px] appearance-none rounded-xl border border-gray-200 bg-white pl-2.5 pr-7 text-xs font-medium text-gray-700 shadow-2xs outline-none focus:border-green-600"
+          >
+            <option value="-createdAt">Newest First</option>
+            <option value="createdAt">Oldest First</option>
+            <option value="discountedPrice">Price: Low to High</option>
+            <option value="-discountedPrice">Price: High to Low</option>
+            <option value="name">Name: A to Z</option>
+            <option value="-name">Name: Z to A</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+        </div>
+
+        {/* View Toggle */}
+        <div className="flex h-[38px] items-center rounded-xl border border-gray-200 bg-white p-0.5 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => onViewModeChange("grid")}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+              viewMode === "grid"
+                ? "bg-green-50 text-green-600"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+            aria-label="Grid view"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onViewModeChange("compact")}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+              viewMode === "compact"
+                ? "bg-green-50 text-green-600"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+            aria-label="List view"
+          >
+            <List className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mobile Bottom Sheet Drawer for Filters ────────────────────
+function MobileFilterDrawer({
+  isOpen,
+  onClose,
+  filters,
+  onFilterChange,
+  onClear,
+  categories,
+  totalCount,
+}) {
+  const [mobilePrice, setMobilePrice] = useState({
+    min: filters.minPrice || "",
+    max: filters.maxPrice || "",
+  });
+
+  useEffect(() => {
+    setMobilePrice({
+      min: filters.minPrice || "",
+      max: filters.maxPrice || "",
+    });
+  }, [filters.minPrice, filters.maxPrice]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 z-[80] bg-black/50 backdrop-blur-xs md:hidden"
+          />
+
+          {/* Bottom Sheet */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="fixed inset-x-0 bottom-0 z-[80] max-h-[85vh] rounded-t-3xl bg-white shadow-2xl flex flex-col md:hidden"
+          >
+            {/* Top Handle */}
+            <div className="pt-3 pb-1 flex justify-center">
+              <div className="h-1.5 w-12 rounded-full bg-gray-300" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Filters</h3>
+                <p className="text-xs text-gray-500">
+                  {totalCount} {totalCount === 1 ? "product" : "products"} available
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close filters"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 active:bg-gray-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+              {/* Category */}
+              <div>
+                <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Category
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onFilterChange({ category: "" })}
+                    className={`rounded-xl px-3.5 py-2 text-xs font-medium transition-all ${
+                      !filters.category
+                        ? "bg-green-600 text-white font-semibold shadow-xs"
+                        : "border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    All Categories
+                  </button>
+                  {categories
+                    .filter((c) => c.isActive && !c.parentCategory)
+                    .map((cat) => {
+                      const isSelected =
+                        filters.category === cat._id ||
+                        filters.category === cat.slug ||
+                        String(filters.category) === String(cat._id);
+                      return (
+                        <button
+                          key={cat._id}
+                          type="button"
+                          onClick={() =>
+                            onFilterChange({ category: cat.slug || cat._id })
+                          }
+                          className={`rounded-xl px-3.5 py-2 text-xs font-medium transition-all ${
+                            isSelected
+                              ? "bg-green-600 text-white font-semibold shadow-xs"
+                              : "border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          {cat.name}
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Price Range */}
+              <div>
+                <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Price Range
+                </h4>
+                <div className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        placeholder="Min Price"
+                        value={mobilePrice.min}
+                        onChange={(e) =>
+                          setMobilePrice({ ...mobilePrice, min: e.target.value })
+                        }
+                        className="h-10 w-full rounded-xl border border-gray-200 pl-7 pr-3 text-xs outline-none focus:border-green-600"
+                      />
+                    </div>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        placeholder="Max Price"
+                        value={mobilePrice.max}
+                        onChange={(e) =>
+                          setMobilePrice({ ...mobilePrice, max: e.target.value })
+                        }
+                        className="h-10 w-full rounded-xl border border-gray-200 pl-7 pr-3 text-xs outline-none focus:border-green-600"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onFilterChange({
+                        minPrice: mobilePrice.min,
+                        maxPrice: mobilePrice.max,
+                      });
+                    }}
+                    className="w-full rounded-xl bg-gray-100 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200"
+                  >
+                    Apply Price
+                  </button>
+                </div>
+              </div>
+
+              {/* Availability */}
+              <div>
+                <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Availability
+                </h4>
+                <label className="flex items-center gap-3 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={filters.inStock === "true"}
+                    onChange={(e) =>
+                      onFilterChange({ inStock: e.target.checked ? "true" : "" })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">In Stock Only</span>
+                </label>
+              </div>
+
+              {/* Collections */}
+              <div>
+                <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Collections
+                </h4>
+                <label className="flex items-center gap-3 cursor-pointer py-1">
+                  <input
+                    type="checkbox"
+                    checked={filters.isFeatured === "true"}
+                    onChange={(e) =>
+                      onFilterChange({ isFeatured: e.target.checked ? "true" : "" })
+                    }
+                    className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">Featured Products</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="border-t border-gray-100 bg-white p-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  onClear();
+                  setMobilePrice({ min: "", max: "" });
+                  onClose();
+                }}
+                className="flex-1 rounded-xl border border-gray-200 py-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 active:bg-gray-100 min-h-[44px]"
+              >
+                Clear All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onFilterChange({
+                    minPrice: mobilePrice.min,
+                    maxPrice: mobilePrice.max,
+                  });
+                  onClose();
+                }}
+                className="flex-1 rounded-xl bg-green-600 py-3 text-xs font-semibold text-white shadow-sm hover:bg-green-700 active:bg-green-800 min-h-[44px]"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ── Main Shop Inner Component ─────────────────────────────────
 function ShopPageInner({ initialProducts = [], initialPagination = null }) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -397,7 +875,8 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
   });
 
   const [viewMode, setViewMode] = useState("grid"); // grid or compact
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(false); // desktop/tablet slide-out
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false); // mobile bottom sheet
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch categories
@@ -419,7 +898,6 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
       if (value) params.set(key, value);
     });
 
-    // Pass an object — store spreads into axios params
     const queryObject = Object.fromEntries(
       Object.entries(filters).filter(([, value]) => value),
     );
@@ -428,7 +906,7 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
   }, [filters]);
 
   const handleFilterChange = (newFilters) => {
-    setFilters({ ...filters, ...newFilters, page: "1" });
+    setFilters((prev) => ({ ...prev, ...newFilters, page: "1" }));
     setShowFilters(false);
   };
 
@@ -442,15 +920,15 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
       sort: "-createdAt",
       page: "1",
     });
+    setShowFilters(false);
   };
 
   const handlePageChange = (page) => {
-    setFilters({ ...filters, page: String(page) });
+    setFilters((prev) => ({ ...prev, page: String(page) }));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Use SSR data until the client store finishes its first fetch — avoids an
-  // empty-state flash and gives crawlers real product markup on first paint
+  // SSR fallback handling
   const displayProducts = products.length > 0 ? products : initialProducts;
   const displayPagination =
     pagination?.total ? pagination : initialPagination || pagination;
@@ -459,38 +937,79 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
   // Filter products by search query (client-side)
   const filteredProducts = searchQuery
     ? displayProducts.filter((p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-    )
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : displayProducts;
 
-  const activeCategory = categories.find(
-    (c) =>
-      c._id === filters.category ||
-      c.slug === filters.category ||
-      String(c._id) === String(filters.category),
-  );
+  const totalCount = displayPagination?.total ?? filteredProducts.length;
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filters.category) count++;
+    if (filters.minPrice || filters.maxPrice) count++;
+    if (filters.inStock === "true") count++;
+    if (filters.isFeatured === "true") count++;
+    return count;
+  }, [filters]);
 
   return (
     <div className="min-h-screen bg-white">
       {/* ── Top Banner directly after Navbar ── */}
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-2">
-        <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-white">
-          <Image
-            src="https://res.cloudinary.com/dsebrpcyz/image/upload/x_0,y_894,w_2172,h_384,c_crop/v1789466045/copy_of_chatgpt_image_sep_15_2026_03_20_44_pm_phfl27.png"
-            alt="Sustainable Living Essentials - Green Fibre Collection"
-            width={2172}
-            height={384}
-            priority
-            className="w-full h-auto object-cover block brightness-[1.08] contrast-[1.02]"
-            sizes="(max-width: 1280px) 100vw, 1280px"
-          />
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-3 sm:pt-6 pb-2">
+        <div className="relative w-full overflow-hidden rounded-2xl md:rounded-3xl bg-white shadow-2xs sm:shadow-none">
+          {/* Mobile adapted banner (< 768px) */}
+          <div className="block md:hidden">
+            <Image
+              src="/banner-shop-mobile-v2.png"
+              alt="Sustainable Living Essentials - Green Fibre Collection"
+              width={612}
+              height={282}
+              priority
+              className="w-full h-auto object-cover block"
+              sizes="(max-width: 768px) 100vw, 768px"
+            />
+          </div>
+
+          {/* Desktop & Tablet banner (>= 768px, 100% UNCHANGED) */}
+          <div className="hidden md:block">
+            <Image
+              src="https://res.cloudinary.com/dsebrpcyz/image/upload/x_0,y_894,w_2172,h_384,c_crop/v1789466045/copy_of_chatgpt_image_sep_15_2026_03_20_44_pm_phfl27.png"
+              alt="Sustainable Living Essentials - Green Fibre Collection"
+              width={2172}
+              height={384}
+              priority
+              className="w-full h-auto object-cover block brightness-[1.08] contrast-[1.02]"
+              sizes="(max-width: 1280px) 100vw, 1280px"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {/* ── Body ── */}
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:py-8 sm:px-6 lg:px-8 pb-24 sm:pb-16">
+        {/* Mobile categories scrollable pills (< 768px) */}
+        <MobileCategoryPills
+          categories={categories}
+          selectedCategory={filters.category}
+          onSelectCategory={(catSlugOrId) =>
+            handleFilterChange({ category: catSlugOrId })
+          }
+        />
+
+        {/* Mobile compact toolbar (< 768px) */}
+        <MobileToolbar
+          totalCount={totalCount}
+          sort={filters.sort}
+          onSortChange={(sort) => handleFilterChange({ sort })}
+          onOpenFilter={() => setShowMobileDrawer(true)}
+          activeFilterCount={activeFilterCount}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+
+        {/* ── Main Layout: Sidebar + Products ── */}
         <div className="grid gap-6 lg:grid-cols-[240px_1fr] lg:items-start">
-          {/* Filters Sidebar */}
+          {/* Filters Sidebar (desktop / tablet) */}
           <FilterSidebar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -500,10 +1019,10 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
             onClose={() => setShowFilters(false)}
           />
 
-          {/* Products Grid */}
+          {/* Products Column */}
           <div>
-            {/* Toolbar */}
-            <div className="mb-6 flex items-center justify-between gap-4">
+            {/* Desktop Toolbar (hidden on mobile) */}
+            <div className="mb-6 hidden md:flex items-center justify-between gap-4">
               <button
                 onClick={() => setShowFilters(true)}
                 className="flex items-center gap-2 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 lg:hidden"
@@ -531,19 +1050,21 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                 <div className="hidden sm:flex items-center gap-1 rounded-lg border border-gray-200 p-1">
                   <button
                     onClick={() => setViewMode("grid")}
-                    className={`rounded-md p-1.5 transition-colors ${viewMode === "grid"
-                      ? "bg-green-50 text-green-600"
-                      : "text-gray-500 hover:bg-gray-100"
-                      }`}
+                    className={`rounded-md p-1.5 transition-colors ${
+                      viewMode === "grid"
+                        ? "bg-green-50 text-green-600"
+                        : "text-gray-500 hover:bg-gray-100"
+                    }`}
                   >
                     <Grid3x3 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setViewMode("compact")}
-                    className={`rounded-md p-1.5 transition-colors ${viewMode === "compact"
-                      ? "bg-green-50 text-green-600"
-                      : "text-gray-500 hover:bg-gray-100"
-                      }`}
+                    className={`rounded-md p-1.5 transition-colors ${
+                      viewMode === "compact"
+                        ? "bg-green-50 text-green-600"
+                        : "text-gray-500 hover:bg-gray-100"
+                    }`}
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </button>
@@ -551,13 +1072,14 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
               </div>
             </div>
 
-            {/* Loading */}
+            {/* Loading Skeletons */}
             {isInitialLoading && (
               <div
-                className={`grid gap-6 ${viewMode === "compact"
-                  ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                  : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                  }`}
+                className={`grid gap-3 sm:gap-6 ${
+                  viewMode === "compact"
+                    ? "grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                    : "grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 lg:grid-cols-3"
+                }`}
               >
                 {[...Array(viewMode === "compact" ? 10 : 6)].map((_, i) => (
                   <SkeletonCard key={i} compact={viewMode === "compact"} />
@@ -565,30 +1087,30 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
               </div>
             )}
 
-            {/* No results */}
+            {/* No products found */}
             {!isInitialLoading && filteredProducts.length === 0 && (
-              <div className="flex flex-col items-center gap-4 py-20 text-center">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
-                  <Package className="h-10 w-10 text-gray-400" />
+              <div className="flex flex-col items-center gap-4 py-16 sm:py-20 text-center">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full bg-gray-100">
+                  <Package className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
                     No products found
                   </h3>
-                  <p className="mt-2 text-gray-600">
+                  <p className="mt-1.5 text-xs sm:text-sm text-gray-600">
                     Try adjusting your filters or search query
                   </p>
                 </div>
                 <button
                   onClick={handleClearFilters}
-                  className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700"
+                  className="rounded-xl bg-green-600 px-5 sm:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white shadow-sm transition-all hover:bg-green-700 min-h-[44px]"
                 >
                   Clear Filters
                 </button>
               </div>
             )}
 
-            {/* Products */}
+            {/* Product Grid */}
             {!isInitialLoading && filteredProducts.length > 0 && (
               <>
                 <AnimatePresence mode="popLayout">
@@ -596,10 +1118,11 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                     variants={stagger}
                     initial="hidden"
                     animate="show"
-                    className={`grid gap-6 ${viewMode === "compact"
-                      ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-                      : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                      }`}
+                    className={`grid gap-3 md:gap-6 ${
+                      viewMode === "compact"
+                        ? "grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+                        : "grid-cols-[repeat(2,minmax(0,1fr))] sm:grid-cols-2 lg:grid-cols-3"
+                    }`}
                   >
                     {filteredProducts.map((product) => (
                       <ProductCard
@@ -613,11 +1136,11 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
 
                 {/* Pagination */}
                 {displayPagination?.pages > 1 && (
-                  <div className="mt-12 flex items-center justify-center gap-2">
+                  <div className="mt-8 sm:mt-12 flex flex-wrap items-center justify-center gap-2">
                     <button
                       onClick={() => handlePageChange(displayPagination.page - 1)}
                       disabled={displayPagination.page === 1}
-                      className="rounded-lg border-2 border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-lg border-2 border-gray-200 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
                     >
                       Previous
                     </button>
@@ -628,10 +1151,11 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                         <button
                           key={page}
                           onClick={() => handlePageChange(page)}
-                          className={`h-10 w-10 rounded-lg text-sm font-semibold transition-all ${displayPagination.page === page
-                            ? "bg-green-600 text-white shadow-sm"
-                            : "border-2 border-gray-200 text-gray-700 hover:border-gray-300"
-                            }`}
+                          className={`h-9 w-9 sm:h-10 sm:w-10 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                            displayPagination.page === page
+                              ? "bg-green-600 text-white shadow-sm"
+                              : "border-2 border-gray-200 text-gray-700 hover:border-gray-300"
+                          }`}
                         >
                           {page}
                         </button>
@@ -641,7 +1165,7 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
                     <button
                       onClick={() => handlePageChange(displayPagination.page + 1)}
                       disabled={displayPagination.page === displayPagination.pages}
-                      className="rounded-lg border-2 border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="rounded-lg border-2 border-gray-200 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-gray-700 transition-colors hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed min-h-[40px]"
                     >
                       Next
                     </button>
@@ -652,6 +1176,17 @@ function ShopPageInner({ initialProducts = [], initialPagination = null }) {
           </div>
         </div>
       </div>
+
+      {/* Mobile Bottom Sheet Drawer for Filters (< 768px) */}
+      <MobileFilterDrawer
+        isOpen={showMobileDrawer}
+        onClose={() => setShowMobileDrawer(false)}
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onClear={handleClearFilters}
+        categories={categories}
+        totalCount={totalCount}
+      />
     </div>
   );
 }

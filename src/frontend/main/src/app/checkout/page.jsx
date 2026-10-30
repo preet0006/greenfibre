@@ -235,7 +235,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, fullName: e.target.value })
                     }
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.fullName
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -258,7 +258,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, companyName: e.target.value })
                     }
-                    className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
+                    className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
                     placeholder="Company name"
                   />
                 </div>
@@ -275,7 +275,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     setForm({ ...form, streetAddress: e.target.value })
                   }
                   rows={2}
-                  className={`w-full min-h-[85px] sm:min-h-[95px] rounded-xl border px-3.5 sm:px-4 py-2.5 sm:py-3 text-sm leading-relaxed transition-all focus:outline-none focus:ring-4 resize-none ${
+                  className={`w-full min-h-[85px] sm:min-h-[95px] rounded-xl border px-3.5 sm:px-4 py-2.5 sm:py-3 text-base sm:text-sm leading-relaxed transition-all focus:outline-none focus:ring-4 resize-none ${
                     errors.streetAddress
                       ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                       : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -300,7 +300,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                   onChange={(e) =>
                     setForm({ ...form, landmark: e.target.value })
                   }
-                  className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
+                  className="h-11 sm:h-12 w-full rounded-xl border border-gray-200 bg-gray-50/30 px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:border-green-600 focus:bg-white focus:outline-none focus:ring-4 focus:ring-green-500/10"
                   placeholder="E.g., Near City Mall, Opp. Metro Pillar 42"
                 />
               </div>
@@ -315,7 +315,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     type="text"
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.city
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -335,7 +335,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, state: e.target.value })
                     }
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.state
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -363,7 +363,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, pincode: e.target.value })
                     }
                     maxLength={6}
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.pincode
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -391,7 +391,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                       setForm({ ...form, phone: e.target.value })
                     }
                     maxLength={10}
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.phone
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -412,7 +412,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
                     }
-                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-sm transition-all focus:outline-none focus:ring-4 ${
+                    className={`h-11 sm:h-12 w-full rounded-xl border px-3.5 sm:px-4 py-2.5 text-base sm:text-sm transition-all focus:outline-none focus:ring-4 ${
                       errors.email
                         ? "border-red-300 focus:border-red-500 focus:ring-red-100 bg-red-50/20"
                         : "border-gray-200 bg-gray-50/30 focus:border-green-600 focus:bg-white focus:ring-green-500/10"
@@ -518,14 +518,14 @@ function AddressCard({ address, selected, onSelect, onEdit }) {
         </div>
 
         {/* Name */}
-        <p className="font-semibold text-gray-900">{address.fullName}</p>
+        <p className="font-semibold text-gray-900 break-words">{address.fullName}</p>
 
         {/* Address */}
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-gray-600 break-words">
           {address.streetAddress}
           {address.landmark && `, ${address.landmark}`}
         </p>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-600 break-words">
           {address.city}, {address.state} - {address.pincode}
         </p>
 
@@ -537,6 +537,8 @@ function AddressCard({ address, selected, onSelect, onEdit }) {
 
       {/* Edit button */}
       <button
+        type="button"
+        aria-label="Edit address"
         onClick={(e) => {
           e.stopPropagation();
           onEdit();
@@ -1089,19 +1091,19 @@ export default function CheckoutPage() {
           <Leaf className="h-64 w-64 text-white" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
-          <div className="mb-6 flex items-center gap-2 text-sm font-medium text-white/60">
+        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-6 sm:pb-12 sm:pt-8 sm:px-6 lg:px-8">
+          <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs sm:text-sm font-medium text-white/60">
             <Link href="/" className="hover:text-white/90 transition-colors">
               Home
             </Link>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <Link
               href="/cart"
               className="hover:text-white/90 transition-colors"
             >
               Cart
             </Link>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-white/90">Checkout</span>
           </div>
 
@@ -1110,7 +1112,7 @@ export default function CheckoutPage() {
               Secure Checkout
             </p>
             <h1
-              className="mt-2 text-4xl font-semibold text-white sm:text-5xl"
+              className="mt-1.5 sm:mt-2 text-3xl font-semibold text-white sm:text-5xl"
               style={{
                 fontFamily:
                   "var(--font-cormorant, 'Cormorant Garamond', serif)",
@@ -1122,7 +1124,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
           {/* ── Left — Shipping & Payment ── */}
           <div className="space-y-6">
@@ -1232,8 +1234,8 @@ export default function CheckoutPage() {
               onApplyFirstOrderCoupon={(code) => handleApplyCoupon(code)}
             />
 
-            {/* Terms */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            {/* Terms (desktop: left column; mobile: placed inside Price Details above pay button) */}
+            <div className="hidden lg:block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
@@ -1318,7 +1320,7 @@ export default function CheckoutPage() {
                       placeholder="Enter promo code"
                       value={couponInput}
                       onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
-                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-mono font-medium uppercase outline-none focus:border-emerald-600"
+                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-base sm:text-xs font-mono font-medium uppercase outline-none focus:border-emerald-600"
                     />
                     <button
                       type="submit"
@@ -1365,6 +1367,34 @@ export default function CheckoutPage() {
                       </span>
                     </div>
                   </div>
+                </div>
+
+                {/* Mobile Terms Checkbox (matches mockup layout directly above Pay button) */}
+                <div className="mt-4 pt-3.5 border-t border-gray-100 block lg:hidden">
+                  <label className="flex cursor-pointer items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={agreeTerms}
+                      onChange={(e) => setAgreeTerms(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-green-600 focus:ring-2 focus:ring-green-500"
+                    />
+                    <span className="text-xs text-gray-700 leading-snug">
+                      I agree to the{" "}
+                      <Link
+                        href="/terms-and-conditions"
+                        className="font-semibold text-green-600 hover:underline"
+                      >
+                        Terms & Conditions
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href="/privacy-policy"
+                        className="font-semibold text-green-600 hover:underline"
+                      >
+                        Privacy Policy
+                      </Link>
+                    </span>
+                  </label>
                 </div>
 
                 {/* Place Order Button */}

@@ -205,7 +205,7 @@ export default function OrderDetailPage() {
   const tracking = order.shippingDetails?.trackingUrl;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16 pt-28">
+    <div className="min-h-screen bg-gray-50 pb-16 pt-20 sm:pt-28">
       <div className="mx-auto max-w-3xl px-4 sm:px-6">
         <Link
           href="/orders"
@@ -216,13 +216,13 @@ export default function OrderDetailPage() {
         </Link>
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 bg-gray-50 px-5 py-5 sm:px-6">
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-4 sm:px-6 sm:py-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
+              <div className="min-w-0 max-w-full">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Order
                 </p>
-                <h1 className="mt-1 font-mono text-lg font-bold text-gray-900">
+                <h1 className="mt-1 font-mono text-base sm:text-lg font-bold text-gray-900 break-all">
                   {order.easebuzzOrderId || order._id}
                 </h1>
                 <div className="mt-3 flex flex-wrap items-center gap-2">

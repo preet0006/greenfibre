@@ -298,14 +298,16 @@ function CartItem({ item }) {
 
           {/* Remove */}
           <button
+            type="button"
             onClick={handleRemove}
             disabled={removing}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-red-100 text-red-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+            aria-label="Remove item"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-red-100 text-red-400 transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
           >
             {removing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" />
             )}
           </button>
         </div>
@@ -422,7 +424,7 @@ function CouponInput({ subtotal, onApply, onRemove, applied }) {
             }}
             onKeyDown={(e) => e.key === "Enter" && handleApply()}
             placeholder="Enter coupon code"
-            className="h-10 flex-1 bg-transparent text-sm font-medium text-gray-900 outline-none placeholder:text-gray-400"
+            className="h-10 flex-1 bg-transparent text-base sm:text-sm font-medium text-gray-900 outline-none placeholder:text-gray-400"
           />
         </div>
         <motion.button
@@ -534,9 +536,11 @@ function MiniProductCard({ product }) {
         </p>
       </div>
       <button
+        type="button"
         onClick={handleAdd}
         disabled={!inStock || loading}
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all ${
+        aria-label={`Add ${product.name} to cart`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-all ${
           added
             ? "border-green-200 bg-green-50 text-green-600"
             : inStock
@@ -653,13 +657,13 @@ export default function UserCartPage() {
           <Leaf className="h-64 w-64 text-white" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-6 sm:pb-12 sm:pt-8 sm:px-6 lg:px-8">
           {/* Breadcrumb */}
-          <div className="mb-6 flex items-center gap-2 text-sm font-medium text-white/60">
+          <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs sm:text-sm font-medium text-white/60">
             <Link href="/" className="hover:text-white/90 transition-colors">
               Home
             </Link>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-white/90">Cart</span>
           </div>
           
@@ -670,7 +674,7 @@ export default function UserCartPage() {
                 Shopping Cart
               </p>
               <h1
-                className="mt-2 text-4xl font-semibold text-white sm:text-5xl"
+                className="mt-1.5 sm:mt-2 text-3xl font-semibold text-white sm:text-5xl"
                 style={{
                   fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
                 }}
@@ -679,9 +683,9 @@ export default function UserCartPage() {
               </h1>
             </div>
             {user && !loading && items.length > 0 && (
-              <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+              <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 sm:px-4 sm:py-2.5 backdrop-blur-sm">
                 <ShoppingCart className="h-4 w-4 text-white/80" />
-                <span className="text-sm font-bold text-white">
+                <span className="text-xs sm:text-sm font-bold text-white">
                   {items.reduce((s, i) => s + i.quantity, 0)} item
                   {items.reduce((s, i) => s + i.quantity, 0) !== 1 ? "s" : ""}
                 </span>
@@ -691,7 +695,7 @@ export default function UserCartPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
         {!user && items.length > 0 && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
             <p>
@@ -796,9 +800,9 @@ export default function UserCartPage() {
                 Shopping
               </Link>
 
-              {/* ── Suggested products ── */}
+              {/* ── Suggested products (desktop) ── */}
               {suggested.length > 0 && (
-                <div className="mt-8 space-y-4">
+                <div className="mt-8 hidden lg:block space-y-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
                       You might also like
@@ -1035,6 +1039,30 @@ export default function UserCartPage() {
                   </div>
                 ))}
               </div>
+
+              {/* ── Suggested products (mobile: stacked after trust badges) ── */}
+              {suggested.length > 0 && (
+                <div className="mt-8 block lg:hidden space-y-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
+                      You might also like
+                    </p>
+                    <h3
+                      className="mt-1 text-xl font-semibold text-gray-900"
+                      style={{
+                        fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
+                      }}
+                    >
+                      Complete Your Order
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {suggested.map((p) => (
+                      <MiniProductCard key={p._id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -29,6 +29,7 @@ import {
   MapPin,
   Tag,
   ExternalLink,
+  ArrowRight,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -174,7 +175,7 @@ function OrderStepper({ order, currentStepIndex }) {
   };
 
   return (
-    <div className="px-4 py-6 sm:px-14 sm:py-7">
+    <div className="px-2 py-4 sm:px-14 sm:py-7">
       <div className="flex items-start">
         {STEP_CONFIG.map((step, idx) => {
           const isCompleted = idx < currentStepIndex;
@@ -185,29 +186,29 @@ function OrderStepper({ order, currentStepIndex }) {
           return (
             <Fragment key={step.key}>
               {/* Step Column (Circle + Label + Date) */}
-              <div className="flex flex-col items-center shrink-0 w-16 sm:w-24 text-center">
+              <div className="flex flex-col items-center shrink-0 w-14 sm:w-24 text-center">
                 {/* Circle */}
                 {isCompleted ? (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#16a34a] text-white shadow-xs">
-                    <Check className="h-4 w-4 stroke-[2.5]" />
+                  <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-[#16a34a] text-white shadow-xs">
+                    <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4 stroke-[2.5]" />
                   </div>
                 ) : isCurrent ? (
-                  <div className="relative flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#16a34a] bg-white ring-4 ring-[#dcfce7] shadow-xs">
-                    <StepIcon className="h-4 w-4 text-[#16a34a]" />
+                  <div className="relative flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full border-2 border-[#16a34a] bg-white ring-3 sm:ring-4 ring-[#dcfce7] shadow-xs">
+                    <StepIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#16a34a]" />
                     <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16a34a] opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-[#16a34a]"></span>
                     </span>
                   </div>
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#e5e7eb] bg-[#f9fafb] text-gray-400">
-                    <StepIcon className="h-4 w-4 text-gray-400" />
+                  <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full border-2 border-[#e5e7eb] bg-[#f9fafb] text-gray-400">
+                    <StepIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-400" />
                   </div>
                 )}
 
                 {/* Step Label */}
                 <p
-                  className={`mt-2 text-[11px] sm:text-xs leading-tight ${isCurrent
+                  className={`mt-1.5 sm:mt-2 text-[10px] sm:text-xs leading-tight ${isCurrent
                       ? "font-bold text-[#16a34a]"
                       : isCompleted
                         ? "font-semibold text-gray-900"
@@ -218,7 +219,7 @@ function OrderStepper({ order, currentStepIndex }) {
                 </p>
 
                 {/* Step Subtext/Date */}
-                <p className="hidden sm:block text-[11px] text-gray-500 mt-1 leading-tight">
+                <p className="text-[9px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1 leading-tight">
                   {isCurrent ? (
                     <span>{dateText ? `${dateText} • ` : ""}Current</span>
                   ) : isCompleted ? (
@@ -231,7 +232,7 @@ function OrderStepper({ order, currentStepIndex }) {
 
               {/* Connector Line between step columns */}
               {idx < STEP_CONFIG.length - 1 && (
-                <div className="flex-1 pt-[15px] px-1 sm:px-2">
+                <div className="flex-1 pt-[13px] sm:pt-[15px] px-0.5 sm:px-2">
                   <div
                     className={`h-[2px] w-full transition-colors ${idx < currentStepIndex ? "bg-[#16a34a]" : "bg-[#d1d5db]"
                       }`}
@@ -344,12 +345,12 @@ function OrderCard({ order }) {
       className="overflow-hidden rounded-3xl border border-[#e5e7eb] bg-white shadow-xs transition-shadow hover:shadow-md"
     >
       {/* 1. HEADER (bg #f9fafb, padding 20px 28px, bottom border) */}
-      <div className="border-b border-[#e5e7eb] bg-[#f9fafb] px-5 py-4 sm:px-7 sm:py-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-3.5 sm:px-7 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           {/* Left Side */}
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-              <span className="font-bold text-base sm:text-lg text-gray-900 tracking-tight font-mono">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-1.5">
+              <span className="font-bold text-sm sm:text-lg text-gray-900 tracking-tight font-mono break-all">
                 {orderId}
               </span>
               <OrderStatusPill status={statusRaw} />
@@ -361,7 +362,7 @@ function OrderCard({ order }) {
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-gray-600">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
               <span>{headerDateStr}</span>
               <span>•</span>
               <span>
@@ -374,13 +375,13 @@ function OrderCard({ order }) {
             </div>
           </div>
 
-          {/* Right Side Button */}
+          {/* Right Side Button (Desktop/Tablet) */}
           <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
             aria-expanded={isOpen}
             aria-controls={`order-details-${orderId}`}
-            className="min-h-[44px] rounded-full bg-[#15803d] hover:bg-[#166534] px-5 py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
+            className="hidden sm:flex min-h-[44px] rounded-full bg-[#15803d] hover:bg-[#166534] px-5 py-2.5 text-sm font-semibold text-white items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0 self-start sm:self-auto"
           >
             <span>{isOpen ? "Hide Details" : "View Details"}</span>
             {isOpen ? (
@@ -395,6 +396,24 @@ function OrderCard({ order }) {
       {/* 2. STATUS STEPPER (always visible, under the header) */}
       <OrderStepper order={order} currentStepIndex={currentStepIndex} />
 
+      {/* Mobile Action Button (Full-width below stepper matching mockup) */}
+      <div className="px-4 pb-4 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setIsOpen((prev) => !prev)}
+          aria-expanded={isOpen}
+          aria-controls={`order-details-${orderId}`}
+          className="min-h-[44px] w-full rounded-2xl bg-[#15803d] hover:bg-[#166534] px-5 py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer active:scale-[0.99]"
+        >
+          <span>{isOpen ? "Hide Details" : "View Details"}</span>
+          {isOpen ? (
+            <ChevronUp className="h-4 w-4 stroke-[2.5]" />
+          ) : (
+            <ArrowRight className="h-4 w-4 stroke-[2.5]" />
+          )}
+        </button>
+      </div>
+
       {/* 3. EXPANDED DETAILS (shown only when open, smooth height transition) */}
       <AnimatePresence initial={false}>
         {isOpen && (
@@ -406,8 +425,16 @@ function OrderCard({ order }) {
             transition={{ duration: 0.35, ease: "easeInOut" }}
             className="overflow-hidden border-t border-gray-100"
           >
-            <div className="p-5 sm:p-7 pt-4 sm:pt-6">
-              <div className="flex flex-col lg:flex-row gap-6">
+            <div className="p-4 sm:p-7 pt-4 sm:pt-6">
+              <h3
+                className="mb-3 sm:hidden text-lg font-semibold text-gray-900"
+                style={{
+                  fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
+                }}
+              >
+                Order Details
+              </h3>
+              <div className="flex flex-col lg:flex-row gap-5 sm:gap-6">
                 {/* Left Column (flex 1.25) */}
                 <div className="flex-[1.25] space-y-4">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
@@ -757,12 +784,12 @@ export default function OrdersPage() {
           <Leaf className="h-64 w-64 text-white" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
-          <div className="mb-6 flex items-center gap-2 text-sm font-medium text-white/60">
+        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-6 sm:pb-12 sm:pt-8 sm:px-6 lg:px-8">
+          <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs sm:text-sm font-medium text-white/60">
             <Link href="/" className="hover:text-white/90 transition-colors">
               Home
             </Link>
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="text-white/90">My Orders</span>
           </div>
 
@@ -771,7 +798,7 @@ export default function OrdersPage() {
               Order History
             </p>
             <h1
-              className="mt-2 text-4xl font-semibold text-white sm:text-5xl"
+              className="mt-1.5 sm:mt-2 text-3xl font-semibold text-white sm:text-5xl"
               style={{
                 fontFamily:
                   "var(--font-cormorant, 'Cormorant Garamond', serif)",
@@ -783,26 +810,55 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-24 pt-8 sm:px-6 lg:px-8">
-        {/* Filters — always shown after first load so user can switch away from a zero-result filter */}
+      <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
+        {/* Filters — horizontally scrollable on mobile */}
         {initialized && (
-          <div className="mb-6 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <Filter className="h-4 w-4" />
-              Filter:
+          <div className="mb-4 sm:mb-6">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 no-scrollbar sm:flex-wrap">
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 mr-1">
+                <Filter className="h-3.5 w-3.5" />
+                Filter:
+              </span>
+              {statusFilters.map((filter) => (
+                <button
+                  key={filter.value}
+                  onClick={() => setFilterStatus(filter.value)}
+                  className={`shrink-0 rounded-full sm:rounded-xl px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap ${filterStatus === filter.value
+                      ? "bg-green-600 text-white shadow-xs"
+                      : "border border-gray-200 bg-white text-gray-700 hover:border-green-200 hover:bg-green-50"
+                    }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
             </div>
-            {statusFilters.map((filter) => (
-              <button
-                key={filter.value}
-                onClick={() => setFilterStatus(filter.value)}
-                className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${filterStatus === filter.value
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "border border-gray-200 bg-white text-gray-700 hover:border-green-200 hover:bg-green-50"
-                  }`}
-              >
-                {filter.label}
-              </button>
-            ))}
+          </div>
+        )}
+
+        {/* Mobile Summary Cards (Mockup: Total Orders, Delivered, In Transit) */}
+        {initialized && myOrders.length > 0 && (
+          <div className="mb-5 grid grid-cols-3 gap-2.5 sm:hidden">
+            <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-xs">
+              <FileText className="mx-auto h-5 w-5 text-green-600" />
+              <p className="mt-1 text-lg font-bold text-gray-900 leading-tight">
+                {pagination.total || myOrders.length}
+              </p>
+              <p className="text-[11px] font-medium text-gray-500">Total Orders</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-xs">
+              <CheckCircle className="mx-auto h-5 w-5 text-green-600" />
+              <p className="mt-1 text-lg font-bold text-gray-900 leading-tight">
+                {myOrders.filter((o) => (o.orderStatus || o.status || "").toLowerCase() === "delivered").length}
+              </p>
+              <p className="text-[11px] font-medium text-gray-500">Delivered</p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-xs">
+              <Truck className="mx-auto h-5 w-5 text-green-600" />
+              <p className="mt-1 text-lg font-bold text-gray-900 leading-tight">
+                {myOrders.filter((o) => (o.orderStatus || o.status || "").toLowerCase() === "shipped").length}
+              </p>
+              <p className="text-[11px] font-medium text-gray-500">In Transit</p>
+            </div>
           </div>
         )}
 
@@ -914,9 +970,9 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* Summary Stats */}
+        {/* Summary Stats (Desktop/Tablet) */}
         {myOrders.length > 0 && (
-          <div className="mt-12 grid gap-4 sm:grid-cols-3">
+          <div className="mt-12 hidden sm:grid gap-4 sm:grid-cols-3">
             <div className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
               <FileText className="mx-auto h-8 w-8 text-green-600" />
               <p className="mt-2 text-2xl font-bold text-gray-900">

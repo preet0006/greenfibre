@@ -382,7 +382,7 @@ export default function Footer() {
         </div>
 
         {/* ── Bottom bar ── */}
-        <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-100">
+        <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-100 pb-16 sm:pb-0">
           <div className="flex flex-col items-center justify-between gap-2 sm:gap-4 sm:flex-row text-center sm:text-left">
             <p className="text-xs sm:text-sm text-gray-500">
               © {new Date().getFullYear()}{" "}
