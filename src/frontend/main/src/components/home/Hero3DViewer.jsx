@@ -83,7 +83,7 @@ export default function Hero3DViewer({
         strategy="afterInteractive"
       />
 
-      <div className="relative w-full h-[390px] sm:h-[440px] lg:h-[490px] flex items-center justify-center select-none bg-transparent">
+      <div className="relative w-full h-[260px] sm:h-[440px] lg:h-[490px] flex items-center justify-center select-none bg-transparent">
 
         {/* ── Loading animation (4 dots collide → spinner) ── */}
         {!isLoaded && (

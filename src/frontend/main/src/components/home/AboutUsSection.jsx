@@ -25,7 +25,7 @@ export default function AboutUsSection() {
   ];
 
   return (
-    <section className="relative overflow-hidden bg-white py-16 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden bg-white py-10 sm:py-20 lg:py-24">
       {/* Background Pattern */}
       <div
         className="pointer-events-none absolute left-0 top-0 h-full w-1/2 opacity-[0.03]"
@@ -37,7 +37,79 @@ export default function AboutUsSection() {
       />
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+        {/* ================= MOBILE BRAND STORY (matches mockup) ================= */}
+        <div className="lg:hidden space-y-4 text-left">
+          {/* 1. Existing Story Image */}
+          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-gray-100 shadow-sm">
+            <Image
+              src="/home-about.jpg"
+              alt="Green Fibre - Nature's Residue"
+              fill
+              className="object-cover"
+              sizes="100vw"
+            />
+          </div>
+
+          {/* 2. Story Label and Heading */}
+          <div className="space-y-1 pt-1">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-green-700">
+              <Leaf className="h-3 w-3 text-green-600" />
+              <span>Our Story</span>
+            </div>
+            <h2
+              className="text-[26px] xs:text-[27px] font-semibold text-gray-900 leading-[1.2]"
+              style={{
+                fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
+              }}
+            >
+              Nature&apos;s Residue. A Brighter Future.
+            </h2>
+          </div>
+
+          {/* 3. Existing Description */}
+          <p className="text-sm leading-relaxed text-gray-600 font-normal">
+            Green Fibre is built on a simple yet powerful idea — that what is often discarded can be reimagined into something beautiful, useful and lasting.
+          </p>
+
+          {/* 4. Learn More Link */}
+          <div>
+            <Link
+              href="/about"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-green-600 hover:text-green-700 transition-colors"
+            >
+              <span>Learn more about our mission</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {/* 5. Sustainability / Statistics Row */}
+          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-gray-150 bg-white p-3 shadow-2xs text-center mt-3">
+            <div>
+              <div className="mb-1 flex justify-center">
+                <Leaf className="h-4 w-4 text-green-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 leading-tight">40%+</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">Agri-Waste Diverted</p>
+            </div>
+            <div className="border-x border-gray-100 px-1">
+              <div className="mb-1 flex justify-center">
+                <Users className="h-4 w-4 text-green-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 leading-tight">2x</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">Higher Durability</p>
+            </div>
+            <div>
+              <div className="mb-1 flex justify-center">
+                <Award className="h-4 w-4 text-green-600" />
+              </div>
+              <p className="text-base font-bold text-gray-900 leading-tight">100%</p>
+              <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">From Natural Residue</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ================= DESKTOP 2-COLUMN LAYOUT (100% UNCHANGED) ================= */}
+        <div className="hidden lg:grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
           {/* Left - Image Side */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}

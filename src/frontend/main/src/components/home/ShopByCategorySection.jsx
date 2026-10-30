@@ -24,10 +24,41 @@ function CategoryCard({ category, index }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.5, delay: index * 0.08 }}
+      className="shrink-0 sm:shrink"
     >
+      {/* Mobile Card (compact 110px pill matching mockup) */}
       <Link
         href={`/shop?category=${category.slug}`}
-        className="group relative block overflow-hidden rounded-2xl bg-white shadow-sm transition-all hover:shadow-xl"
+        className="sm:hidden group relative block w-[110px] aspect-[4/5] overflow-hidden rounded-2xl bg-gray-100 shadow-2xs border border-gray-150 snap-start"
+      >
+        {imgSrc ? (
+          <Image
+            src={imgSrc}
+            alt={category.name}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            sizes="110px"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gray-100">
+            <Leaf className="h-8 w-8 text-gray-300" />
+          </div>
+        )}
+        {/* Bottom Bar matching mockup */}
+        <div className="absolute inset-x-1.5 bottom-1.5 flex items-center justify-between rounded-xl bg-black/60 backdrop-blur-xs px-2 py-1 text-white">
+          <span className="truncate text-[11px] font-semibold leading-tight pr-1">
+            {category.name}
+          </span>
+          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-white text-gray-900">
+            <ChevronRight className="h-2.5 w-2.5" />
+          </span>
+        </div>
+      </Link>
+
+      {/* Desktop Card (100% UNCHANGED) */}
+      <Link
+        href={`/shop?category=${category.slug}`}
+        className="hidden sm:block group relative overflow-hidden rounded-2xl bg-white shadow-sm transition-all hover:shadow-xl"
       >
         {/* Image Container */}
         <div className="relative aspect-square overflow-hidden bg-gray-100">
@@ -134,7 +165,7 @@ export default function ShopByCategorySection() {
   );
 
   return (
-    <section className="relative overflow-hidden bg-linear-to-b from-white to-gray-50 py-16 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden bg-gradient-to-b from-white to-gray-50 py-10 sm:py-20 lg:py-24">
       {/* Background Decoration */}
       <div
         className="pointer-events-none absolute right-0 top-0 h-96 w-96 opacity-5"
@@ -152,17 +183,17 @@ export default function ShopByCategorySection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mb-12 text-center"
+          className="mb-6 sm:mb-12 text-center"
         >
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <Leaf className="h-5 w-5 text-green-600" />
-            <span className="text-xs font-bold uppercase tracking-widest text-green-600">
+          <div className="mb-2 sm:mb-3 flex items-center justify-center gap-1.5 sm:gap-2">
+            <Leaf className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-green-600">
               Explore Our Collection
             </span>
           </div>
 
           <h2
-            className="mb-4 text-4xl font-semibold text-gray-900 sm:text-5xl lg:text-6xl"
+            className="mb-2 sm:mb-4 text-[26px] sm:text-5xl lg:text-6xl font-semibold text-gray-900 leading-[1.2]"
             style={{
               fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
             }}
@@ -170,28 +201,36 @@ export default function ShopByCategorySection() {
             Shop by Category
           </h2>
 
-          <p className="mx-auto max-w-2xl text-base text-gray-600 sm:text-lg">
-            Discover sustainable products thoughtfully curated for every aspect
-            of your eco-conscious lifestyle
+          <p className="mx-auto max-w-2xl text-xs sm:text-lg text-gray-600">
+            Discover sustainable essentials thoughtfully crafted for every corner of your home.
           </p>
         </motion.div>
 
-        {/* Categories Grid */}
+        {/* Categories Grid / Mobile Scroll */}
         {loading ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {[...Array(8)].map((_, i) => (
+          <div className="flex gap-2.5 overflow-x-auto pb-2 sm:grid sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(6)].map((_, i) => (
               <SkeletonCard key={i} index={i} />
             ))}
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {displayCategories.map((category, index) => (
-              <CategoryCard
-                key={category._id}
-                category={category}
-                index={index}
-              />
-            ))}
+          <div>
+            <div className="flex gap-2.5 overflow-x-auto pb-2 pt-1 px-4 -mx-4 sm:mx-0 sm:px-0 sm:grid sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 snap-x snap-mandatory [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {displayCategories.map((category, index) => (
+                <CategoryCard
+                  key={category._id}
+                  category={category}
+                  index={index}
+                />
+              ))}
+            </div>
+
+            {/* Mobile Scroll Indicator Dots */}
+            <div className="flex justify-center items-center gap-1.5 mt-3 sm:hidden">
+              <span className="h-1.5 w-4 rounded-full bg-green-600" />
+              <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+              <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+            </div>
           </div>
         )}
 

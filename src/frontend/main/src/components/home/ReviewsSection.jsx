@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import useReviewStore from "@/store/useReviewStore";
-import { Star, Quote, Loader2, Leaf, ArrowRight, User } from "lucide-react";
+import { Star, Quote, Leaf, ArrowRight, User } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
 function formatDate(date) {
@@ -24,7 +24,7 @@ function ReviewCard({ review, index }) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-100px" }}
+      viewport={{ once: true, margin: "50px" }}
       transition={{ duration: 0.5, delay: (index % 3) * 0.1 }}
       className="group break-inside-avoid"
     >
@@ -152,6 +152,9 @@ export default function ReviewsSection() {
   const loading = useReviewStore((s) => s.loading);
   const fetchAllReviews = useReviewStore((s) => s.fetchAllReviews);
 
+  const [activeIdx, setActiveIdx] = useState(0);
+  const mobileSliderRef = useRef(null);
+
   useEffect(() => {
     fetchAllReviews();
   }, []);
@@ -159,13 +162,33 @@ export default function ReviewsSection() {
   // Filter approved reviews only
   const approvedReviews = reviews.filter((r) => r.isApproved).slice(0, 9);
 
+  const handleMobileScroll = () => {
+    if (!mobileSliderRef.current) return;
+    const { scrollLeft, clientWidth } = mobileSliderRef.current;
+    if (clientWidth === 0) return;
+    const newIdx = Math.round(scrollLeft / clientWidth);
+    if (newIdx !== activeIdx && newIdx >= 0 && newIdx < approvedReviews.length) {
+      setActiveIdx(newIdx);
+    }
+  };
+
+  const scrollToReview = (idx) => {
+    if (!mobileSliderRef.current) return;
+    const width = mobileSliderRef.current.clientWidth;
+    mobileSliderRef.current.scrollTo({
+      left: idx * width,
+      behavior: "smooth",
+    });
+    setActiveIdx(idx);
+  };
+
   // Don't show section if no reviews
   if (!loading && approvedReviews.length === 0) {
     return null;
   }
 
   return (
-    <section className="relative overflow-hidden bg-white py-16 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden bg-white py-10 sm:py-20 lg:py-24">
       {/* Background Pattern */}
       <div
         className="pointer-events-none absolute left-0 top-0 h-full w-1/2 opacity-[0.02]"
@@ -183,17 +206,17 @@ export default function ReviewsSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mb-12 text-center"
+          className="mb-8 text-center sm:mb-12"
         >
-          <div className="mb-3 flex items-center justify-center gap-2">
-            <Leaf className="h-5 w-5 text-green-600" />
-            <span className="text-xs font-bold uppercase tracking-widest text-green-600">
+          <div className="mb-2 flex items-center justify-center gap-1.5 sm:mb-3 sm:gap-2">
+            <Leaf className="h-3.5 w-3.5 text-green-600 sm:h-5 sm:w-5" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-green-600 sm:text-xs">
               Customer Stories
             </span>
           </div>
 
           <h2
-            className="mb-4 text-4xl font-semibold text-gray-900 sm:text-5xl lg:text-6xl"
+            className="mb-2 text-[26px] font-semibold leading-[1.2] text-[#15352D] sm:mb-4 sm:text-5xl lg:text-6xl"
             style={{
               fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
             }}
@@ -201,25 +224,108 @@ export default function ReviewsSection() {
             What Our Customers Say
           </h2>
 
-          <p className="mx-auto max-w-2xl text-base text-gray-600 sm:text-lg">
-            Real experiences from people who've made the switch to sustainable
+          <p className="mx-auto max-w-2xl text-[12px] leading-[1.5] text-gray-600 sm:text-lg">
+            Real experiences from people who&apos;ve made the switch to sustainable
             living with Green Fibre
           </p>
         </motion.div>
 
-        {/* Masonry Grid */}
+        {/* Content */}
         {loading ? (
-          <div className="columns-1 gap-6 sm:columns-2 lg:columns-3">
-            {[...Array(6)].map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
-          </div>
+          <>
+            <div className="sm:hidden">
+              <SkeletonCard />
+            </div>
+            <div className="hidden sm:block sm:columns-2 lg:columns-3 sm:gap-6">
+              {[...Array(6)].map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          </>
         ) : (
-          <div className="columns-1 gap-6 sm:columns-2 lg:columns-3">
-            {approvedReviews.map((review, index) => (
-              <ReviewCard key={review._id} review={review} index={index} />
-            ))}
-          </div>
+          <>
+            {/* Mobile View: 1 Card at a time carousel */}
+            <div className="sm:hidden">
+              <div
+                ref={mobileSliderRef}
+                onScroll={handleMobileScroll}
+                className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none gap-4 pb-1"
+              >
+                {approvedReviews.map((review, idx) => (
+                  <div key={review._id || idx} className="w-full shrink-0 snap-center">
+                    <div className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-xs">
+                      {/* Rating Stars */}
+                      <div className="mb-3 flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < (review.rating || 5)
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-gray-200"
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Review Text */}
+                      <p className="mb-4 text-[13px] leading-[1.6] text-gray-700">
+                        &ldquo;{review.comment}&rdquo;
+                      </p>
+
+                      {/* User Info */}
+                      <div className="flex items-center gap-3 border-t border-gray-100 pt-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                          {review.user?.profileImage ? (
+                            <Image
+                              src={review.user.profileImage}
+                              alt={review.user.full_name || "Customer"}
+                              width={36}
+                              height={36}
+                              className="rounded-full object-cover"
+                            />
+                          ) : (
+                            <User className="h-4 w-4 text-emerald-600" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold text-gray-900 leading-tight">
+                            {review.user?.full_name || "Verified Customer"}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            Verified Customer
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Dots pagination */}
+              {approvedReviews.length > 1 && (
+                <div className="mt-4 flex justify-center gap-1.5">
+                  {approvedReviews.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => scrollToReview(idx)}
+                      aria-label={`Go to review ${idx + 1}`}
+                      className={`h-1.5 rounded-full transition-all ${
+                        activeIdx === idx ? "w-5 bg-[#15803d]" : "w-1.5 bg-gray-300"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop View: Preserved Masonry */}
+            <div className="hidden sm:block sm:columns-2 lg:columns-3 sm:gap-6">
+              {approvedReviews.map((review, index) => (
+                <ReviewCard key={review._id} review={review} index={index} />
+              ))}
+            </div>
+          </>
         )}
 
         {/* View All Button */}
@@ -229,14 +335,14 @@ export default function ReviewsSection() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="mt-12 text-center"
+            className="mt-8 text-center sm:mt-12"
           >
             <Link
               href="/shop"
-              className="inline-flex items-center gap-2 rounded-full border-2 border-green-600 bg-transparent px-8 py-4 font-semibold text-green-600 transition-all hover:bg-green-600 hover:text-white"
+              className="inline-flex h-[42px] items-center gap-2 rounded-full border border-green-600 bg-transparent px-6 text-xs font-semibold text-green-600 transition-all hover:bg-green-600 hover:text-white sm:h-auto sm:border-2 sm:px-8 sm:py-4 sm:text-base"
             >
               Shop Sustainable Products
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Link>
           </motion.div>
         )}

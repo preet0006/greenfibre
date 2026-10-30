@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -14,6 +14,7 @@ import {
   Leaf,
   Recycle,
   Heart,
+  ChevronDown,
 } from "lucide-react";
 
 // ── Social SVG icons (inline — no lucide dependency) ──────────
@@ -52,14 +53,6 @@ const SOCIAL_ICONS = {
   pinterest: { icon: SvgPinterest, label: "Pinterest" },
 };
 
-// const SHOP_LINKS = [
-//   { label: "All Products", href: "/shop" },
-//   { label: "Sustainable Home", href: "/shop?category=sustainable-home" },
-//   { label: "Garden & Outdoor", href: "/shop?category=garden" },
-//   { label: "Zero Waste", href: "/shop?category=zero-waste" },
-//   { label: "Natural Fibers", href: "/shop?category=natural-fibers" },
-// ];
-
 const COMPANY_LINKS = [
   { label: "About Us", href: "/about" },
   { label: "Our Mission", href: "/sustainability" },
@@ -78,7 +71,7 @@ const LEGAL_LINKS = [
 
 function FooterHeading({ children }) {
   return (
-    <p className="mb-6 text-xs font-bold uppercase tracking-wider text-gray-900">
+    <p className="mb-4 text-xs font-bold uppercase tracking-wider text-gray-900 sm:mb-6">
       {children}
     </p>
   );
@@ -91,7 +84,7 @@ function FooterLink({ href, children, external = false }) {
         href={href}
         target={external ? "_blank" : undefined}
         rel={external ? "noopener noreferrer" : undefined}
-        className="text-sm text-gray-600 transition-colors duration-200 hover:text-green-600"
+        className="text-xs sm:text-sm text-gray-600 transition-colors duration-200 hover:text-green-600"
       >
         {children}
         {external && (
@@ -108,6 +101,19 @@ export default function Footer() {
   const fetchPageSettings = usePageSettingsStore((s) => s.fetchPageSettings);
   const categories = useCategoryStore((s) => s.categories);
   const fetchCategories = useCategoryStore((s) => s.fetchCategories);
+
+  const [mobileOpen, setMobileOpen] = useState({
+    shop: true,
+    company: false,
+    legal: false,
+  });
+
+  const toggleSection = (section) => {
+    setMobileOpen((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   useEffect(() => {
     fetchPageSettings();
@@ -137,71 +143,67 @@ export default function Footer() {
 
   return (
     <footer className="relative mt-auto bg-white border-t border-gray-100">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:py-14 sm:px-6 lg:px-8">
         {/* ── Main content grid ── */}
-        <div className="grid grid-cols-1 gap-16 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-16">
           {/* ── Brand column ── */}
-          <div className="lg:col-span-5 space-y-5">
+          <div className="space-y-4 sm:space-y-5 lg:col-span-5">
             <Link href="/" className="inline-block group">
-              <div className="">
-                {/* Logo */}
-                <div className="relative h-40 w-40">
-                  <Image
-                    src="/greenfiber-logo.png" // Update with your actual logo path
-                    alt="Green Fibre"
-                    fill
-                    className="object-contain object-left"
-                    sizes="160px"
-                  />
-                </div>
+              {/* Logo */}
+              <div className="relative h-12 w-36 sm:h-20 sm:w-44 lg:h-32 lg:w-44">
+                <Image
+                  src="/greenfiber-logo.png"
+                  alt="Green Fibre"
+                  fill
+                  className="object-contain object-left"
+                  sizes="(max-width: 640px) 144px, 176px"
+                />
               </div>
             </Link>
 
             {/* Description */}
             {settings.footerDescription ? (
-              <p className="text-sm leading-relaxed text-gray-600 max-w-md">
+              <p className="text-xs sm:text-sm leading-relaxed text-gray-600 max-w-md">
                 {settings.footerDescription}
               </p>
             ) : (
-              <p className="text-sm leading-relaxed text-gray-600 max-w-md">
+              <p className="text-xs sm:text-sm leading-relaxed text-gray-600 max-w-md">
                 Eco-friendly products engineered by blending agricultural rice husk with durable polymers.
                 High-strength, food-safe, and sustainable essentials for conscious living.
               </p>
             )}
 
             {/* Contact details */}
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
               {primaryEmail && (
                 <a
                   href={`mailto:${primaryEmail}`}
-                  className="flex items-center gap-3 text-sm text-gray-600 hover:text-green-600 transition-colors group"
+                  className="flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm text-gray-600 hover:text-green-600 transition-colors group"
                 >
-                  <Mail className="h-4 w-4 text-green-600" />
-                  <span>{primaryEmail}</span>
+                  <Mail className="h-4 w-4 text-green-600 shrink-0" />
+                  <span className="break-all">{primaryEmail}</span>
                 </a>
               )}
               {primaryPhone && (
                 <a
                   href={`tel:${primaryPhone.replace(/\s+/g, "")}`}
-                  className="flex items-center gap-3 text-sm text-gray-600 hover:text-green-600 transition-colors group"
+                  className="flex items-center gap-2.5 sm:gap-3 text-xs sm:text-sm text-gray-600 hover:text-green-600 transition-colors group"
                 >
-                  <Phone className="h-4 w-4 text-green-600" />
+                  <Phone className="h-4 w-4 text-green-600 shrink-0" />
                   <span>{primaryPhone}{secondaryPhone ? ` / ${secondaryPhone}` : ""}</span>
                 </a>
               )}
-              <div className="flex items-start gap-3 text-sm text-gray-500">
+              <div className="flex items-start gap-2.5 sm:gap-3 text-xs sm:text-sm text-gray-500">
                 <MapPin className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                 <span className="leading-relaxed">
                   Plot no: 334, Udyog Kendra 2, Ecotech III, Greater Noida, Uttar Pradesh 201306
                 </span>
               </div>
-
-
             </div>
 
             {/* Social icons */}
             {activeSocials.length > 0 && (
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex items-center gap-2.5 sm:gap-3 pt-1 sm:pt-2">
                 {activeSocials.map(([platform, url]) => {
                   const meta = SOCIAL_ICONS[platform];
                   if (!meta) return null;
@@ -215,9 +217,9 @@ export default function Footer() {
                       aria-label={platform}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-all hover:border-green-600 hover:text-green-600 hover:bg-green-50"
+                      className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full border border-gray-200 text-gray-600 transition-all hover:border-green-600 hover:text-green-600 hover:bg-green-50"
                     >
-                      <Icon className="h-4 w-4" />
+                      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </motion.a>
                   );
                 })}
@@ -225,16 +227,103 @@ export default function Footer() {
             )}
           </div>
 
-          {/* ── Links columns ── */}
-          <div className="lg:col-span-7 grid grid-cols-2 gap-12 sm:grid-cols-3 lg:gap-16">
-            {/* Shop */}
+          {/* ── Mobile Accordion Navigation (sm:hidden) ── */}
+          <div className="divide-y divide-gray-100 sm:hidden">
+            {/* Shop Section */}
+            <div className="py-3">
+              <button
+                type="button"
+                onClick={() => toggleSection("shop")}
+                className="flex w-full items-center justify-between py-1 text-left"
+              >
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Shop
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                    mobileOpen.shop ? "rotate-180 text-green-600" : ""
+                  }`}
+                />
+              </button>
+              {mobileOpen.shop && (
+                <ul className="mt-3 space-y-2.5 pl-1">
+                  <FooterLink href="/shop">All Products</FooterLink>
+                  {categories
+                    ?.filter((category) => category.isActive)
+                    ?.map((category) => (
+                      <FooterLink
+                        key={category._id}
+                        href={`/shop?category=${category.slug}`}
+                      >
+                        {category.name}
+                      </FooterLink>
+                    ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Company Section */}
+            <div className="py-3">
+              <button
+                type="button"
+                onClick={() => toggleSection("company")}
+                className="flex w-full items-center justify-between py-1 text-left"
+              >
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Company
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                    mobileOpen.company ? "rotate-180 text-green-600" : ""
+                  }`}
+                />
+              </button>
+              {mobileOpen.company && (
+                <ul className="mt-3 space-y-2.5 pl-1">
+                  {COMPANY_LINKS.map(({ label, href }) => (
+                    <FooterLink key={label} href={href}>
+                      {label}
+                    </FooterLink>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Legal Section */}
+            <div className="py-3">
+              <button
+                type="button"
+                onClick={() => toggleSection("legal")}
+                className="flex w-full items-center justify-between py-1 text-left"
+              >
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-900">
+                  Legal
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 text-gray-500 transition-transform duration-200 ${
+                    mobileOpen.legal ? "rotate-180 text-green-600" : ""
+                  }`}
+                />
+              </button>
+              {mobileOpen.legal && (
+                <ul className="mt-3 space-y-2.5 pl-1">
+                  {LEGAL_LINKS.map(({ label, href }) => (
+                    <FooterLink key={label} href={href}>
+                      {label}
+                    </FooterLink>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* ── Desktop Links columns (hidden sm:grid) ── */}
+          <div className="hidden sm:grid sm:grid-cols-3 sm:gap-12 lg:col-span-7 lg:gap-16">
             {/* Shop */}
             <div>
               <FooterHeading>Shop</FooterHeading>
-
               <ul className="space-y-3">
                 <FooterLink href="/shop">All Products</FooterLink>
-
                 {categories
                   ?.filter((category) => category.isActive)
                   ?.map((category) => (
@@ -274,33 +363,32 @@ export default function Footer() {
           </div>
         </div>
 
-
         {/* ── Eco badges ── */}
-        <div className="mt-10 pt-10 border-t border-gray-100">
-          <div className="flex flex-wrap items-center justify-center gap-8">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Leaf className="w-5 h-5 text-green-600" />
+        <div className="mt-8 sm:mt-10 pt-6 sm:pt-10 border-t border-gray-100">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-8">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
+              <Leaf className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
               <span className="font-medium">100% Sustainable</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Recycle className="w-5 h-5 text-green-600" />
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
+              <Recycle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
               <span className="font-medium">Carbon Neutral</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <Heart className="w-5 h-5 text-green-600" />
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-600">
+              <Heart className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
               <span className="font-medium">Earth Friendly</span>
             </div>
           </div>
         </div>
 
         {/* ── Bottom bar ── */}
-        <div className="mt-12 pt-8 border-t border-gray-100">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row text-center sm:text-left">
-            <p className="text-sm text-gray-500">
+        <div className="mt-8 sm:mt-12 pt-6 sm:pt-8 border-t border-gray-100">
+          <div className="flex flex-col items-center justify-between gap-2 sm:gap-4 sm:flex-row text-center sm:text-left">
+            <p className="text-xs sm:text-sm text-gray-500">
               © {new Date().getFullYear()}{" "}
               {settings.companyName || "Green Fibre"}. All rights reserved.
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500">
               Powered by{" "}
               <span className="font-medium text-gray-700">
                 Charvik Moulds and Products Private Limited

@@ -372,7 +372,7 @@ export default function Navbar() {
       >
         <div
           className={`mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
-            scrolled ? "h-14 md:h-16" : "h-20 md:h-24"
+            scrolled ? "h-16 md:h-16" : "h-16 md:h-24"
           }`}
         >
           {/* Logo */}
@@ -380,8 +380,8 @@ export default function Navbar() {
             <div
               className={`relative transition-all duration-300 ${
                 scrolled
-                  ? "h-10 w-24 sm:h-11 sm:w-28 md:h-12 md:w-32"
-                  : "h-16 w-32 sm:h-18 sm:w-36 md:h-22 md:w-22"
+                  ? "h-10 w-28 sm:h-11 sm:w-28 md:h-12 md:w-32"
+                  : "h-11 w-32 sm:h-16 sm:w-36 md:h-22 md:w-44"
               }`}
             >
               <Image
@@ -464,7 +464,7 @@ export default function Navbar() {
                     : "text-gray-600 hover:bg-gray-50 hover:text-green-600"
                   }`}
               >
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait" initial={false}>
                   {searchOpen ? (
                     <motion.span
                       key="x"
@@ -478,7 +478,7 @@ export default function Navbar() {
                   ) : (
                     <motion.span
                       key="s"
-                      initial={{ rotate: 90, opacity: 0 }}
+                      initial={{ opacity: 1 }}
                       animate={{ rotate: 0, opacity: 1 }}
                       exit={{ rotate: -90, opacity: 0 }}
                       transition={{ duration: 0.12 }}
@@ -495,7 +495,7 @@ export default function Navbar() {
                     initial="hidden"
                     animate="show"
                     exit="exit"
-                    className="absolute right-[-110] top-full z-50 mt-2 w-90 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
+                    className="fixed inset-x-3 sm:inset-x-auto sm:absolute sm:right-0 top-full z-50 mt-2 max-w-[calc(100vw-24px)] sm:w-90 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl"
                   >
                     {/* Search Input */}
                     <form
@@ -628,8 +628,10 @@ export default function Navbar() {
               </AnimatePresence>
             </div>
 
-            {/* Rewards Points Badge */}
-            <RewardsBadge />
+            {/* Rewards Points Badge — desktop header */}
+            <div className="hidden md:flex">
+              <RewardsBadge />
+            </div>
 
             {/* Cart */}
             <Link
@@ -744,7 +746,7 @@ export default function Navbar() {
               onClick={() => setMobileOpen(!mobileOpen)}
               className="flex h-10 w-10 items-center justify-center rounded-xl text-gray-600 transition-colors hover:bg-gray-50 hover:text-green-600 md:hidden"
             >
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait" initial={false}>
                 {mobileOpen ? (
                   <motion.span
                     key="x"
@@ -758,7 +760,7 @@ export default function Navbar() {
                 ) : (
                   <motion.span
                     key="m"
-                    initial={{ rotate: 90, opacity: 0 }}
+                    initial={{ opacity: 1 }}
                     animate={{ rotate: 0, opacity: 1 }}
                     exit={{ rotate: -90, opacity: 0 }}
                     transition={{ duration: 0.14 }}
@@ -780,7 +782,9 @@ export default function Navbar() {
             initial="hidden"
             animate="show"
             exit="exit"
-            className="fixed inset-x-4 top-[124px] z-40 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl md:hidden"
+            className={`fixed inset-x-3 sm:inset-x-4 ${
+              scrolled ? "top-[70px]" : "top-[104px]"
+            } z-40 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl md:hidden`}
           >
             {/* Inline search */}
             <form
@@ -830,6 +834,11 @@ export default function Navbar() {
                   </Link>
                 </motion.div>
               ))}
+
+              {/* Rewards Wallet for mobile users */}
+              <div className="pt-2 px-2">
+                <RewardsBadge />
+              </div>
             </div>
 
             {/* Active coupons */}
