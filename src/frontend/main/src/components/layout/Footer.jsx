@@ -103,7 +103,7 @@ export default function Footer() {
   const fetchCategories = useCategoryStore((s) => s.fetchCategories);
 
   const [mobileOpen, setMobileOpen] = useState({
-    shop: true,
+    shop: false,
     company: false,
     legal: false,
   });

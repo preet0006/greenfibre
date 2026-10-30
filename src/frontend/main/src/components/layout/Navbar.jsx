@@ -303,6 +303,18 @@ export default function Navbar() {
     closeSearch();
   }, [pathname]);
 
+  // Lock background scrolling while mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   useEffect(() => {
     const fn = (e) => {
       if (userRef.current && !userRef.current.contains(e.target))
@@ -371,8 +383,8 @@ export default function Navbar() {
         }`}
       >
         <div
-          className={`mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 transition-all duration-300 ${
-            scrolled ? "h-16 md:h-16" : "h-16 md:h-24"
+          className={`mx-auto flex max-w-7xl items-center justify-between px-3.5 sm:px-6 lg:px-8 transition-all duration-300 ${
+            scrolled ? "h-14 sm:h-16 md:h-16" : "h-14 sm:h-16 md:h-24"
           }`}
         >
           {/* Logo */}
@@ -380,8 +392,8 @@ export default function Navbar() {
             <div
               className={`relative transition-all duration-300 ${
                 scrolled
-                  ? "h-10 w-28 sm:h-11 sm:w-28 md:h-12 md:w-32"
-                  : "h-11 w-32 sm:h-16 sm:w-36 md:h-22 md:w-44"
+                  ? "h-9 w-26 sm:h-11 sm:w-28 md:h-12 md:w-32"
+                  : "h-9 w-28 sm:h-14 sm:w-36 md:h-22 md:w-44"
               }`}
             >
               <Image
@@ -783,33 +795,33 @@ export default function Navbar() {
             animate="show"
             exit="exit"
             className={`fixed inset-x-3 sm:inset-x-4 ${
-              scrolled ? "top-[70px]" : "top-[104px]"
-            } z-40 max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl md:hidden`}
+              scrolled ? "top-[62px]" : "top-[94px]"
+            } z-40 max-h-[calc(100dvh-75px)] sm:max-h-[calc(100vh-115px)] overflow-y-auto rounded-2xl border border-gray-200/90 bg-white shadow-2xl md:hidden`}
           >
-            {/* Inline search */}
+            {/* Inline search - 44px touch target */}
             <form
               onSubmit={handleSearch}
-              className="flex items-center gap-2 border-b border-gray-100 px-4 py-3"
+              className="flex h-11 items-center gap-2 border-b border-gray-100 px-3.5 py-1.5"
             >
               <Search className="h-4 w-4 shrink-0 text-gray-400" />
               <input
                 placeholder="Search products…"
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
-                className="flex-1 bg-transparent text-sm font-medium text-gray-900 outline-none placeholder:text-gray-400"
+                className="flex-1 bg-transparent text-base sm:text-sm font-medium text-gray-900 outline-none placeholder:text-gray-400"
               />
               {searchQ.trim() && (
                 <button
                   type="submit"
-                  className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white"
+                  className="flex h-8 items-center rounded-lg bg-green-600 px-3 text-xs font-semibold text-white"
                 >
                   Go
                 </button>
               )}
             </form>
 
-            {/* Nav links */}
-            <div className="space-y-1 px-3 py-4">
+            {/* Primary Nav links group */}
+            <div className="space-y-0.5 px-2.5 py-2">
               {[
                 { label: "Shop", href: "/shop" },
                 { label: "About", href: "/about" },
@@ -819,14 +831,14 @@ export default function Navbar() {
               ].map(({ label, href }, i) => (
                 <motion.div
                   key={href}
-                  initial={{ opacity: 0, x: -10 }}
+                  initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
+                  transition={{ delay: i * 0.03 }}
                 >
                   <Link
                     href={href}
-                    className={`flex items-center rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${isActive(href)
-                        ? "bg-green-50 text-green-600"
+                    className={`flex min-h-[44px] items-center rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors ${isActive(href)
+                        ? "bg-green-50 text-green-600 font-semibold"
                         : "text-gray-700 hover:bg-gray-50 hover:text-green-600"
                       }`}
                   >
@@ -834,94 +846,71 @@ export default function Navbar() {
                   </Link>
                 </motion.div>
               ))}
-
-              {/* Rewards Wallet for mobile users */}
-              <div className="pt-2 px-2">
-                <RewardsBadge />
-              </div>
             </div>
 
-            {/* Active coupons */}
-            {/* {activeCoupons.length > 0 && (
-              <div className="border-t border-gray-100 px-4 py-3">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-                  Active Offers
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {activeCoupons.map((c) => (
-                    <span
-                      key={c._id}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700"
-                    >
-                      <Tag className="h-3 w-3 shrink-0" />
-                      {c.code}
-                      <span className="font-medium text-green-600">
-                        {c.discountType === "percentage"
-                          ? `${c.discountValue}% off`
-                          : `₹${c.discountValue} off`}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )} */}
+            {/* Subtle Divider before Rewards */}
+            <div className="border-t border-gray-100 px-3 py-2">
+              <RewardsBadge />
+            </div>
 
-            {/* Auth */}
-            <div className="border-t border-gray-100 px-3 pb-3 pt-2">
+            {/* Account & Profile section */}
+            <div className="border-t border-gray-100 px-2.5 pb-3 pt-2">
               {user ? (
                 <>
-                  <div className="flex items-center gap-3 px-4 py-2.5">
+                  <div className="flex items-center gap-3 px-3.5 py-2">
                     {user?.profile_image?.original ? (
                       <Image
                         src={user.profile_image?.original}
                         alt=""
                         width={32}
                         height={32}
-                        className="h-8 w-8 rounded-full object-cover border border-gray-200"
+                        className="h-8 w-8 shrink-0 rounded-full object-cover border border-gray-200"
                       />
                     ) : (
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-xs font-bold text-white">
                         {user?.full_name?.charAt(0)?.toUpperCase()}
                       </div>
                     )}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-gray-900">
                         {user?.full_name}
                       </p>
-                      <p className="truncate text-xs text-gray-500">
+                      <p className="break-all text-[11px] text-gray-500 leading-tight">
                         {user?.email}
                       </p>
                     </div>
                   </div>
-                  {[
-                    { icon: Package, label: "My Orders", href: "/orders" },
-                    { icon: Coins, label: "Reward Points", href: "/rewards" },
-                    { icon: Heart, label: "Wishlist", href: "/wishlist" },
-                    { icon: Settings, label: "Account", href: "/account" },
-                  ].map(({ icon: Icon, label, href }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600"
+                  <div className="space-y-0.5 pt-1">
+                    {[
+                      { icon: Package, label: "My Orders", href: "/orders" },
+                      { icon: Coins, label: "Reward Points", href: "/rewards" },
+                      { icon: Heart, label: "Wishlist", href: "/wishlist" },
+                      { icon: Settings, label: "Account", href: "/account" },
+                    ].map(({ icon: Icon, label, href }) => (
+                      <Link
+                        key={href}
+                        href={href}
+                        className="flex min-h-[44px] items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+                        {label}
+                      </Link>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setMobileOpen(false);
+                        logout(router);
+                      }}
+                      className="flex min-h-[44px] w-full items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
                     >
-                      <Icon className="h-4 w-4 shrink-0 text-gray-400" />
-                      {label}
-                    </Link>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      logout(router);
-                    }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
-                  >
-                    <LogOut className="h-4 w-4 shrink-0" /> Sign Out
-                  </button>
+                      <LogOut className="h-4 w-4 shrink-0" /> Sign Out
+                    </button>
+                  </div>
                 </>
               ) : (
                 <Link
                   href="/login"
-                  className="flex items-center justify-center gap-2 rounded-xl bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-green-700 transition-colors"
                 >
                   <User className="h-4 w-4" /> Sign In
                 </Link>

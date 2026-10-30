@@ -96,44 +96,41 @@ export default function RewardsHubPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50/60 pb-20 pt-28">
-      <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-10">
-        {/* Hero Card */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-950 p-8 sm:p-10 text-white shadow-xl">
-          <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl pointer-events-none" />
-          <div className="absolute -left-16 -bottom-16 h-64 w-64 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-8">
-            <div className="space-y-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-200 backdrop-blur-md">
-                <Sparkles className="h-3.5 w-3.5" /> GreenFibre Customer Rewards
+    <div className="min-h-screen bg-gray-50/60 pb-16 sm:pb-20 pt-20 sm:pt-28">
+      <div className="mx-auto max-w-5xl px-3.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-10">
+        {/* Hero Card - Clean White Box */}
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-5 sm:p-8 md:p-10 shadow-xs">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6 sm:gap-8">
+            <div className="space-y-2 sm:space-y-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] sm:text-xs font-semibold text-emerald-800">
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> GreenFibre Customer Rewards
               </span>
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight leading-tight text-gray-900">
                 Your Reward Points Hub
               </h1>
-              <p className="max-w-md text-sm text-emerald-100/90 leading-relaxed">
+              <p className="max-w-md text-xs sm:text-sm text-gray-600 leading-relaxed">
                 Earn 2.5% points back on every sustainable order. Redeem them like cash (1 pt = ₹1) on all future purchases.
               </p>
             </div>
 
             {/* Current Balance Box */}
-            <div className="rounded-2xl border border-white/15 bg-white/10 p-6 backdrop-blur-md text-center md:text-right shrink-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-200">
+            <div className="rounded-xl sm:rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/60 via-white to-amber-50/30 p-4 sm:p-6 text-center md:text-right shrink-0 shadow-2xs">
+              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-emerald-800">
                 Available Balance
               </p>
-              <div className="mt-2 flex items-baseline justify-center md:justify-end gap-2">
-                <span className="text-5xl font-black tracking-tight text-white">
+              <div className="mt-1 sm:mt-2 flex items-baseline justify-center md:justify-end gap-1.5 sm:gap-2">
+                <span className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-gray-900">
                   {balance.toLocaleString("en-IN")}
                 </span>
-                <span className="text-sm font-bold uppercase text-emerald-300">pts</span>
+                <span className="text-xs sm:text-sm font-bold uppercase text-emerald-700">pts</span>
               </div>
-              <p className="mt-1 text-xs font-medium text-emerald-200">
+              <p className="mt-1 text-[11px] sm:text-xs font-medium text-gray-500">
                 Worth ₹{(balance * (config?.point_value || 1)).toLocaleString("en-IN")} on your next order
               </p>
-              <div className="mt-4">
+              <div className="mt-3 sm:mt-4">
                 <Link
                   href="/shop"
-                  className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-green-700 transition-colors"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-green-700 transition-colors w-full sm:w-auto"
                 >
                   <ShoppingBag className="h-4 w-4" /> Shop & Earn Points
                 </Link>
@@ -142,20 +139,20 @@ export default function RewardsHubPage() {
           </div>
 
           {/* Quick Metrics */}
-          <div className="relative z-10 mt-8 grid grid-cols-2 sm:grid-cols-3 gap-4 border-t border-white/10 pt-6">
+          <div className="relative z-10 mt-6 sm:mt-8 grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 border-t border-gray-100 pt-4 sm:pt-6">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-emerald-300">Conversion Rate</p>
-              <p className="mt-1 text-base font-bold text-white">1 Point = ₹1.00</p>
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Conversion Rate</p>
+              <p className="mt-1 text-sm sm:text-base font-bold text-gray-900">1 Point = ₹1.00</p>
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-emerald-300">Lifetime Points Earned</p>
-              <p className="mt-1 text-base font-bold text-white">
+              <p className="text-[11px] uppercase tracking-wider text-emerald-700 font-semibold">Lifetime Points Earned</p>
+              <p className="mt-1 text-sm sm:text-base font-bold text-emerald-700">
                 +{stats.lifetimeEarned.toLocaleString("en-IN")} pts
               </p>
             </div>
             <div className="col-span-2 sm:col-span-1">
-              <p className="text-[11px] uppercase tracking-wider text-emerald-300">Lifetime Points Redeemed</p>
-              <p className="mt-1 text-base font-bold text-white">
+              <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">Lifetime Points Redeemed</p>
+              <p className="mt-1 text-sm sm:text-base font-bold text-gray-900">
                 {stats.lifetimeRedeemed.toLocaleString("en-IN")} pts
               </p>
             </div>
@@ -163,17 +160,17 @@ export default function RewardsHubPage() {
         </div>
 
         {/* The 20% Formula Card */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
-          <div className="flex items-center justify-between">
+        <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6 md:p-8 shadow-xs space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
+              <h2 className="text-base sm:text-lg font-bold text-gray-900">
                 The GreenFibre 20% Value Formula
               </h2>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">
                 How your 20% total discount budget is delivered to you
               </p>
             </div>
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+            <span className="self-start sm:self-auto rounded-full bg-emerald-100 px-2.5 py-0.5 sm:px-3 sm:py-1 text-[11px] sm:text-xs font-bold text-emerald-800">
               Triple Layer Savings
             </span>
           </div>
@@ -211,21 +208,21 @@ export default function RewardsHubPage() {
           </div>
         </div>
 
-        {/* Ledger Transaction History */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {/* Ledger Section */}
+        <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6 md:p-8 shadow-xs space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Transaction History</h2>
-              <p className="text-xs text-gray-500 mt-1">Complete audit log of all point movements</p>
+              <h2 className="text-base sm:text-lg font-bold text-gray-900">Transaction History</h2>
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 sm:mt-1">Complete audit log of all point movements</p>
             </div>
 
-            {/* Filter buttons */}
-            <div className="flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
+            {/* Filter buttons - horizontally scrollable without breaking container on small screens */}
+            <div className="flex max-w-full overflow-x-auto rounded-xl bg-gray-100 p-1 text-xs font-semibold shrink-0">
               <button
                 type="button"
                 onClick={() => setFilter("all")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${
-                  filter === "all" ? "bg-white text-gray-900 shadow-2xs" : "text-gray-600 hover:text-gray-900"
+                className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 sm:px-3 transition-colors ${
+                  filter === "all" ? "bg-white text-gray-900 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 All Movements
@@ -233,8 +230,8 @@ export default function RewardsHubPage() {
               <button
                 type="button"
                 onClick={() => setFilter("earn")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${
-                  filter === "earn" ? "bg-white text-gray-900 shadow-2xs" : "text-gray-600 hover:text-gray-900"
+                className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 sm:px-3 transition-colors ${
+                  filter === "earn" ? "bg-white text-gray-900 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 Earned (+)
@@ -242,8 +239,8 @@ export default function RewardsHubPage() {
               <button
                 type="button"
                 onClick={() => setFilter("redeem")}
-                className={`rounded-lg px-3 py-1.5 transition-colors ${
-                  filter === "redeem" ? "bg-white text-gray-900 shadow-2xs" : "text-gray-600 hover:text-gray-900"
+                className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 sm:px-3 transition-colors ${
+                  filter === "redeem" ? "bg-white text-gray-900 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 Redeemed (-)
@@ -252,68 +249,137 @@ export default function RewardsHubPage() {
           </div>
 
           {filteredHistory.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-semibold">
-                    <th className="pb-3">Type</th>
-                    <th className="pb-3">Description</th>
-                    <th className="pb-3">Date</th>
-                    <th className="pb-3 text-right">Points</th>
-                    <th className="pb-3 text-right">Balance After</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredHistory.map((item) => {
-                    const isCredit =
-                      item.type === "EARN" ||
-                      item.type === "REVERSE_REDEEM" ||
-                      (item.type === "ADJUST" && item.points > 0);
+            <>
+              {/* Desktop Table View (>= 768px) - unchanged desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-400 uppercase tracking-wider font-semibold">
+                      <th className="pb-3">Type</th>
+                      <th className="pb-3">Description</th>
+                      <th className="pb-3">Date</th>
+                      <th className="pb-3 text-right">Points</th>
+                      <th className="pb-3 text-right">Balance After</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredHistory.map((item) => {
+                      const isCredit =
+                        item.type === "EARN" ||
+                        item.type === "REVERSE_REDEEM" ||
+                        (item.type === "ADJUST" && item.points > 0);
 
-                    return (
-                      <tr key={item.id || item._id} className="hover:bg-gray-50/50">
-                        <td className="py-4">
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-bold uppercase text-[10px] ${
-                              isCredit
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-red-100 text-red-800"
+                      return (
+                        <tr key={item.id || item._id} className="hover:bg-gray-50/50">
+                          <td className="py-4">
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-bold uppercase text-[10px] ${
+                                isCredit
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {isCredit ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
+                              {item.type}
+                            </span>
+                          </td>
+                          <td className="py-4 text-gray-800 font-medium">
+                            {item.reason || `${item.type} on order`}
+                          </td>
+                          <td className="py-4 text-gray-500">
+                            {new Date(item.created_at || item.createdAt).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                          <td
+                            className={`py-4 text-right font-bold text-sm ${
+                              isCredit ? "text-emerald-700" : "text-gray-900"
                             }`}
                           >
-                            {isCredit ? <ArrowDownLeft className="h-3 w-3" /> : <ArrowUpRight className="h-3 w-3" />}
-                            {item.type}
-                          </span>
-                        </td>
-                        <td className="py-4 text-gray-800 font-medium">
-                          {item.reason || `${item.type} on order`}
-                        </td>
-                        <td className="py-4 text-gray-500">
-                          {new Date(item.created_at || item.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </td>
-                        <td
-                          className={`py-4 text-right font-bold text-sm ${
+                            {isCredit ? "+" : "-"}
+                            {item.points} pts
+                          </td>
+                          <td className="py-4 text-right font-medium text-gray-500">
+                            {item.balance_after != null ? `${item.balance_after} pts` : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Stacked Card View (< 768px) */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {filteredHistory.map((item) => {
+                  const isCredit =
+                    item.type === "EARN" ||
+                    item.type === "REVERSE_REDEEM" ||
+                    (item.type === "ADJUST" && item.points > 0);
+
+                  const refId = item.orderId || item.referenceId || item.order_id || item.reference;
+
+                  return (
+                    <div key={item.id || item._id} className="py-3.5 first:pt-1 last:pb-1 space-y-2">
+                      {/* Row 1: Type badge on left, signed points on right */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-bold uppercase text-[10px] ${
+                            isCredit
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {isCredit ? <ArrowDownLeft className="h-3 w-3 shrink-0" /> : <ArrowUpRight className="h-3 w-3 shrink-0" />}
+                          {item.type}
+                        </span>
+
+                        <span
+                          className={`font-bold text-sm ${
                             isCredit ? "text-emerald-700" : "text-gray-900"
                           }`}
                         >
                           {isCredit ? "+" : "-"}
                           {item.points} pts
-                        </td>
-                        <td className="py-4 text-right font-medium text-gray-500">
-                          {item.balance_after != null ? `${item.balance_after} pts` : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </span>
+                      </div>
+
+                      {/* Row 2: Full description with natural wrapping */}
+                      <p className="text-[13px] font-medium text-gray-800 leading-snug break-words">
+                        {item.reason || `${item.type} on order`}
+                      </p>
+
+                      {/* Associated Order/Ref ID if present */}
+                      {refId && (
+                        <p className="text-[11px] font-mono text-gray-500 break-all leading-tight">
+                          Ref: {refId}
+                        </p>
+                      )}
+
+                      {/* Row 3: Date and Balance After, clearly separated */}
+                      <div className="flex items-center justify-between text-[11px] text-gray-500 pt-0.5">
+                        <span className="flex items-center gap-1 text-gray-500">
+                          <Clock className="h-3 w-3 text-gray-400 shrink-0" />
+                          {new Date(item.created_at || item.createdAt).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                        <span>
+                          Balance: <strong className="font-semibold text-gray-700">{item.balance_after != null ? `${item.balance_after} pts` : "—"}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           ) : (
-            <div className="rounded-2xl border border-dashed border-gray-200 p-12 text-center">
-              <Clock className="mx-auto h-10 w-10 text-gray-300" />
+            <div className="rounded-xl sm:rounded-2xl border border-dashed border-gray-200 p-8 sm:p-12 text-center">
+              <Clock className="mx-auto h-8 w-8 sm:h-10 sm:w-10 text-gray-300" />
               <p className="mt-3 text-sm font-semibold text-gray-700">No transaction records found</p>
               <p className="mt-1 text-xs text-gray-500">
                 When you make purchases or redeem points, your ledger history will be logged here.
@@ -323,7 +389,7 @@ export default function RewardsHubPage() {
         </div>
 
         {/* FAQs */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 sm:p-8 shadow-xs space-y-4">
+        <div className="rounded-2xl sm:rounded-3xl border border-gray-200 bg-white p-4 sm:p-6 md:p-8 shadow-xs space-y-4">
           <div className="flex items-center gap-2">
             <HelpCircle className="h-5 w-5 text-emerald-700" />
             <h2 className="text-lg font-bold text-gray-900">Frequently Asked Questions</h2>

@@ -175,7 +175,7 @@ function AddressModal({ isOpen, onClose, onSave, editAddress = null }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative z-10 flex flex-col w-full max-w-lg sm:max-w-xl max-h-[85vh] sm:max-h-[88vh] rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-100 my-auto"
+          className="relative z-10 flex flex-col w-full max-w-lg sm:max-w-xl max-h-[92dvh] sm:max-h-[88vh] rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-100 my-auto"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -498,11 +498,11 @@ function AddressCard({ address, selected, onSelect, onEdit }) {
         {selected && <Check className="h-3 w-3 text-white" />}
       </div>
 
-      <div className="pr-8">
+      <div className="pr-10 pb-1">
         {/* Type badge */}
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           <span
-            className={`rounded-md px-2 py-0.5 text-xs font-bold uppercase ${
+            className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase ${
               address.addressType === "shipping"
                 ? "bg-blue-100 text-blue-700"
                 : "bg-purple-100 text-purple-700"
@@ -511,26 +511,26 @@ function AddressCard({ address, selected, onSelect, onEdit }) {
             {address.addressType}
           </span>
           {address.isDefault && (
-            <span className="rounded-md bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700">
+            <span className="rounded-md bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-700">
               Default
             </span>
           )}
         </div>
 
         {/* Name */}
-        <p className="font-semibold text-gray-900 break-words">{address.fullName}</p>
+        <p className="font-semibold text-sm sm:text-base text-gray-900 break-words">{address.fullName}</p>
 
         {/* Address */}
-        <p className="mt-1 text-sm text-gray-600 break-words">
+        <p className="mt-1 text-xs sm:text-sm text-gray-600 break-words leading-relaxed">
           {address.streetAddress}
           {address.landmark && `, ${address.landmark}`}
         </p>
-        <p className="text-sm text-gray-600 break-words">
+        <p className="text-xs sm:text-sm text-gray-600 break-words leading-relaxed">
           {address.city}, {address.state} - {address.pincode}
         </p>
 
         {/* Contact */}
-        <p className="mt-2 text-sm font-medium text-gray-700">
+        <p className="mt-1.5 text-xs sm:text-sm font-medium text-gray-700">
           {address.phone}
         </p>
       </div>
@@ -1091,7 +1091,7 @@ export default function CheckoutPage() {
           <Leaf className="h-64 w-64 text-white" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-6 sm:pb-12 sm:pt-8 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-7xl px-3.5 pb-6 pt-4 sm:pb-10 sm:pt-6 sm:px-6 lg:px-8">
           <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs sm:text-sm font-medium text-white/60">
             <Link href="/" className="hover:text-white/90 transition-colors">
               Home
@@ -1112,7 +1112,7 @@ export default function CheckoutPage() {
               Secure Checkout
             </p>
             <h1
-              className="mt-1.5 sm:mt-2 text-3xl font-semibold text-white sm:text-5xl"
+              className="mt-1 sm:mt-2 text-2xl sm:text-4xl md:text-5xl font-semibold text-white leading-tight"
               style={{
                 fontFamily:
                   "var(--font-cormorant, 'Cormorant Garamond', serif)",
@@ -1124,12 +1124,12 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3.5 pb-16 pt-5 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
           {/* ── Left — Shipping & Payment ── */}
           <div className="space-y-6">
             {/* Shipping Address */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-6 shadow-2xs sm:shadow-sm">
               <div className="mb-5 flex items-center justify-between">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
                   <MapPin className="h-5 w-5 text-green-600" />
@@ -1181,7 +1181,7 @@ export default function CheckoutPage() {
             </div>
 
             {/* Payment Method */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-6 shadow-2xs sm:shadow-sm">
               <h2 className="mb-5 flex items-center gap-2 text-lg font-semibold text-gray-900">
                 <CreditCard className="h-5 w-5 text-green-600" />
                 Payment Method
@@ -1267,7 +1267,7 @@ export default function CheckoutPage() {
           <div className="lg:sticky lg:top-24 lg:self-start">
             <div className="space-y-4">
               {/* Order Items */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-2xs sm:shadow-sm">
                 <p className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-500">
                   Order Summary ({items.length} items)
                 </p>
@@ -1282,7 +1282,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Coupon Form */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+              <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-2xs sm:shadow-sm">
                 <p className="mb-3 text-xs font-bold uppercase tracking-widest text-gray-500">
                   Have a Coupon?
                 </p>
@@ -1334,7 +1334,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Price Breakdown */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xs">
+              <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-2xs sm:shadow-sm">
                 <p className="mb-4 text-xs font-bold uppercase tracking-widest text-gray-500">
                   Price Details
                 </p>
@@ -1409,7 +1409,7 @@ export default function CheckoutPage() {
                     orderLoading ||
                     razorpayLoading
                   }
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-4 sm:mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {orderLoading || razorpayLoading ? (
                     <>

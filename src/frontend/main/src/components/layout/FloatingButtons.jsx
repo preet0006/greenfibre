@@ -43,7 +43,7 @@ export default function FloatingButtons() {
     : null;
 
   return (
-    <div className="pointer-events-none fixed bottom-6 left-0 right-0 z-50 flex items-end justify-between px-5">
+    <div className="pointer-events-none fixed bottom-4 sm:bottom-6 left-0 right-0 z-40 flex items-end justify-between px-3.5 sm:px-5 pb-[env(safe-area-inset-bottom,0px)]">
       {/* ── WhatsApp — left ── */}
       <AnimatePresence>
         {whatsappHref && (
@@ -59,13 +59,13 @@ export default function FloatingButtons() {
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
             whileHover={{ scale: 1.1, y: -3 }}
             whileTap={{ scale: 0.93 }}
-            className={`${btnBase} pointer-events-auto h-14 w-14 bg-[#25d366] text-white shadow-[0_4px_20px_rgba(37,211,102,0.45)] focus-visible:ring-[#25d366]`}
+            className={`${btnBase} pointer-events-auto h-12 w-12 sm:h-14 sm:w-14 bg-[#25d366] text-white shadow-[0_4px_20px_rgba(37,211,102,0.45)] focus-visible:ring-[#25d366]`}
           >
-            <WhatsAppIcon className="h-7 w-7" />
+            <WhatsAppIcon className="h-6 w-6 sm:h-7 sm:w-7" />
 
             {/* Pulse ring */}
             <motion.span
-              className="absolute h-14 w-14 rounded-full bg-[#25d366] opacity-0"
+              className="absolute h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-[#25d366] opacity-0"
               animate={{ scale: [1, 1.5, 1.5], opacity: [0.5, 0, 0] }}
               transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
             />
@@ -73,7 +73,7 @@ export default function FloatingButtons() {
         )}
 
         {/* placeholder so back-to-top stays right even without WhatsApp */}
-        {!whatsappHref && <span className="h-14 w-14" />}
+        {!whatsappHref && <span className="h-12 w-12 sm:h-14 sm:w-14" />}
       </AnimatePresence>
 
       {/* ── Back to top — right ── */}
@@ -89,9 +89,9 @@ export default function FloatingButtons() {
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
             whileHover={{ scale: 1.1, y: -3 }}
             whileTap={{ scale: 0.93 }}
-            className={`${btnBase} pointer-events-auto h-12 w-12 border border-[#15803d]/15 bg-white text-[#15803d] shadow-[0_4px_20px_rgba(67,15,81,0.14)] focus-visible:ring-[#15803d]`}
+            className={`${btnBase} pointer-events-auto h-11 w-11 sm:h-12 sm:w-12 border border-[#15803d]/15 bg-white text-[#15803d] shadow-[0_4px_20px_rgba(67,15,81,0.14)] focus-visible:ring-[#15803d]`}
           >
-            <ArrowUp className="h-5 w-5" />
+            <ArrowUp className="h-4 w-4 sm:h-5 sm:w-5" />
           </motion.button>
         )}
       </AnimatePresence>

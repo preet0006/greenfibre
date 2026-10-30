@@ -100,7 +100,7 @@ export default function RedeemToggle({
       (firstOrderCoupon?.code || "FIRSTORDER").toUpperCase();
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-green-200/90 bg-gradient-to-br from-green-50/70 via-white to-green-50/40 p-5 shadow-xs">
+      <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-green-200/90 bg-gradient-to-br from-green-50/70 via-white to-green-50/40 p-4 sm:p-5 shadow-2xs sm:shadow-xs">
         <div className="flex items-start gap-3.5">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-green-600 text-white shadow-xs">
             <Gift className="h-5 w-5" />
@@ -156,16 +156,16 @@ export default function RedeemToggle({
 
   // ── Returning Customer (2nd Order Onward) Flow ─────────────────
   return (
-    <div className="overflow-hidden rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/50 via-white to-amber-50/30 p-5 shadow-xs">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 text-white shadow-xs">
-            <Coins className="h-5 w-5" />
+    <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/50 via-white to-amber-50/30 p-4 sm:p-5 shadow-2xs sm:shadow-xs">
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 text-white shadow-xs">
+            <Coins className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-900">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs sm:text-sm font-bold text-gray-900">
                 Redeem GreenFibre Reward Points
               </span>
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">

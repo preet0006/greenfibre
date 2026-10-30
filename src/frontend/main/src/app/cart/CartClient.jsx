@@ -215,12 +215,12 @@ function CartItem({ item }) {
         marginBottom: 0,
         transition: { duration: 0.25 },
       }}
-      className="flex gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+      className="flex gap-3 sm:gap-4 rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-3 sm:p-4 shadow-2xs sm:shadow-sm"
     >
-      {/* Image */}
+      {/* Image - compact 68px on mobile */}
       <Link
         href={`/shop/${product?.slug}`}
-        className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 sm:h-24 sm:w-24"
+        className="relative h-17 w-17 sm:h-20 sm:w-20 md:h-24 md:w-24 shrink-0 overflow-hidden rounded-xl border border-gray-200 bg-gray-50"
       >
         {imgSrc ? (
           <Image
@@ -432,7 +432,7 @@ function CouponInput({ subtotal, onApply, onRemove, applied }) {
           whileTap={{ scale: 0.97 }}
           onClick={handleApply}
           disabled={actionLoading}
-          className="flex items-center gap-1.5 rounded-xl bg-green-600 px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 disabled:opacity-60"
+          className="flex min-w-[78px] sm:min-w-[84px] items-center justify-center gap-1.5 rounded-xl bg-green-600 px-3.5 sm:px-4 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 disabled:opacity-60 shrink-0"
         >
           {actionLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -657,7 +657,7 @@ export default function UserCartPage() {
           <Leaf className="h-64 w-64 text-white" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 pb-8 pt-6 sm:pb-12 sm:pt-8 sm:px-6 lg:px-8">
+        <div className="relative mx-auto max-w-7xl px-3.5 pb-6 pt-4 sm:pb-10 sm:pt-6 sm:px-6 lg:px-8">
           {/* Breadcrumb */}
           <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs sm:text-sm font-medium text-white/60">
             <Link href="/" className="hover:text-white/90 transition-colors">
@@ -674,7 +674,7 @@ export default function UserCartPage() {
                 Shopping Cart
               </p>
               <h1
-                className="mt-1.5 sm:mt-2 text-3xl font-semibold text-white sm:text-5xl"
+                className="mt-1 sm:mt-2 text-2xl sm:text-4xl md:text-5xl font-semibold text-white leading-tight"
                 style={{
                   fontFamily: "var(--font-cormorant, 'Cormorant Garamond', serif)",
                 }}
@@ -695,7 +695,7 @@ export default function UserCartPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 pb-20 pt-6 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-3.5 pb-16 pt-5 sm:pb-24 sm:pt-8 sm:px-6 lg:px-8">
         {!user && items.length > 0 && (
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
             <p>
@@ -828,7 +828,7 @@ export default function UserCartPage() {
             {/* ── Right — order summary ── */}
             <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
               {/* Coupon */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-2xs sm:shadow-sm">
                 <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500">
                   <Tag className="h-3.5 w-3.5" /> Coupon Code
                 </p>
@@ -841,7 +841,7 @@ export default function UserCartPage() {
               </div>
 
               {/* Price breakdown */}
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 shadow-2xs sm:shadow-sm">
                 <div className="mb-4 flex items-center justify-between">
                   <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
                     Order Summary
@@ -1004,7 +1004,7 @@ export default function UserCartPage() {
                   whileTap={{ scale: 0.97 }}
                   onClick={handleCheckout}
                   disabled={hasOutOfStock}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="mt-4 sm:mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-green-600 py-3.5 text-sm font-bold text-white shadow-sm transition-all hover:bg-green-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ShoppingCart className="h-4 w-4" />
                   {hasOutOfStock
