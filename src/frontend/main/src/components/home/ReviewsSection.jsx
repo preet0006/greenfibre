@@ -19,6 +19,9 @@ function formatDate(date) {
 // ── Review Card ───────────────────────────────────────────────
 function ReviewCard({ review, index }) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const comment = review.comment || "";
+  const isLong = comment.length > 160;
 
   return (
     <motion.div
@@ -49,9 +52,20 @@ function ReviewCard({ review, index }) {
         </div>
 
         {/* Review Text */}
-        <p className="mb-4 text-sm leading-relaxed text-gray-700">
-          {review.comment}
-        </p>
+        <div className="mb-4">
+          <p className={`text-sm leading-relaxed text-gray-700 ${!isExpanded ? "line-clamp-4" : ""}`}>
+            {comment}
+          </p>
+          {isLong && (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="mt-1.5 text-xs font-semibold text-green-700 hover:text-green-800 underline underline-offset-2"
+            >
+              {isExpanded ? "Read Less" : "Read More"}
+            </button>
+          )}
+        </div>
 
         {/* Review Images (if any) */}
         {review.images && review.images.length > 0 && (
@@ -94,20 +108,20 @@ function ReviewCard({ review, index }) {
         {/* User Info */}
         <div className="flex items-center gap-3 border-t border-gray-100 pt-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-            {review.user?.profileImage ? (
+            {review.user?.profileImage || review.user?.profile_image ? (
               <Image
-                src={review.user.profileImage}
-                alt={review.user.full_name}
+                src={review.user.profileImage || review.user.profile_image}
+                alt={review.user.full_name || "Customer"}
                 width={40}
                 height={40}
-                className="rounded-full"
+                className="rounded-full object-cover"
               />
             ) : (
               <User className="h-5 w-5 text-green-600" />
             )}
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-gray-900">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">
               {review.user?.full_name || "Anonymous"}
             </p>
             <p className="text-xs text-gray-500">
@@ -117,6 +131,103 @@ function ReviewCard({ review, index }) {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+// ── Mobile Review Card (Compact Carousel Item) ────────────────
+function MobileReviewCard({ review }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const comment = review.comment || "";
+  const isLong = comment.length > 115;
+
+  return (
+    <div className="w-full shrink-0 snap-center">
+      <div className="rounded-2xl border border-gray-200/90 bg-white p-4 shadow-xs flex flex-col justify-between">
+        <div>
+          {/* Header: Rating Stars & Quote Icon */}
+          <div className="mb-2.5 flex items-center justify-between">
+            <div className="flex gap-1">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`h-3.5 w-3.5 ${
+                    i < (review.rating || 5)
+                      ? "fill-yellow-400 text-yellow-400"
+                      : "text-gray-200"
+                  }`}
+                />
+              ))}
+            </div>
+            <Quote className="h-4 w-4 text-emerald-600/40" />
+          </div>
+
+          {/* Product Tag / Link (when available) */}
+          {review.product && (
+            <Link
+              href={`/shop/${review.product.slug}`}
+              className="mb-2.5 flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-1.5 transition-colors hover:bg-emerald-100/70"
+            >
+              <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                  Product:
+                </span>
+                <span className="truncate text-xs font-semibold text-gray-900">
+                  {review.product.name}
+                </span>
+              </div>
+              <span className="shrink-0 text-[11px] font-semibold text-emerald-700">
+                View &rarr;
+              </span>
+            </Link>
+          )}
+
+          {/* Review Text with line clamp & Read More toggle */}
+          <div className="mb-3">
+            <p
+              className={`text-[13px] leading-[1.6] text-gray-700 transition-all ${
+                !isExpanded ? "line-clamp-3" : ""
+              }`}
+            >
+              &ldquo;{comment}&rdquo;
+            </p>
+            {isLong && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="mt-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 underline underline-offset-2"
+              >
+                {isExpanded ? "Read Less" : "Read More"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* User Info */}
+        <div className="flex items-center gap-2.5 border-t border-gray-100 pt-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shrink-0">
+            {review.user?.profileImage || review.user?.profile_image ? (
+              <Image
+                src={review.user?.profileImage || review.user?.profile_image}
+                alt={review.user?.full_name || "Customer"}
+                width={32}
+                height={32}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <User className="h-4 w-4 text-emerald-600" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-gray-900 leading-tight">
+              {review.user?.full_name || "Verified Customer"}
+            </p>
+            <p className="text-[11px] text-gray-400">
+              Verified Customer
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -252,53 +363,7 @@ export default function ReviewsSection() {
                 className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none gap-4 pb-1"
               >
                 {approvedReviews.map((review, idx) => (
-                  <div key={review._id || idx} className="w-full shrink-0 snap-center">
-                    <div className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-xs">
-                      {/* Rating Stars */}
-                      <div className="mb-3 flex gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < (review.rating || 5)
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-gray-200"
-                            }`}
-                          />
-                        ))}
-                      </div>
-
-                      {/* Review Text */}
-                      <p className="mb-4 text-[13px] leading-[1.6] text-gray-700">
-                        &ldquo;{review.comment}&rdquo;
-                      </p>
-
-                      {/* User Info */}
-                      <div className="flex items-center gap-3 border-t border-gray-100 pt-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-                          {review.user?.profileImage ? (
-                            <Image
-                              src={review.user.profileImage}
-                              alt={review.user.full_name || "Customer"}
-                              width={36}
-                              height={36}
-                              className="rounded-full object-cover"
-                            />
-                          ) : (
-                            <User className="h-4 w-4 text-emerald-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[13px] font-semibold text-gray-900 leading-tight">
-                            {review.user?.full_name || "Verified Customer"}
-                          </p>
-                          <p className="text-[11px] text-gray-400">
-                            Verified Customer
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <MobileReviewCard key={review._id || idx} review={review} />
                 ))}
               </div>
 

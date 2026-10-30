@@ -71,9 +71,40 @@ function StarRating({ rating, size = "sm" }) {
   );
 }
 
+// ── Product Description with Mobile Read More ────────────────
+function ProductDescription({ description }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const text = description || "";
+  const isLong = text.length > 140;
+
+  return (
+    <div>
+      <p
+        className={`text-sm leading-[1.6] text-gray-600 ${
+          !isExpanded ? "line-clamp-3 sm:line-clamp-none" : ""
+        }`}
+      >
+        {text}
+      </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="mt-1 text-xs font-semibold text-green-700 hover:text-green-800 underline underline-offset-2 sm:hidden"
+        >
+          {isExpanded ? "Read Less" : "Read More"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Review Card ───────────────────────────────────────────────
 function ReviewCard({ review }) {
   const [showAllImages, setShowAllImages] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const comment = review.comment || "";
+  const isLong = comment.length > 130;
 
   return (
     <div className="border-b border-gray-100 py-6 last:border-b-0">
@@ -114,10 +145,25 @@ function ReviewCard({ review }) {
           </div>
 
           {/* Comment */}
-          {review.comment && (
-            <p className="mb-3 text-sm leading-relaxed text-gray-700">
-              {review.comment}
-            </p>
+          {comment && (
+            <div className="mb-3">
+              <p
+                className={`text-sm leading-relaxed text-gray-700 ${
+                  !isExpanded ? "line-clamp-3 sm:line-clamp-none" : ""
+                }`}
+              >
+                {comment}
+              </p>
+              {isLong && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="mt-1 text-xs font-semibold text-green-700 hover:text-green-800 underline underline-offset-2 sm:hidden"
+                >
+                  {isExpanded ? "Read Less" : "Read More"}
+                </button>
+              )}
+            </div>
           )}
 
           {/* Images */}
@@ -761,11 +807,7 @@ export default function ProductDetailClient({ slug, initialProduct }) {
 
             {/* Description */}
             {product.description && (
-              <div>
-                <p className="text-sm leading-[1.6] text-gray-600">
-                  {product.description}
-                </p>
-              </div>
+              <ProductDescription description={product.description} />
             )}
 
             {/* Color Selector */}
