@@ -66,7 +66,7 @@ const LEGAL_LINKS = [
   { label: "Privacy Policy", href: "/privacy-policy" },
   { label: "Terms & Conditions", href: "/terms-and-conditions" },
   { label: "Shipping Policy", href: "/shipping-policy" },
-  { label: "Refund Policy", href: "/refund-policy" },
+  { label: "Replacement Policy", href: "/replacement-policy" },
 ];
 
 function FooterHeading({ children }) {
@@ -359,6 +359,9 @@ export default function Footer() {
                   </FooterLink>
                 ))}
               </ul>
+              <p className="mt-4 text-[11px] leading-relaxed text-gray-500">
+                Existing orders remain subject to the terms and policies applicable when they were placed.
+              </p>
             </div>
           </div>
         </div>

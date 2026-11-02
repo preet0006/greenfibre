@@ -32,6 +32,7 @@ import {
   X,
   Leaf,
   Building2,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -1441,7 +1442,7 @@ export default function CheckoutPage() {
                 {[
                   { icon: ShieldCheck, text: "100% Secure Payment" },
                   { icon: Truck, text: "Free Shipping on All Orders" },
-                  { icon: Package, text: "Easy Returns & Refunds" },
+                  { icon: RefreshCw, text: "7-Day Replacement for Eligible Issues" },
                 ].map(({ icon: Icon, text }) => (
                   <div
                     key={text}
@@ -1453,6 +1454,23 @@ export default function CheckoutPage() {
                     </span>
                   </div>
                 ))}
+              </div>
+
+              {/* Replacement policy notice */}
+              <div className="rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-3 text-left">
+                <p className="text-xs font-bold text-emerald-950 mb-0.5">
+                  7-Day Replacement for Eligible Issues
+                </p>
+                <p className="text-[11px] text-gray-600 leading-relaxed">
+                  Damaged, defective or incorrect item? Contact us within 7 days of delivery. No change-of-mind returns or exchanges. Statutory rights remain unaffected.{" "}
+                  <Link
+                    href="/replacement-policy"
+                    target="_blank"
+                    className="font-semibold text-emerald-700 hover:underline"
+                  >
+                    Read Policy
+                  </Link>
+                </p>
               </div>
             </div>
           </div>

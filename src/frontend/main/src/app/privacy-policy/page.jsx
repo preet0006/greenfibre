@@ -295,7 +295,7 @@ export default function PrivacyPolicyPage() {
             {[
               { label: "Terms & Conditions", href: "/terms-and-conditions" },
               { label: "Shipping Policy", href: "/shipping-policy" },
-              { label: "Refund Policy", href: "/refund-policy" },
+              { label: "Replacement Policy", href: "/replacement-policy" },
             ].map((link) => (
               <a
                 key={link.href}

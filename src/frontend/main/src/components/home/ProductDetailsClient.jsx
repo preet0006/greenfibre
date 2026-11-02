@@ -1060,7 +1060,7 @@ export default function ProductDetailClient({ slug, initialProduct }) {
             <div className="grid grid-cols-3 gap-2 sm:gap-2.5 pt-2">
               {[
                 { icon: Truck, text: "Free Delivery" },
-                { icon: RefreshCw, text: "Easy Returns" },
+                { icon: RefreshCw, text: "7-Day Replacement" },
                 { icon: ShieldCheck, text: "100% Food Safe" },
               ].map(({ icon: Icon, text }) => (
                 <div
@@ -1073,6 +1073,27 @@ export default function ProductDetailClient({ slug, initialProduct }) {
                   </span>
                 </div>
               ))}
+            </div>
+
+            {/* 7-Day Replacement Policy Notice */}
+            <div className="mt-2.5 rounded-xl border border-emerald-200/70 bg-emerald-50/60 p-3 text-left">
+              <div className="flex items-start gap-2">
+                <RefreshCw className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-bold text-emerald-950">
+                    7-Day Replacement for Eligible Issues
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-gray-600 leading-relaxed">
+                    Damaged, defective or incorrect item? Contact us within 7 days of delivery. No change-of-mind returns or exchanges. Statutory rights remain unaffected.{" "}
+                    <Link
+                      href="/replacement-policy"
+                      className="font-semibold text-emerald-700 hover:underline"
+                    >
+                      Read Policy
+                    </Link>
+                  </p>
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>

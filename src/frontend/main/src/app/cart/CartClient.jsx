@@ -1025,7 +1025,7 @@ export default function UserCartPage() {
               <div className="space-y-2">
                 {[
                   { icon: Truck, text: "Free delivery on all orders" },
-                  { icon: RotateCcw, text: "Easy 10-day returns" },
+                  { icon: RotateCcw, text: "7-Day Replacement for Eligible Issues" },
                   { icon: ShieldCheck, text: "Secure & encrypted checkout" },
                 ].map(({ icon: Icon, text }) => (
                   <div

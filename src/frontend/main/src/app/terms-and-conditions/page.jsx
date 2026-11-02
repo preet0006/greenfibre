@@ -90,21 +90,21 @@ export default function TermsAndConditionsPage() {
       ],
     },
     {
-      id: "returns",
-      title: "Returns & Refunds",
+      id: "replacements",
+      title: "Replacement Policy",
       icon: RefreshCw,
       content: [
         {
-          subtitle: "Return Policy",
-          text: "We accept returns within 7 days of delivery for eligible products in their original condition with tags attached. Certain products may not be eligible for return due to hygiene or safety reasons.",
+          subtitle: "Eligible Replacements",
+          text: "At Green Fibre, we offer replacements for eligible products received damaged, defective, or incorrect within 7 days of delivery. We do not offer change-of-mind returns, refunds or exchanges. Our standard resolution is replacement, subject to applicable consumer protection law.",
         },
         {
-          subtitle: "Refund Process",
-          text: "Once we receive and inspect your returned item, we will process your refund within 5-7 business days. Refunds will be issued to the original payment method.",
+          subtitle: "Replacement Shipping & Inspection",
+          text: "Green Fibre covers approved collection and delivery charges for manufacturing defects, transit damage, or incorrect shipments. Please retain original packaging for inspection. Opening to inspect does not invalidate a defect claim.",
         },
         {
-          subtitle: "Return Shipping",
-          text: "Return shipping costs are the responsibility of the customer unless the return is due to our error or a defective product.",
+          subtitle: "Statutory Consumer Rights",
+          text: "Nothing in our policy excludes or restricts statutory rights under applicable consumer protection laws (including the Consumer Protection Act). Existing orders remain subject to the terms applicable at the time of purchase.",
         },
       ],
     },
@@ -357,7 +357,7 @@ export default function TermsAndConditionsPage() {
             {[
               { label: "Privacy Policy", href: "/privacy-policy" },
               { label: "Shipping Policy", href: "/shipping-policy" },
-              { label: "Refund Policy", href: "/refund-policy" },
+              { label: "Replacement Policy", href: "/replacement-policy" },
             ].map((link) => (
               <a
                 key={link.href}

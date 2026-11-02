@@ -155,7 +155,7 @@ export default function ShippingPolicyPage() {
         },
         {
           subtitle: "Damaged or Lost Packages",
-          text: "If your package arrives damaged or is lost in transit, please contact us within 48 hours with photos (if damaged). We will arrange a replacement or full refund.",
+          text: "If your package arrives damaged or is lost in transit, please contact us preferably within 48 hours with photos of the damaged product and packaging. We will investigate promptly and arrange an approved replacement in accordance with our Replacement Policy.",
         },
         {
           subtitle: "Non-Delivery",
@@ -399,7 +399,7 @@ export default function ShippingPolicyPage() {
             {[
               { label: "Privacy Policy", href: "/privacy-policy" },
               { label: "Terms & Conditions", href: "/terms-and-conditions" },
-              { label: "Refund Policy", href: "/refund-policy" },
+              { label: "Replacement Policy", href: "/replacement-policy" },
               { label: "Track Your Order", href: "/orders" },
             ].map((link) => (
               <a
