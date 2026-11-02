@@ -39,7 +39,7 @@ import axios from "axios";
 // ── Config ──────────────────────────────────────────────────────────────────
 const SR_LIVE_BASE = "https://apiv2.shiprocket.in/v1/external";
 const SR_SBX_BASE  = "https://api-sandbox.shiprocket.in/v1/external";
-const SR_SBX_SVC   = "https://serviceability-sandbox.shiprocket.in/v1/external";
+const SR_SBX_SVC   = "https://api-sandbox.shiprocket.in/v1/external";
 
 const rawBase   = (process.env.SHIPROCKET_BASE_URL || SR_SBX_BASE).trim().replace(/\/+$/, "");
 const isSandbox = rawBase.includes("sandbox");

@@ -112,8 +112,7 @@ export const deductOrderStock = async (order) => {
     const { Product } = await import("../models/product.model.js");
     const { StockAuditLog } = await import("../models/stockAudit.model.js");
 
-    const channel = String(order.orderChannel || "b2c").toLowerCase() === "b2b" ? "b2b" : "b2c";
-    const channelField = `${channel}Stock`;
+    const baseChannel = String(order.orderChannel || "b2c").toLowerCase() === "b2b" ? "b2b" : "b2c";
     const successfullyDeducted = [];
     const auditEntries = [];
 
@@ -121,6 +120,16 @@ export const deductOrderStock = async (order) => {
         const qty = Number(item.quantity) || 1;
         const productId = item.product?._id || item.product;
         const colorIndex = item.colorIndex;
+
+        // Exception: Tulsi Planter is strictly B2C only (100% B2C / 0% B2B)
+        const isTulsi =
+            String(item.name || "").toLowerCase().includes("tulsi") ||
+            String(item.slug || "").toLowerCase().includes("tulsi") ||
+            String(item.sku || "").toUpperCase().includes("TULSI") ||
+            String(item.raw_sku || "").toUpperCase().includes("TULSI");
+
+        const channel = isTulsi ? "b2c" : baseChannel;
+        const channelField = `${channel}Stock`;
 
         let updated = null;
         const hasColor = colorIndex !== undefined && colorIndex !== null && Number(colorIndex) >= 0;
@@ -257,8 +266,7 @@ export const restoreOrderStock = async (order, reason = "Order Cancellation") =>
         return { restored: false, reason: "Order stock was not deducted or has already been restored" };
     }
 
-    const channel = String(order.orderChannel || "b2c").toLowerCase() === "b2b" ? "b2b" : "b2c";
-    const channelField = `${channel}Stock`;
+    const baseChannel = String(order.orderChannel || "b2c").toLowerCase() === "b2b" ? "b2b" : "b2c";
     const auditEntries = [];
     const restoredProductIds = [];
 
@@ -267,6 +275,16 @@ export const restoreOrderStock = async (order, reason = "Order Cancellation") =>
         const productId = item.product?._id || item.product;
         const colorIndex = item.colorIndex;
         const hasColor = colorIndex !== undefined && colorIndex !== null && Number(colorIndex) >= 0;
+
+        // Exception: Tulsi Planter is strictly B2C only (100% B2C / 0% B2B)
+        const isTulsi =
+            String(item.name || "").toLowerCase().includes("tulsi") ||
+            String(item.slug || "").toLowerCase().includes("tulsi") ||
+            String(item.sku || "").toUpperCase().includes("TULSI") ||
+            String(item.raw_sku || "").toUpperCase().includes("TULSI");
+
+        const channel = isTulsi ? "b2c" : baseChannel;
+        const channelField = `${channel}Stock`;
 
         let updated = null;
         if (hasColor) {

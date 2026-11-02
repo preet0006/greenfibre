@@ -1492,12 +1492,17 @@ export const updateOrderStatus = async (req, res) => {
             order.shippingDetails.deliveredAt = new Date();
         }
 
-        if (status === "cancelled") {
-            order.cancelledAt = new Date();
-            order.cancellationReason = note;
+        if (status === "cancelled" || status === "rejected") {
+            if (status === "cancelled") {
+                order.cancelledAt = new Date();
+                order.cancellationReason = note;
+            } else {
+                order.rejectedAt = new Date();
+                order.rejectionReason = note;
+            }
 
-            // Atomic restore stock (idempotent, channel-specific)
-            await restoreOrderStock(order, note || "Order Cancellation");
+            // Atomic restore stock (idempotent, channel-specific with Tulsi Planter B2C-only exception)
+            await restoreOrderStock(order, note || (status === "rejected" ? "Order Rejection" : "Order Cancellation"));
 
             // Decrement coupon usage count if it was a paid order
             if (order.couponCode && order.paymentStatus === "paid") {

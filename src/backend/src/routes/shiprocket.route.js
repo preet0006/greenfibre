@@ -9,6 +9,8 @@ import {
     getShipmentForOrder,
     cancelOrder,
     generateShippingLabel,
+    getShiprocketPreview,
+    getWarehouseConfig,
 } from "../controllers/shiprocket.controller.js";
 import { adminAuthMiddleware } from "../middlewares/auth.middleware.js";
 
@@ -19,9 +21,12 @@ const router = express.Router();
 router.post("/delivery-update", handleShiprocketWebhook);
 
 // ── Admin-only: Read endpoints ─────────────────────────────────────────────
+router.get("/warehouses", adminAuthMiddleware, getWarehouseConfig);
 router.get("/serviceability", adminAuthMiddleware, getServiceability);
 router.get("/track/:awb", adminAuthMiddleware, getTrackingByAWB);
 router.get("/shipment/:orderId", adminAuthMiddleware, getShipmentForOrder);
+router.get("/preview/:orderId", adminAuthMiddleware, getShiprocketPreview);
+router.post("/preview/:orderId", adminAuthMiddleware, getShiprocketPreview);
 
 // ── Admin-only: Action endpoints ───────────────────────────────────────────
 // POST /api/shipping/dispatch/:orderId  — Full dispatch: create SR order + AWB + pickup

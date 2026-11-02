@@ -14,7 +14,10 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import mongoose from "mongoose";
 import { Order } from "../models/order.model.js";
+import { User } from "../models/user.model.js";
+import { validateAndAuditShiprocketPayload } from "../utils/shiprocketPayloadService.js";
 import {
     checkServiceability,
     trackByAWB,
@@ -26,6 +29,11 @@ import {
     generateLabel,
     generateManifest,
     getSrBase,
+    getSrServiceabilityBase,
+    getPickupLocations,
+    getShiprocketPickupLocation,
+    isShiprocketSandbox,
+    findUpstreamOrder,
 } from "../utils/shiprocket.js";
 
 import {
@@ -297,32 +305,92 @@ export const getServiceability = async (req, res) => {
         const {
             pickup_pincode,
             delivery_pincode,
-            weight = 500,
+            weight,
             cod = 0,
         } = req.query;
 
-        if (!pickup_pincode || !delivery_pincode) {
+        const cleanPickup = String(pickup_pincode || '').trim();
+        const cleanDelivery = String(delivery_pincode || '').trim();
+        const numWeight = Number(weight);
+
+        // Fail-safe checks: Reject defaults (Surat/Delhi/0.5kg) and report BLOCKED
+        if (!cleanPickup || cleanPickup.length !== 6) {
             return res.status(400).json({
                 success: false,
-                message: "pickup_pincode and delivery_pincode are required",
+                code: "BLOCKED_WAREHOUSE_CONFIG_MISSING",
+                message: "Warehouse pickup pincode is missing or unconfigured. Serviceability lookup is BLOCKED. Fallback substitutions (Surat 394230) are prohibited.",
+            });
+        }
+
+        if (!cleanDelivery || cleanDelivery.length !== 6) {
+            return res.status(400).json({
+                success: false,
+                code: "BLOCKED_DELIVERY_PINCODE_MISSING",
+                message: "Valid 6-digit delivery pincode is required. Serviceability lookup is BLOCKED. Fallback substitutions (Delhi 110001) are prohibited.",
+            });
+        }
+
+        if (!numWeight || numWeight <= 0) {
+            return res.status(400).json({
+                success: false,
+                code: "BLOCKED_MEASUREMENTS_MISSING",
+                message: "Confirmed packed package weight (> 0g) is required. Serviceability lookup is BLOCKED. Fallback substitutions (500g / 0.5kg) are prohibited.",
             });
         }
 
         const data = await checkServiceability(
-            pickup_pincode,
-            delivery_pincode,
-            Number(weight),
-            Number(cod)
+            cleanPickup,
+            cleanDelivery,
+            numWeight,
+            Number(cod) === 1 ? 1 : 0
         );
 
-        return res.status(200).json({ success: true, data });
+        const svcBase = getSrServiceabilityBase();
+        const isSandbox = isShiprocketSandbox();
+        const provenance = {
+            testingNotice: isSandbox
+                ? "Test environment — rates and availability are for testing. Not verified production prices."
+                : "Production environment — real live courier rates and SLAs directly from apiv2.shiprocket.in.",
+            configuredService: isSandbox ? "Official Shiprocket Sandbox (api-sandbox.shiprocket.in)" : "Official Shiprocket Production (apiv2.shiprocket.in)",
+            serviceClassification: isSandbox ? "Configured test environment — provider identity not verified" : "Verified Production Service",
+            serviceType: isSandbox ? "Official Shiprocket Sandbox" : "Official Shiprocket Production",
+            isTestEnvironment: isSandbox,
+            upstreamHost: new URL(svcBase).hostname,
+            upstreamEndpoint: "/courier/serviceability/",
+            upstreamEnvironment: isSandbox ? "sandbox" : "production",
+            timestamp: new Date().toISOString(),
+            requestParams: {
+                pickup_postcode: cleanPickup,
+                delivery_postcode: cleanDelivery,
+                weight_input: numWeight,
+                weight_unit: numWeight > 10 ? "grams" : "kg",
+                weight_kg: Number((numWeight > 10 ? numWeight / 1000 : numWeight).toFixed(3)),
+                cod: Number(cod) === 1 ? 1 : 0,
+                inputSource: req.query.input_source || (req.query.is_test === "1" ? "Test input — not confirmed parcel weight" : "Operator Specified"),
+            },
+            rawCouriersCount: Array.isArray(data?.data?.available_courier_companies)
+                ? data.data.available_courier_companies.length
+                : (Array.isArray(data) ? data.length : 0),
+        };
+
+        return res.status(200).json({
+            success: true,
+            data,
+            provenance,
+            testingNotice: provenance.testingNotice,
+        });
     } catch (error) {
         const status = error?.response?.status || 502;
-        const msg = error?.response?.data?.message || error.message || "Failed to check serviceability";
-        console.error("Shiprocket serviceability error:", msg);
+        const rawMsg = error?.response?.data?.message || (typeof error?.response?.data === 'string' ? error.response.data : error.message) || "Failed to check serviceability";
+        const sanitizedMsg = typeof rawMsg === 'string' && rawMsg.length < 120 ? rawMsg.trim() : 'Upstream test service access denied';
+        console.error("Shiprocket serviceability error:", sanitizedMsg);
         return res.status(status).json({
             success: false,
-            message: msg,
+            code: "UPSTREAM_SERVICEABILITY_FAILED",
+            message: sanitizedMsg,
+            upstreamStatus: status,
+            upstreamHost: new URL(getSrServiceabilityBase()).hostname,
+            upstreamEndpoint: "/courier/serviceability/",
         });
     }
 };
@@ -385,12 +453,138 @@ export const dispatchOrder = async (req, res) => {
             // in case orderId is not a valid Mongo ObjectId
         }
         if (!order) {
-            order = await Order.findOne({
-                $or: [{ easebuzzOrderId: orderId }, { razorpayOrderId: orderId }, { _id: orderId }],
-            }).populate("user", "email");
+            const orConditions = [{ easebuzzOrderId: orderId }, { razorpayOrderId: orderId }, { orderNumber: orderId }];
+            if (mongoose.Types.ObjectId.isValid(orderId)) {
+                orConditions.push({ _id: orderId });
+            }
+            order = await Order.findOne({ $or: orConditions }).populate("user", "email");
         }
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found" });
+        }
+
+        // ── 1. Authoritative DB verification - unsaved or draft orders cannot be dispatched
+        if (!order._id) {
+            return res.status(404).json({
+                success: false,
+                code: "ORDER_NOT_FOUND",
+                message: "Cannot dispatch unsaved or draft order. Order must exist in database.",
+            });
+        }
+
+        // ── 2. Strict Payment Confirmation Gate for online orders
+        const paymentMethodUpper = String(order.paymentMethod || "").toUpperCase();
+        const isOnlinePayment = paymentMethodUpper !== "COD" && paymentMethodUpper !== "CASH ON DELIVERY";
+
+        if (isOnlinePayment && order.paymentStatus !== "paid") {
+            return res.status(400).json({
+                success: false,
+                code: "PAYMENT_NOT_CONFIRMED",
+                message: `Dispatch rejected: Order ${order.orderNumber || orderId} payment status is '${order.paymentStatus}' (${order.paymentMethod}). Online payments must be confirmed before dispatching to Shiprocket.`,
+            });
+        }
+
+        // ── 3. Package Measurements Gate - require confirmed weight (> 0)
+        if (Boolean(req.body.isTestInput || req.body.isTestFixture)) {
+            return res.status(400).json({
+                success: false,
+                code: "TEST_INPUT_NOT_DISPATCHABLE",
+                message: "Dispatch rejected: Test input weight cannot satisfy real dispatch eligibility. Confirmed package measurements are required.",
+            });
+        }
+
+        const finalWeight = Number(pkg?.weight || order.shippingDetails?.package?.weight || 0);
+        if (finalWeight <= 0) {
+            return res.status(400).json({
+                success: false,
+                code: "BLOCKED_MEASUREMENTS_MISSING",
+                message: "Dispatch rejected: Confirmed package measurements (weight > 0g) are required for dispatch. Defaults (0.5kg) are prohibited.",
+            });
+        }
+
+        // ── 4. Delivery Address Gate - valid 6-digit delivery pincode and address
+        const shippingAddr = order.shippingAddress || {};
+        const cleanDeliveryPincode = String(b2bDetails?.pincode || shippingAddr.pincode || "").replace(/\D/g, "").slice(0, 6);
+        if (!cleanDeliveryPincode || cleanDeliveryPincode.length !== 6) {
+            return res.status(400).json({
+                success: false,
+                code: "BLOCKED_DELIVERY_PINCODE_MISSING",
+                message: "Dispatch rejected: Valid 6-digit delivery pincode is required for dispatch. Defaults (110001) are prohibited.",
+            });
+        }
+        if (!shippingAddr.streetAddress && !b2bDetails?.address) {
+            return res.status(400).json({
+                success: false,
+                code: "BLOCKED_ADDRESS_MISSING",
+                message: "Dispatch rejected: Customer delivery street address is missing.",
+            });
+        }
+
+        // ── 5. Pickup Location Mismatch Gate - prevent dispatch if local PIN != remote PIN
+        try {
+            const db = mongoose.connection.db;
+            const pageSettings = await db.collection("pagesettings").findOne({});
+            const localAddress = String(pageSettings?.address || "").trim();
+            const localPinMatch = localAddress.match(/\b\d{6}\b/);
+            const localPin = localPinMatch ? localPinMatch[0] : "";
+            const configuredPickupNickname = getShiprocketPickupLocation();
+
+            const remoteLocations = await getPickupLocations();
+            const selectedRemoteLocation = remoteLocations.find(
+                (loc) => String(loc.pickup_location || "").trim().toLowerCase() === configuredPickupNickname.toLowerCase()
+            );
+
+            if (selectedRemoteLocation && localPin && String(selectedRemoteLocation.pin_code).trim() !== localPin) {
+                return res.status(400).json({
+                    success: false,
+                    code: "PICKUP_LOCATION_MISMATCH",
+                    message: `Dispatch rejected: Local facility PIN (${localPin}) does not match remote Shiprocket pickup location "${configuredPickupNickname}" PIN (${selectedRemoteLocation.pin_code}). Dispatch is BLOCKED until a matching remote pickup location is configured.`,
+                    localPincode: localPin,
+                    remotePincode: String(selectedRemoteLocation.pin_code).trim(),
+                    remotePickupLocation: configuredPickupNickname,
+                });
+            }
+
+            const isOperational = selectedRemoteLocation &&
+                (selectedRemoteLocation.status === 1 || selectedRemoteLocation.status === 2) &&
+                selectedRemoteLocation.phone_verified === 1;
+
+            if (selectedRemoteLocation && !isOperational) {
+                return res.status(400).json({
+                    success: false,
+                    code: "PICKUP_LOCATION_INACTIVE",
+                    message: `Dispatch rejected: Remote Shiprocket pickup location "${configuredPickupNickname}" (ID: ${selectedRemoteLocation.id}, PIN: ${selectedRemoteLocation.pin_code}) has status ${selectedRemoteLocation.status} and phone_verified ${selectedRemoteLocation.phone_verified}. An active, phone-verified pickup location is required before dispatch.`,
+                    localPincode: localPin,
+                    remotePincode: String(selectedRemoteLocation.pin_code).trim(),
+                    remotePickupLocation: configuredPickupNickname,
+                    remoteLocationStatus: selectedRemoteLocation.status === 0 ? "Inactive" : "Unverified",
+                });
+            }
+        } catch (pickupCheckErr) {
+            console.warn("[dispatchOrder] Remote pickup location check error:", pickupCheckErr.message);
+        }
+
+        // Concurrent / double-click dispatch protection: acquire atomic 60-second dispatch lease
+        const leaseExpired = new Date(Date.now() - 60000);
+        const leaseClaim = await Order.findOneAndUpdate(
+            {
+                _id: order._id,
+                $or: [
+                    { dispatchClaimedAt: null },
+                    { dispatchClaimedAt: { $exists: false } },
+                    { dispatchClaimedAt: { $lt: leaseExpired } },
+                ],
+            },
+            { $set: { dispatchClaimedAt: new Date() } },
+            { new: true }
+        );
+
+        if (!leaseClaim) {
+            return res.status(409).json({
+                success: false,
+                code: "DISPATCH_IN_PROGRESS",
+                message: "Dispatch operation is already in progress for this order. Please wait for completion.",
+            });
         }
 
         // Validate items and track shipped quantities per item to prevent double shipping
@@ -428,7 +622,57 @@ export const dispatchOrder = async (req, res) => {
         let srOrderId = order.shippingDetails?.shiprocketOrderId;
         let srShipmentId = order.shippingDetails?.shiprocketShipmentId;
 
+        // Upstream idempotency pre-check: If not stored locally, check if already created upstream
+        // (e.g. from a prior attempt where an upstream timeout or local crash occurred before DB write)
         if (!srOrderId) {
+            const channelOrderNumber = order.orderNumber || String(order._id);
+            try {
+                console.log(`  🔍 [Stage 1 Preflight] Checking if order ${channelOrderNumber} already exists upstream in Shiprocket...`);
+                const existingUpstream = await findUpstreamOrder(channelOrderNumber);
+                if (existingUpstream) {
+                    srOrderId = String(existingUpstream.id || existingUpstream.order_id);
+                    srShipmentId = String(existingUpstream.shipments?.[0]?.id || existingUpstream.shipment_id || "");
+                    console.log(`  🛡️ [Stage 1 Reconcile] Order already exists upstream in Shiprocket (#${srOrderId}, shipment #${srShipmentId}). Reconciling local state without duplicate creation.`);
+
+                    await Order.findByIdAndUpdate(order._id, {
+                        $set: {
+                            "shippingDetails.shiprocketOrderId": srOrderId,
+                            "shippingDetails.shiprocketShipmentId": srShipmentId,
+                            "shippingDetails.orderType": orderType,
+                            "shippingDetails.package": pkg,
+                            "shippingDetails.reconciledFromUpstream": true,
+                            "shippingDetails.reconciledAt": new Date(),
+                            orderStatus: "processing",
+                        },
+                        $push: {
+                            statusHistory: {
+                                status: "processing",
+                                timestamp: new Date(),
+                                note: `Reconciled with existing Shiprocket order #${srOrderId} (Shipment #${srShipmentId}) from upstream search.`,
+                            },
+                        },
+                    });
+                }
+            } catch (searchErr) {
+                // If a previous attempt was initiated, do NOT proceed blind!
+                if (order.dispatchAttemptedAt) {
+                    console.error(`  ❌ [Stage 1 Blocked] Upstream reconciliation check failed for previously attempted order ${channelOrderNumber}:`, searchErr.message);
+                    return res.status(504).json({
+                        success: false,
+                        code: "DISPATCH_RECONCILIATION_REQUIRED",
+                        message: `Previous dispatch status is indeterminate due to provider communication error (${searchErr.message}). Automatic re-submission is BLOCKED to prevent duplicate shipments. Please retry once provider connectivity is confirmed or check the Shiprocket dashboard.`,
+                    });
+                }
+                console.warn(`  ⚠️ [Stage 1 Preflight] Non-fatal pre-check warning:`, searchErr.message);
+            }
+        }
+
+        if (!srOrderId) {
+            // Persist dispatchAttemptedAt BEFORE making the remote call to track that an upstream call is in flight
+            await Order.findByIdAndUpdate(order._id, {
+                $set: { dispatchAttemptedAt: new Date() }
+            });
+
             console.log(`  🚀 [Stage 1] Creating Shiprocket order...`);
             const createRes = await createShiprocketOrder(order, {
                 items,
@@ -522,19 +766,28 @@ export const dispatchOrder = async (req, res) => {
         // ── Stage 3: Request pickup (unless skipped) ──────────────────────────
         let pickupResult = null;
         if (!skipPickup) {
-            console.log(`  🚛 [Stage 3] Requesting pickup for shipment ${srShipmentId}...`);
-            pickupResult = await requestPickup(srShipmentId);
-            console.log(`  ✅ [Stage 3] Pickup requested.`);
+            if (isSandbox || process.env.SHIPROCKET_TEST_MODE === "true" || process.env.NODE_ENV !== "production") {
+                console.log(`  🧪 [Stage 3] Test environment: Real courier pickup booking blocked. Returning simulated test confirmation.`);
+                pickupResult = {
+                    pickup_status: "TEST_MODE_SIMULATED",
+                    message: "Pickup booking blocked in test environment — zero real courier bookings.",
+                    pickup_scheduled_date: new Date().toISOString().split("T")[0],
+                };
+            } else {
+                console.log(`  🚛 [Stage 3] Requesting pickup for shipment ${srShipmentId}...`);
+                pickupResult = await requestPickup(srShipmentId);
+                console.log(`  ✅ [Stage 3] Pickup requested.`);
 
-            await Order.findByIdAndUpdate(orderId, {
-                $push: {
-                    statusHistory: {
-                        status: "shipped",
-                        timestamp: new Date(),
-                        note: `Pickup scheduled with ${courierName}.`,
+                await Order.findByIdAndUpdate(orderId, {
+                    $push: {
+                        statusHistory: {
+                            status: "shipped",
+                            timestamp: new Date(),
+                            note: `Pickup scheduled with ${courierName}.`,
+                        },
                     },
-                },
-            });
+                });
+            }
         } else {
             console.log(`  ⏭️ [Stage 3] Pickup skipped (skipPickup=true).`);
         }
@@ -819,5 +1072,363 @@ export const generateShippingLabel = async (req, res) => {
         const status = error?.response?.status || 500;
         const msg = error?.response?.data?.message || error.message || "Label generation failed";
         return res.status(status).json({ success: false, message: msg });
+    }
+};
+
+
+// ── GET & POST /api/shipping/preview/:orderId ──────────────────────────────
+/**
+ * Generate side-effect-free Shiprocket order payload preview,
+ * field validation, source mappings, and financial reconciliation.
+ * GUARANTEED ZERO MUTATIONS: does NOT create orders, shipments, AWBs, or pickups.
+ */
+export const getShiprocketPreview = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const customOptions = req.body || {};
+
+        if (!orderId) {
+            return res.status(400).json({ success: false, message: "Order identifier is required for preview" });
+        }
+
+        let order = null;
+        try {
+            if (mongoose.connection?.readyState === 1) {
+                if (mongoose.Types.ObjectId.isValid(orderId)) {
+                    order = await Order.findById(orderId).populate('user', 'email').lean();
+                }
+                if (!order) {
+                    const orConditions = [
+                        { orderNumber: orderId },
+                        { easebuzzOrderId: orderId },
+                        { razorpayOrderId: orderId },
+                    ];
+                    if (mongoose.Types.ObjectId.isValid(orderId)) {
+                        orConditions.push({ _id: orderId });
+                    }
+                    order = await Order.findOne({ $or: orConditions }).populate('user', 'email').lean();
+                }
+            }
+        } catch (dbErr) {
+            console.warn(`[getShiprocketPreview] DB lookup failed for order ${orderId}:`, dbErr.message);
+        }
+
+        const isDraftOrder = String(orderId).toLowerCase().includes('draft') || Boolean(customOptions.isDraft);
+
+        // If not found in DB, check if complete order object was provided for a draft
+        if (!order && customOptions.order && isDraftOrder) {
+            order = customOptions.order;
+        }
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                code: "ORDER_NOT_FOUND",
+                message: `Order "${orderId}" not found for shipping preview.`,
+                orderId,
+            });
+        }
+
+        // For saved DB orders: customOptions.order MUST NOT override saved paymentStatus, prices, addresses, or ownership
+        if (order._id && customOptions.order) {
+            delete customOptions.order.paymentStatus;
+            delete customOptions.order.paymentMethod;
+            delete customOptions.order.finalAmount;
+            delete customOptions.order.totalAmount;
+            delete customOptions.order.total;
+            delete customOptions.order.shippingAddress;
+            delete customOptions.order.user;
+        }
+
+        const previewData = validateAndAuditShiprocketPayload(order, customOptions);
+
+        // Evaluate authoritative dispatch eligibility
+        const paymentMethodUpper = String(order.paymentMethod || "").toUpperCase();
+        const isOnlinePayment = paymentMethodUpper !== "COD" && paymentMethodUpper !== "CASH ON DELIVERY";
+        const finalWeight = Number(customOptions.package?.weight || order.shippingDetails?.package?.weight || 0);
+
+        const isPickupMismatch = Boolean(
+            customOptions.pickupLocationMismatch ||
+            (customOptions.warehouse?.pickupLocationMismatch) ||
+            (customOptions.warehouse?.pincode && customOptions.warehouse?.remotePincode && customOptions.warehouse.pincode !== customOptions.warehouse.remotePincode)
+        );
+
+        const isPickupInactive = Boolean(
+            customOptions.warehouse?.pickupLocationInactive ||
+            customOptions.warehouse?.remoteLocation?.status === "Inactive / Unverified"
+        );
+
+        const blockingReasons = [];
+        if (isDraftOrder || !order._id) {
+            blockingReasons.push({
+                code: "DRAFT_ORDER_NOT_DISPATCHABLE",
+                severity: "BLOCKING",
+                message: "Draft preview only — draft orders cannot be dispatched. Save the order to database first.",
+            });
+        }
+        if (isOnlinePayment && order.paymentStatus !== "paid") {
+            blockingReasons.push({
+                code: "PAYMENT_NOT_CONFIRMED",
+                severity: "BLOCKING",
+                message: `Payment is ${order.paymentStatus} (${order.paymentMethod}). Online orders must be confirmed paid prior to dispatch.`,
+            });
+        }
+        if (!isDraftOrder && finalWeight <= 0) {
+            blockingReasons.push({
+                code: "BLOCKED_MEASUREMENTS_MISSING",
+                severity: "BLOCKING",
+                message: "Confirmed package weight (> 0g) is required for dispatch.",
+            });
+        }
+        if (!isDraftOrder && isPickupMismatch) {
+            blockingReasons.push({
+                code: "PICKUP_LOCATION_MISMATCH",
+                severity: "BLOCKING",
+                message: `Local facility PIN (${customOptions.warehouse?.pincode || "201306"}) does not match remote Shiprocket pickup location PIN (${customOptions.warehouse?.remotePincode || "110001"}). Dispatch is BLOCKED.`,
+            });
+        }
+        if (!isDraftOrder && isPickupInactive) {
+            blockingReasons.push({
+                code: "PICKUP_LOCATION_INACTIVE",
+                severity: "BLOCKING",
+                message: `Remote Shiprocket pickup location "${customOptions.warehouse?.pickupLocation || "warehouse"}" is marked Inactive / Unverified in Shiprocket. Pickup location must be active before dispatch.`,
+            });
+        }
+
+        const isDispatchEligible = blockingReasons.length === 0;
+        const dispatchBlockCode = isDispatchEligible ? "READY" : blockingReasons[0].code;
+        const dispatchBlockReason = isDispatchEligible ? null : blockingReasons[0].message;
+
+        previewData.isDraft = isDraftOrder || !order._id;
+        previewData.dispatchEligibility = {
+            eligible: isDispatchEligible,
+            code: dispatchBlockCode,
+            reason: dispatchBlockReason,
+            blockingReasons,
+        };
+
+        return res.status(200).json(previewData);
+    } catch (error) {
+        const refId = `PREV-${Date.now().toString(36).toUpperCase()}`;
+        console.error(`[Shiprocket Preview Error] Ref: ${refId}:`, error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate shipping preview payload.",
+            referenceId: refId,
+        });
+    }
+};
+
+/**
+ * Load authoritative warehouse configurations from MongoDB pagesettings and environment.
+ * GET /api/shipping/warehouses
+ * - Matches selected warehouse to configured Shiprocket pickup location
+ * - Preserves existing warehouse details in the response even when blocked.
+ * - Categorizes blocking reason into one of 6 specific categories:
+ *   missing configuration / authentication failure / provider failure /
+ *   pickup not found / pickup mismatch / pickup not eligible
+ * - Never returns an empty warehouse list if facility details exist.
+ * - Does NOT create or modify warehouse records automatically.
+ */
+export const getWarehouseConfig = async (req, res) => {
+    try {
+        const db = mongoose.connection.db;
+        const pageSettings = db ? await db.collection("pagesettings").findOne({}) : null;
+        const fullAddress = String(pageSettings?.address || "").trim();
+        const pinMatch = fullAddress.match(/\b\d{6}\b/);
+        const pincode = pinMatch ? pinMatch[0] : null;
+        const configuredPickupNickname = getShiprocketPickupLocation();
+        const companyName = String(pageSettings?.companyName || "GreenFibre").trim();
+
+        let reasonCategory = null;
+        let dispatchBlocked = false;
+        let dispatchBlockReason = null;
+        let verificationStatus = "locally configured — not verified against Shiprocket";
+
+        // Category 1: missing configuration
+        if (!pincode || !configuredPickupNickname) {
+            reasonCategory = "missing configuration";
+            dispatchBlocked = true;
+            verificationStatus = "MISSING_CONFIGURATION";
+            dispatchBlockReason = !pincode
+                ? "Warehouse configuration required: Local facility address in database is missing a 6-digit postal code."
+                : "Warehouse configuration required: Shiprocket pickup location nickname is not configured in environment.";
+
+            const incompleteWarehouse = {
+                id: "wh_authorized_primary",
+                name: `${companyName} Facility`,
+                pickupLocation: configuredPickupNickname || "",
+                address: fullAddress,
+                city: "Greater Noida",
+                state: "Uttar Pradesh",
+                pincode: pincode || "",
+                isPrimary: true,
+                isConfigured: false,
+                verificationStatus,
+                source: "database_and_env",
+                dispatchBlocked: true,
+                reasonCategory,
+                dispatchBlockReason,
+                remoteLocation: null,
+            };
+
+            return res.status(200).json({
+                success: true,
+                warehouses: [incompleteWarehouse],
+                primaryWarehouse: incompleteWarehouse,
+                dispatchBlocked: true,
+                reasonCategory,
+                dispatchBlockReason,
+                pickupLocationMismatch: false,
+                pickupLocationInactive: false,
+                remotePickupLocations: [],
+            });
+        }
+
+        // Query authoritative remote pickup locations from Shiprocket (read-only)
+        let remoteLocations = [];
+        let selectedRemoteLocation = null;
+        let matchingRemoteLocation = null;
+        let remoteQueryError = null;
+
+        try {
+            remoteLocations = await getPickupLocations();
+            selectedRemoteLocation = remoteLocations.find(
+                (loc) => String(loc.pickup_location || "").trim().toLowerCase() === configuredPickupNickname.toLowerCase()
+            ) || null;
+            matchingRemoteLocation = remoteLocations.find(
+                (loc) => String(loc.pin_code || "").trim() === pincode
+            ) || null;
+        } catch (pickupErr) {
+            remoteQueryError = pickupErr;
+            console.warn("[getWarehouseConfig] Failed to fetch remote pickup locations from Shiprocket:", pickupErr.message);
+        }
+
+        if (remoteQueryError) {
+            const errStr = String(remoteQueryError.message || "");
+            const status = remoteQueryError.response?.status;
+            // Category 2: authentication failure vs Category 3: provider failure
+            if (status === 401 || status === 403 || errStr.includes("credentials missing") || errStr.includes("AUTH") || errStr.includes("Unauthorized")) {
+                reasonCategory = "authentication failure";
+                verificationStatus = "AUTHENTICATION_FAILURE";
+                dispatchBlocked = true;
+                dispatchBlockReason = `Authentication failure: Unable to authenticate with Shiprocket API (${errStr}). Check credentials.`;
+            } else {
+                reasonCategory = "provider failure";
+                verificationStatus = "PROVIDER_FAILURE";
+                dispatchBlocked = true;
+                dispatchBlockReason = `Provider failure: Shiprocket pickup location service temporarily unreachable (${errStr}).`;
+            }
+        } else if (!selectedRemoteLocation) {
+            // Category 4: pickup not found
+            reasonCategory = "pickup not found";
+            verificationStatus = "PICKUP_NOT_FOUND";
+            dispatchBlocked = true;
+            dispatchBlockReason = `Pickup location not found: Nickname "${configuredPickupNickname}" is not registered in Shiprocket pickup addresses.`;
+        } else {
+            const remotePincode = String(selectedRemoteLocation.pin_code || "").trim();
+            if (remotePincode !== pincode) {
+                // Category 5: pickup mismatch
+                reasonCategory = "pickup mismatch";
+                verificationStatus = "PICKUP_LOCATION_MISMATCH";
+                dispatchBlocked = true;
+                dispatchBlockReason = `Pickup location mismatch: Local facility PIN (${pincode}) does not match remote Shiprocket pickup location PIN (${remotePincode}). Dispatch is BLOCKED until a matching remote pickup location is configured.`;
+            } else {
+                // Documented Shiprocket status: 1 = Active, 2 = Primary Active, 0 = Inactive / Disabled
+                const isOperational = (selectedRemoteLocation.status === 1 || selectedRemoteLocation.status === 2) &&
+                    selectedRemoteLocation.phone_verified === 1;
+
+                if (!isOperational) {
+                    // Category 6: pickup not eligible
+                    reasonCategory = "pickup not eligible";
+                    verificationStatus = "PICKUP_NOT_ELIGIBLE";
+                    dispatchBlocked = true;
+                    dispatchBlockReason = `Selected pickup location "${configuredPickupNickname}" (ID: ${selectedRemoteLocation.id}, PIN: ${remotePincode}) is not eligible for dispatch. Status: ${selectedRemoteLocation.status} (${selectedRemoteLocation.status === 0 ? "Inactive" : "Pending"}), Phone Verified: ${selectedRemoteLocation.phone_verified}. An active, verified pickup location is required before dispatch.`;
+                } else {
+                    // Fully verified and eligible
+                    reasonCategory = null;
+                    verificationStatus = "verified against Shiprocket";
+                    dispatchBlocked = false;
+                    dispatchBlockReason = null;
+                }
+            }
+        }
+
+        const isMismatch = reasonCategory === "pickup mismatch";
+        const isInactive = reasonCategory === "pickup not eligible";
+        const remotePincode = selectedRemoteLocation ? String(selectedRemoteLocation.pin_code || "").trim() : null;
+
+        const warehouse = {
+            id: "wh_authorized_primary",
+            name: `${companyName} Facility`,
+            pickupLocation: configuredPickupNickname,
+            address: fullAddress,
+            city: "Greater Noida",
+            state: "Uttar Pradesh",
+            pincode: pincode,
+            isPrimary: true,
+            isConfigured: true,
+            verificationStatus,
+            source: "database_and_env",
+            pickupLocationMismatch: isMismatch,
+            pickupLocationInactive: isInactive,
+            mismatchCode: isMismatch ? "PICKUP_LOCATION_MISMATCH" : (isInactive ? "PICKUP_NOT_ELIGIBLE" : null),
+            reasonCategory,
+            dispatchBlocked,
+            dispatchBlockReason,
+            localPincode: pincode,
+            remotePincode: remotePincode,
+            remoteLocation: selectedRemoteLocation ? {
+                id: selectedRemoteLocation.id,
+                pickup_location: selectedRemoteLocation.pickup_location,
+                pin_code: selectedRemoteLocation.pin_code,
+                city: selectedRemoteLocation.city,
+                state: selectedRemoteLocation.state,
+                address: selectedRemoteLocation.address,
+                status: (selectedRemoteLocation.status === 1 || selectedRemoteLocation.status === 2) && selectedRemoteLocation.phone_verified === 1
+                    ? "Active"
+                    : (selectedRemoteLocation.status === 0 ? "Inactive" : "Unverified"),
+            } : null,
+        };
+
+        return res.status(200).json({
+            success: true,
+            warehouses: [warehouse],
+            primaryWarehouse: warehouse,
+            pickupLocationMismatch: isMismatch,
+            pickupLocationInactive: isInactive,
+            mismatchCode: isMismatch ? "PICKUP_LOCATION_MISMATCH" : (isInactive ? "PICKUP_NOT_ELIGIBLE" : null),
+            reasonCategory,
+            dispatchBlocked,
+            dispatchBlockReason,
+            localPincode: pincode,
+            remotePincode: remotePincode,
+            matchingRemoteLocation: matchingRemoteLocation ? {
+                id: matchingRemoteLocation.id,
+                pickup_location: matchingRemoteLocation.pickup_location,
+                pin_code: matchingRemoteLocation.pin_code,
+                city: matchingRemoteLocation.city,
+                state: matchingRemoteLocation.state,
+            } : null,
+            remotePickupLocations: remoteLocations.map((loc) => {
+                const locOp = (loc.status === 1 || loc.status === 2) && loc.phone_verified === 1;
+                return {
+                    id: loc.id,
+                    pickup_location: loc.pickup_location,
+                    pin_code: loc.pin_code,
+                    city: loc.city,
+                    state: loc.state,
+                    address: loc.address,
+                    status: locOp ? "Active" : (loc.status === 0 ? "Inactive" : "Unverified"),
+                };
+            }),
+        });
+    } catch (err) {
+        console.error("Failed to load warehouse configuration:", err.message);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to load warehouse configuration",
+            error: err.message,
+        });
     }
 };

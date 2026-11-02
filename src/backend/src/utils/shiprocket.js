@@ -19,76 +19,93 @@
 
 import axios from "axios";
 import { Order } from "../models/order.model.js";
+import { resolveShiprocketEnvironment } from "./shiprocketPayloadService.js";
 
 // ── API Base URLs ────────────────────────────────────────────────────────────
 const SR_LIVE_BASE = "https://apiv2.shiprocket.in/v1/external";
 const SR_SBX_BASE = "https://api-sandbox.shiprocket.in/v1/external";
-const SR_SBX_SVC_BASE = "https://serviceability-sandbox.shiprocket.in/v1/external";
 
 /**
- * Returns the configured Shiprocket API base URL.
- * Requires SHIPROCKET_BASE_URL to be set explicitly outside NODE_ENV=production.
+ * Returns the configured Shiprocket API base URL via authoritative environment resolver.
  */
 export const getShiprocketBaseUrl = () => {
-    const raw = process.env.SHIPROCKET_BASE_URL;
-    if (raw && typeof raw === "string" && raw.trim()) {
-        return raw.trim().replace(/\/+$/, "");
-    }
-    if (process.env.NODE_ENV === "production") {
-        return SR_LIVE_BASE;
-    }
-    throw new Error(
-        "SHIPROCKET_BASE_URL must be set explicitly outside NODE_ENV=production. (e.g. https://api-sandbox.shiprocket.in/v1/external)"
-    );
+    return resolveShiprocketEnvironment().baseUrl;
 };
 
 export const getSrBase = () => getShiprocketBaseUrl();
 
 /**
+ * Returns whether Shiprocket is currently running in sandbox mode.
+ */
+export const isShiprocketSandbox = () => {
+    return resolveShiprocketEnvironment().isSandbox;
+};
+
+/**
+ * Returns the effective Shiprocket pickup location nickname based on active environment.
+ * In sandbox mode, uses SHIPROCKET_TEST_PICKUP_LOCATION explicitly.
+ * In production mode, uses SHIPROCKET_LIVE_PICKUP_LOCATION (or SHIPROCKET_PICKUP_LOCATION).
+ */
+export const getShiprocketPickupLocation = () => {
+    return resolveShiprocketEnvironment().pickupLocation;
+};
+
+/**
  * Returns the serviceability base URL.
- * Sandbox uses a dedicated serviceability subdomain.
+ * As documented in sandbox documentation (https://sandbox.shiprocket.in/apis/),
+ * sandbox console requests route to api-sandbox.shiprocket.in for core endpoints including courier serviceability.
  */
 export const getSrServiceabilityBase = () => {
-    const base = getSrBase();
-    return base.includes("sandbox") ? SR_SBX_SVC_BASE : SR_LIVE_BASE;
+    return getSrBase();
 };
 
 // ── Token cache ────────────────────────────────────────────────────────────
 // Token is valid for 10 days (240 hours). We cache for 9 days as a safety margin.
 const TOKEN_CACHE_MS = 9 * 24 * 60 * 60 * 1000;
-let _srToken = null;
-let _srTokenExpiry = null;
+const _srTokenCache = new Map(); // key: `${env}:${host}:${email}` -> { token, expiry }
 
-/** Invalidate cached token (called on 401 auth failure) */
-export const invalidateShiprocketToken = () => {
-    _srToken = null;
-    _srTokenExpiry = null;
+export const getCacheKey = () => {
+    const env = resolveShiprocketEnvironment();
+    return `${env.environment}:${env.hostName}:${env.email}`;
+};
+
+/** Invalidate cached token for the current environment (called on 401/498 auth failure) */
+export const invalidateShiprocketToken = (envKey) => {
+    const key = envKey || getCacheKey();
+    _srTokenCache.delete(key);
+    console.log(`🧹 [SHIPROCKET AUTH] Invalidated cached token for environment: ${key}`);
 };
 
 /**
  * Authenticate with Shiprocket and return a cached bearer token.
- * Reads SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD with no silent fallbacks.
+ * Keyed by environment (sandbox vs live) to avoid cross-environment token poisoning.
  */
 export const getShiprocketToken = async (forceRefresh = false) => {
-    if (!forceRefresh && _srToken && _srTokenExpiry && Date.now() < _srTokenExpiry) {
-        console.log("🔑 [SHIPROCKET AUTH] Using cached token (valid for remaining TTL).");
-        return _srToken;
+    const cacheKey = getCacheKey();
+    const cached = _srTokenCache.get(cacheKey);
+
+    if (!forceRefresh && cached?.token && cached?.expiry && Date.now() < cached.expiry) {
+        console.log(`🔑 [SHIPROCKET AUTH] Using cached token for ${cacheKey} (TTL remaining).`);
+        return cached.token;
     }
 
-    const srBase = getSrBase();
-    const email = process.env.SHIPROCKET_EMAIL;
-    const password = process.env.SHIPROCKET_PASSWORD;
+    const env = resolveShiprocketEnvironment();
+    const srBase = env.baseUrl;
+    const isSandbox = env.isSandbox;
+    const email = env.email;
+    const password = isSandbox
+        ? (process.env.SHIPROCKET_SANDBOX_PASSWORD || (process.env.SHIPROCKET_USE_SANDBOX === "false" ? "" : process.env.SHIPROCKET_PASSWORD))
+        : (process.env.SHIPROCKET_LIVE_PASSWORD || process.env.SHIPROCKET_PASSWORD);
 
     if (!email || !password) {
         const err = new Error(
-            "Shiprocket credentials missing: set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD in environment."
+            `Shiprocket credentials missing for ${isSandbox ? "sandbox" : "production"}: set email and password in environment.`
         );
         console.error("❌ [SHIPROCKET AUTH] Login halted:", err.message);
         throw err;
     }
 
-    console.log(`🔐 [SHIPROCKET AUTH] Attempting login to: ${srBase}/auth/login (User: ${email})`);
-    const isSandbox = srBase.includes("sandbox");
+    console.log(`🔐 [SHIPROCKET AUTH] Attempting login to: ${srBase}/auth/login (User: ${email ? email.slice(0, 3) + '***@' + email.split('@')[1] : ''}, Env: ${env.environment})`);
     const authHeaders = {
         "Content-Type": "application/json",
         ...(isSandbox ? {
@@ -111,11 +128,14 @@ export const getShiprocketToken = async (forceRefresh = false) => {
             );
         }
 
-        _srToken = res.data.token;
-        _srTokenExpiry = Date.now() + TOKEN_CACHE_MS;
+        const token = res.data.token;
+        _srTokenCache.set(cacheKey, {
+            token,
+            expiry: Date.now() + TOKEN_CACHE_MS,
+        });
 
-        console.log(`✅ [SHIPROCKET AUTH] Authenticated successfully [HTTP ${res.status}]. Token received: true (cached for 9 days).`);
-        return _srToken;
+        console.log(`✅ [SHIPROCKET AUTH] Authenticated successfully [HTTP ${res.status}] for ${cacheKey}.`);
+        return token;
     } catch (authErr) {
         const status = authErr?.response?.status || "NO_RESPONSE";
         const errorData = authErr?.response?.data || authErr.message;
@@ -142,8 +162,9 @@ const makeSrRequest = async (config, maxRetries = 2) => {
 
     while (attempts <= maxRetries) {
         try {
+            const targetBase = config.baseURL || (config.url?.startsWith('/courier/serviceability') ? getSrServiceabilityBase() : getSrBase());
             const client = axios.create({
-                baseURL: getSrBase(),
+                baseURL: targetBase,
                 timeout: 25000,
                 headers: {
                     Authorization: `Bearer ${token}`,
@@ -160,10 +181,12 @@ const makeSrRequest = async (config, maxRetries = 2) => {
         } catch (error) {
             attempts++;
             const status = error?.response?.status;
+            const errMsg = String(error?.response?.data?.message || error.message || '').toLowerCase();
+            const isAuthError = status === 401 || status === 498 || (status === 403 && (errMsg.includes('token') || errMsg.includes('expired') || errMsg.includes('unauthorized')));
 
-            // 401 Unauthorized → force refresh token and retry immediately once
-            if (status === 401 && attempts <= maxRetries) {
-                console.warn("⚠️ Shiprocket returned 401 — refreshing token and retrying...");
+            // Expired/invalid token → re-authenticate and retry (bounded to maxRetries)
+            if (isAuthError && attempts <= maxRetries) {
+                console.warn(`⚠️ Shiprocket auth rejected [HTTP ${status}] — refreshing token and retrying (${attempts}/${maxRetries})...`);
                 invalidateShiprocketToken();
                 token = await getShiprocketToken(true);
                 continue;
@@ -205,20 +228,54 @@ const makeSrRequest = async (config, maxRetries = 2) => {
 export const checkServiceability = async (
     pickupPostcode,
     deliveryPostcode,
-    weight = 500,
+    weight,
     cod = 0
 ) => {
+    const numWeight = Number(weight);
+    if (!numWeight || numWeight <= 0) {
+        throw new Error("Shiprocket serviceability requires a confirmed positive weight in grams. Fallback defaults (500g / 0.5kg) are prohibited.");
+    }
     const res = await makeSrRequest({
+        baseURL: getSrServiceabilityBase(),
         method: "GET",
         url: "/courier/serviceability/",
         params: {
             pickup_postcode: pickupPostcode,
             delivery_postcode: deliveryPostcode,
-            weight: (Number(weight) || 500) / 1000, // Shiprocket expects kg
+            weight: numWeight / 1000, // Shiprocket expects kg
             cod,
         },
     });
     return res.data;
+};
+
+/**
+ * Look up an existing order by its channel order ID or order number in Shiprocket.
+ * Used for idempotency reconciliation to prevent duplicate orders across network timeouts or process crashes.
+ *
+ * @param {string} orderNumber - Channel order number (e.g. GF-2026-000054)
+ * @returns {Object|null} Matching Shiprocket order record if found, or null
+ */
+export const findUpstreamOrder = async (orderNumber) => {
+    if (!orderNumber) return null;
+    const cleanNumber = String(orderNumber).trim();
+    const res = await makeSrRequest({
+        method: "GET",
+        url: "/orders",
+        params: {
+            search: cleanNumber,
+            per_page: 5,
+        },
+    });
+    const orders = res.data?.data || [];
+    const cleanTarget = cleanNumber.toLowerCase();
+    const matched = orders.find((o) => {
+        const coid = String(o.channel_order_id || "").trim().toLowerCase();
+        const oid = String(o.order_id || "").trim().toLowerCase();
+        const id = String(o.id || "").trim().toLowerCase();
+        return coid === cleanTarget || oid === cleanTarget || id === cleanTarget;
+    });
+    return matched || null;
 };
 
 // ── 2. Order creation ────────────────────────────────────────────────────────
@@ -234,7 +291,11 @@ export const checkServiceability = async (
  * @returns {Object} Shiprocket create-order response
  */
 export const createShiprocketOrder = async (order, customOptions = {}) => {
-    const pickupLocation = (process.env.SHIPROCKET_PICKUP_LOCATION || "Primary").trim();
+    const pickupLocation = (
+        customOptions.pickupLocation ||
+        customOptions.warehouse?.pickupLocation ||
+        getShiprocketPickupLocation()
+    ).trim();
 
     const shippingAddr = order.shippingAddress || {};
     const b2bDetails = customOptions.b2bDetails || {};
@@ -244,18 +305,35 @@ export const createShiprocketOrder = async (order, customOptions = {}) => {
     const rawFullName = (b2bDetails.contactPerson || shippingAddr.fullName || "Customer").trim();
     const nameParts = rawFullName.split(/\s+/);
     const firstName = (nameParts[0] || "Customer").slice(0, 50);
-    const lastName = (nameParts.slice(1).join(" ") || ".").slice(0, 50);
+    const lastName = (nameParts.slice(1).join(" ") || "").slice(0, 50);
 
     // Sanitize phone (must be 10 digits)
     const cleanPhone = (b2bDetails.phone || shippingAddr.phone || "")
         .replace(/\D/g, "")
-        .slice(-10) || "9999999999";
+        .slice(-10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+        throw new Error("Shiprocket order creation failed: Valid 10-digit customer phone number is required.");
+    }
 
     // Sanitize pincode (must be 6 digits)
     const cleanPincode = (b2bDetails.pincode || shippingAddr.pincode || "")
         .toString()
         .replace(/\D/g, "")
-        .slice(0, 6) || "110001";
+        .slice(0, 6);
+    if (!cleanPincode || cleanPincode.length !== 6) {
+        throw new Error("Shiprocket order creation failed: Valid 6-digit delivery pincode is required.");
+    }
+
+    const cleanAddress = (b2bDetails.address || shippingAddr.streetAddress || "").trim();
+    if (!cleanAddress) {
+        throw new Error("Shiprocket order creation failed: Customer street address is required.");
+    }
+
+    const cleanCity = (b2bDetails.city || shippingAddr.city || "").trim();
+    const cleanState = (b2bDetails.state || shippingAddr.state || "").trim();
+    if (!cleanCity || !cleanState) {
+        throw new Error("Shiprocket order creation failed: Delivery city and state are required.");
+    }
 
     // Email fallback
     const cleanEmail = (
@@ -344,16 +422,17 @@ export const createShiprocketOrder = async (order, customOptions = {}) => {
         )
     );
 
-    // Package weight & dimensions
-    const pkg = customOptions.package || customOptions.pkg || {};
+    // Package weight & dimensions - require confirmed weight
+    const pkg = customOptions.package || customOptions.pkg || order.shippingDetails?.package || {};
     const rawWeight = Number(pkg.weight);
-    const weightKg = rawWeight > 0
-        ? (rawWeight > 10 ? rawWeight / 1000 : rawWeight)
-        : Math.max(0.05, (Number(process.env.SHIPROCKET_PKG_WEIGHT_G) || 500) / 1000);
+    if (!rawWeight || rawWeight <= 0) {
+        throw new Error("Shiprocket order creation failed: Confirmed package weight (> 0g) is required.");
+    }
+    const weightKg = rawWeight > 10 ? Number((rawWeight / 1000).toFixed(3)) : Number(rawWeight.toFixed(3));
 
-    const lengthCm = Math.max(1, Math.round(Number(pkg.length) || Number(process.env.SHIPROCKET_PKG_LENGTH) || 10));
-    const breadthCm = Math.max(1, Math.round(Number(pkg.breadth) || Number(process.env.SHIPROCKET_PKG_BREADTH) || 10));
-    const heightCm = Math.max(1, Math.round(Number(pkg.height) || Number(process.env.SHIPROCKET_PKG_HEIGHT) || 10));
+    const lengthCm = Math.max(1, Math.round(Number(pkg.length) || 10));
+    const breadthCm = Math.max(1, Math.round(Number(pkg.breadth) || 10));
+    const heightCm = Math.max(1, Math.round(Number(pkg.height) || 10));
 
     const payload = {
         order_id: orderRef,
@@ -366,11 +445,11 @@ export const createShiprocketOrder = async (order, customOptions = {}) => {
         // Customer details
         billing_customer_name: firstName,
         billing_last_name: lastName,
-        billing_address: (b2bDetails.address || shippingAddr.streetAddress || "Main Street").trim(),
+        billing_address: cleanAddress,
         billing_address_2: (shippingAddr.landmark || "").trim(),
-        billing_city: (b2bDetails.city || shippingAddr.city || "Delhi").trim(),
+        billing_city: cleanCity,
         billing_pincode: cleanPincode,
-        billing_state: (b2bDetails.state || shippingAddr.state || "Delhi").trim(),
+        billing_state: cleanState,
         billing_country: "India",
         billing_email: cleanEmail,
         billing_phone: cleanPhone,
@@ -468,6 +547,19 @@ export const generateAWB = async (shipmentId, courierId = null) => {
 };
 
 // ── 4. Pickup scheduling ──────────────────────────────────────────────────────
+
+/**
+ * Fetch all registered warehouse pickup locations from Shiprocket (read-only).
+ * GET /settings/company/pickup
+ * @returns {Promise<Array>} List of registered pickup location objects
+ */
+export const getPickupLocations = async () => {
+    const res = await makeSrRequest({
+        method: "GET",
+        url: "/settings/company/pickup",
+    });
+    return res.data?.data?.shipping_address || [];
+};
 
 /**
  * Request a pickup for a Shiprocket shipment.
